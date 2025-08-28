@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
@@ -9,8 +9,12 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Good evening!</Text>
           <Text style={styles.userName}>Hey Alex</Text>
         </View>
-        <TouchableOpacity>
-          <Ionicons name="notifications-outline" size={24} color="#FFF" />
+        <TouchableOpacity onPress={() => router.push('/(tabs)/notifications')}>
+          <Text style={styles.notificationIcon}>🔔</Text>
+          <View style={styles.notificationBadge}>
+            <Text style={styles.notificationBadgeText}>2</Text>
+          </View>
+          <Text style={styles.viewLeaderboard}>View Leaderboard →</Text>
         </TouchableOpacity>
       </View>
 
@@ -39,6 +43,13 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        <TouchableOpacity 
+          style={styles.leaderboardButton}
+          onPress={() => router.push('/(tabs)/leaderboard')}
+        >
+          <Text style={styles.leaderboardButtonText}>🏆 View Leaderboard</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>Welcome to justPicks!</Text>
         <Text style={styles.welcomeText}>
           Start making predictions with your friends. Join a group or create your own to get started.
@@ -61,6 +72,26 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+  },
+  notificationIcon: {
+    fontSize: 24,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#FF3B30',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   greeting: {
     color: '#8E8E93',
@@ -133,5 +164,19 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 16,
     lineHeight: 24,
+  },
+  leaderboardButton: {
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  leaderboardButtonText: {
+    color: '#FF6B35',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

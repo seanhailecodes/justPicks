@@ -16,6 +16,7 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
+    { id: 'history', title: 'Pick History', icon: '📊' },
     { id: 'friends', title: 'Friends & Groups', icon: '👥' },
     { id: 'privacy', title: 'Privacy Settings', icon: '🔒' },
     { id: 'account', title: 'Account Settings', icon: '⚙️' },
@@ -23,8 +24,12 @@ export default function ProfileScreen() {
   ];
 
   const handleMenuPress = (itemId: string) => {
-    // TODO: Navigate to respective screens
-    console.log('Navigate to:', itemId);
+    if (itemId === 'history') {
+      router.push('/history/picks');
+    } else {
+      // TODO: Navigate to other screens
+      console.log('Navigate to:', itemId);
+    }
   };
 
   const handleSignOut = () => {

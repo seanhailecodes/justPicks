@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -50,6 +51,10 @@ export default function GamesScreen() {
   const handlePickSelection = (gameId: number, pick: string) => {
     // TODO: Open pick modal to choose solo or group
     console.log('Select pick:', gameId, pick);
+  };
+
+  const handleViewDetails = (gameId: number) => {
+    router.push(`/game/${gameId}`);
   };
 
   const getConfidenceColor = (confidence: string) => {
@@ -211,6 +216,16 @@ export default function GamesScreen() {
                   <Text style={styles.soloText}>Personal tracking only</Text>
                 )}
               </View>
+            )}
+
+            {/* View Details Button for games with picks */}
+            {game.selectedPick && game.pickType === 'group' && (
+              <TouchableOpacity 
+                style={styles.viewDetailsButton}
+                onPress={() => handleViewDetails(game.id)}
+              >
+                <Text style={styles.viewDetailsText}>View All Group Picks →</Text>
+              </TouchableOpacity>
             )}
 
             {!game.selectedPick && (
@@ -397,5 +412,15 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 14,
     lineHeight: 20,
+  },
+  viewDetailsButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  viewDetailsText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
