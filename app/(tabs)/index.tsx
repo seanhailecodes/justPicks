@@ -1,30 +1,32 @@
-import { Colors } from '@/constants/Colors';
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { Colors } from '@/constants/Colors';
+import { Image } from 'expo-image';
+import { StyleSheet } from 'react-native';
 
 export default function HomeScreen() {
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
+    headerBackgroundColor={{ light: Colors.light.background, dark: Colors.dark.background }}
+    // headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
+    style={{ backgroundColor: Colors.dark.background }}
+    headerImage={
         <Image
-          source={require('@/assets/images/partial-react-logo.png')}
+          source={require('@/assets/images/icon.png')}
           style={styles.reactLogo}
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        
-        <ThemedText type="title" style={{ color: Colors.dark.primary }}>Welcome!</ThemedText>
+        <ThemedText type="title" lightColor={Colors.light.primary} darkColor={Colors.dark.primary}>justPicks</ThemedText>
         <HelloWave />
+        <ThemedText type="subtitle" style={{ color: Colors.dark.icon }}>Bet Less</ThemedText>
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
+        {/* <ThemedText type="subtitle">Step 1: Try it</ThemedText> */}
+        <ThemedText type="subtitle" style={{ color: Colors.dark.primary }}>Step 1: Try it</ThemedText>
+        {/* <ThemedText>
           Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
           Press{' '}
           <ThemedText type="defaultSemiBold">
@@ -35,7 +37,12 @@ export default function HomeScreen() {
             })}
           </ThemedText>{' '}
           to open developer tools.
-        </ThemedText>
+        </ThemedText> */}
+
+      <ThemedText>
+        Betting is bad, friends are good, more words
+      </ThemedText>
+
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 2: Explore</ThemedText>
