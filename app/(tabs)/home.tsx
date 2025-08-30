@@ -50,10 +50,34 @@ export default function HomeScreen() {
           <Text style={styles.leaderboardButtonText}>🏆 View Leaderboard</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>Welcome to justPicks!</Text>
-        <Text style={styles.welcomeText}>
-          Start making predictions with your friends. Join a group or create your own to get started.
-        </Text>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActions}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(tabs)/games')}
+          >
+            <Text style={styles.actionIcon}>🏈</Text>
+            <Text style={styles.actionTitle}>Make Picks</Text>
+            <Text style={styles.actionDescription}>View today's games</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/(tabs)/groups')}
+          >
+            <Text style={styles.actionIcon}>👥</Text>
+            <Text style={styles.actionTitle}>My Groups</Text>
+            <Text style={styles.actionDescription}>Chat with friends</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>Getting Started</Text>
+        <View style={styles.tipsCard}>
+          <Text style={styles.tipItem}>• Join or create a group with friends</Text>
+          <Text style={styles.tipItem}>• Make picks before games start</Text>
+          <Text style={styles.tipItem}>• Track your accuracy over time</Text>
+          <Text style={styles.tipItem}>• Compete for the top leaderboard spot</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -178,5 +202,44 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     fontSize: 16,
     fontWeight: '600',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  actionCard: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  actionIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  actionTitle: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  actionDescription: {
+    color: '#8E8E93',
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  tipsCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  tipItem: {
+    color: '#8E8E93',
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 4,
   },
 });

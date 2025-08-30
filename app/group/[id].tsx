@@ -73,6 +73,14 @@ export default function GroupDiscussionScreen() {
     console.log('Pick submitted:', pickData);
     // In a real app, this would save the pick
     setShowPickModal(false);
+    
+    // Show feedback to user
+    if (pickData.type === 'group') {
+      // Could show a toast notification here
+      console.log('Pick shared with group!');
+    } else {
+      console.log('Pick saved privately!');
+    }
   };
 
   const handleBack = () => {

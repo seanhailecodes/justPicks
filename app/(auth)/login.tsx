@@ -4,19 +4,48 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
+
+  const formatPhoneNumber = (text: string) => {
+    // Remove all non-numeric characters
+    const cleaned = text.replace(/\D/g, '');
+    
+    // Format as (XXX) XXX-XXXX for US numbers
+    if (countryCode === '+1') {
+      const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+      if (match) {
+        const parts = [
+          match[1] ? `(${match[1]}` : '',
+          match[2] ? `) ${match[2]}` : match[1] ? ')' : '',
+          match[3] ? `-${match[3]}` : ''
+        ];
+        return parts.join('').trim();
+      }
+    }
+    
+    return cleaned;
+  };
+
+  const handlePhoneChange = (text: string) => {
+    setPhoneNumber(formatPhoneNumber(text));
+  };
 
   const handleLogin = () => {
-    // TODO: Implement actual authentication
-    router.replace('/(tabs)/home');
+    // TODO: Implement phone authentication
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    if (cleanNumber.length >= 10) {
+      // Will connect to auth service later
+      router.replace('/(tabs)/home');
+    }
   };
 
   const handleFaceID = () => {
     // TODO: Implement Face ID authentication
     console.log('Face ID login');
   };
+
+  const isValidPhone = phoneNumber.replace(/\D/g, '').length >= 10;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,45 +59,33 @@ export default function LoginScreen() {
               <Text style={styles.logoIcon}>⚡</Text>
             </View>
             <Text style={styles.title}>Welcome Back!</Text>
-            <Text style={styles.subtitle}>Sign in to view your picks</Text>
+            <Text style={styles.subtitle}>Sports Picks with Friends</Text>
           </View>
 
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor="#8E8E93"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#8E8E93"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity 
-                style={styles.eyeIcon}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Ionicons 
-                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
-                  size={20} 
-                  color="#8E8E93" 
-                />
+            <View style={styles.phoneContainer}>
+              <TouchableOpacity style={styles.countryCode}>
+                <Text style={styles.countryCodeText}>{countryCode}</Text>
+                <Text style={styles.countryFlag}>🇺🇸</Text>
               </TouchableOpacity>
+              
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="(555) 123-4567"
+                placeholderTextColor="#8E8E93"
+                value={phoneNumber}
+                onChangeText={handlePhoneChange}
+                keyboardType="phone-pad"
+                maxLength={14} // (XXX) XXX-XXXX
+              />
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-              <Text style={styles.primaryButtonText}>Sign In</Text>
+            <TouchableOpacity 
+              style={[styles.primaryButton, !isValidPhone && styles.primaryButtonDisabled]} 
+              onPress={handleLogin}
+              disabled={!isValidPhone}
+            >
+              <Text style={styles.primaryButtonText}>Continue</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.faceIDButton} onPress={handleFaceID}>
@@ -76,25 +93,9 @@ export default function LoginScreen() {
               <Text style={styles.faceIDButtonText}>Sign in with Face ID</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            <View style={styles.dividerContainer}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.divider} />
-            </View>
-
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialIcon}>📘</Text>
-              <Text style={styles.socialButtonText}>Continue with Facebook</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.socialButton}>
-              <Text style={styles.socialIcon}>🔍</Text>
-              <Text style={styles.socialButtonText}>Continue with Google</Text>
-            </TouchableOpacity>
+            <Text style={styles.helpText}>
+              We'll send you a verification code
+            </Text>
           </View>
 
           <View style={styles.footer}>
@@ -157,23 +158,40 @@ const styles = StyleSheet.create({
   form: {
     marginBottom: 32,
   },
-  inputContainer: {
+  phoneContainer: {
+    flexDirection: 'row',
     marginBottom: 16,
-    position: 'relative',
+    gap: 12,
   },
-  input: {
+  countryCode: {
     backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderWidth: 1,
     borderColor: '#333',
-    borderRadius: 8,
-    padding: 16,
+  },
+  countryCodeText: {
     color: '#FFF',
     fontSize: 16,
+    fontWeight: '600',
   },
-  eyeIcon: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
+  countryFlag: {
+    fontSize: 20,
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    color: '#FFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#333',
   },
   primaryButton: {
     backgroundColor: '#FF6B35',
@@ -181,6 +199,9 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginBottom: 16,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: '#333',
   },
   primaryButtonText: {
     color: '#FFF',
@@ -203,11 +224,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
-  forgotPassword: {
-    alignItems: 'center',
-  },
-  forgotPasswordText: {
-    color: '#FF6B35',
+  helpText: {
+    textAlign: 'center',
+    color: '#8E8E93',
     fontSize: 14,
   },
   footer: {
@@ -219,39 +238,5 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: '#FF6B35',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#333',
-  },
-  dividerText: {
-    color: '#8E8E93',
-    paddingHorizontal: 16,
-    fontSize: 12,
-  },
-  socialButton: {
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  socialIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  socialButtonText: {
-    color: '#FFF',
-    fontSize: 16,
   },
 });

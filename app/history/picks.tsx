@@ -97,7 +97,7 @@ export default function PickHistoryScreen() {
   };
 
   const handleBack = () => {
-    router.push('/(tabs)/profile');
+    router.back();
   };
 
   return (

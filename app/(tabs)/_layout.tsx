@@ -22,21 +22,21 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-        }}
-      />
-      <Tabs.Screen
-        name="groups"
-        options={{
-          title: 'Groups',
-        }}
-      />
-      <Tabs.Screen
         name="games"
         options={{
           title: 'Games',
+        }}
+      />
+        <Tabs.Screen
+          name="groups"
+          options={{
+            title: 'Groups',
+          }}
+        />
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Home',
         }}
       />
       <Tabs.Screen

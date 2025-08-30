@@ -35,8 +35,24 @@ export default function FindFriendsScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>How justPicks Works</Text>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoIcon}>🎯</Text>
+            <Text style={styles.infoText}>Make picks on any game - track them privately or share with friends</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoIcon}>👥</Text>
+            <Text style={styles.infoText}>Join groups to discuss picks before games start</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoIcon}>🏆</Text>
+            <Text style={styles.infoText}>Build your accuracy score and climb the leaderboard</Text>
+          </View>
+        </View>
+
         <Text style={styles.description}>
-          Connect with friends to share sports predictions
+          You can start making picks right away, or connect with friends first
         </Text>
 
         <TouchableOpacity style={styles.socialButton} onPress={handleConnectFacebook}>
@@ -211,5 +227,36 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  infoCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+  },
+  infoTitle: {
+    color: '#FF6B35',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  infoIcon: {
+    fontSize: 20,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  infoText: {
+    color: '#FFF',
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
   },
 });
