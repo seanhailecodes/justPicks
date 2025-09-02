@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface PickModalProps {
@@ -9,7 +9,8 @@ interface PickModalProps {
     homeTeam: string;
     awayTeam: string;
     spread: { home: string; away: string };
-    time: string;
+    gameDate?: Date;
+    time?: string;
   };
   currentPick?: string;
   groups?: string[];
@@ -21,8 +22,26 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
   const [reasoning, setReasoning] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<string[]>(groups);
   const [pickType, setPickType] = useState(groups.length > 0 ? 'group' : 'solo');
+  const [showHelp, setShowHelp] = useState(false);
 
-  const confidenceLevels = ['Low', 'Medium', 'High'];
+  // Reset state when modal opens with new data
+  useEffect(() => {
+    if (visible) {
+      setSelectedPick(currentPick || '');
+      setSelectedGroups(groups || []);
+      setPickType(groups && groups.length > 0 ? 'group' : 'solo');
+      setConfidence('Medium');
+      setReasoning('');
+    }
+  }, [visible, currentPick, groups]);
+
+  const confidenceLevels = [
+    { level: 'Very Low', value: 20, color: '#FF3B30' },
+    { level: 'Low', value: 40, color: '#FF9500' },
+    { level: 'Medium', value: 60, color: '#FFCC00' },
+    { level: 'High', value: 80, color: '#34C759' },
+    { level: 'Very High', value: 95, color: '#00C7BE' },
+  ];
   const availableGroups = ['Work Friends', 'Family Picks', 'College Buddies'];
 
   const handleSubmit = () => {
@@ -60,13 +79,37 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
             </TouchableOpacity>
           </View>
 
+          {showHelp && (
+            <View style={styles.helpCard}>
+              <Text style={styles.helpTitle}>How Picks Work:</Text>
+              <Text style={styles.helpText}>• Solo picks are just for you to track</Text>
+              <Text style={styles.helpText}>• Group picks are shared for discussion</Text>
+              <Text style={styles.helpText}>• All picks lock when the game starts</Text>
+              <TouchableOpacity onPress={() => setShowHelp(false)}>
+                <Text style={styles.helpClose}>Got it!</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.gameInfo}>
             <Text style={styles.gameTitle}>{game.awayTeam} @ {game.homeTeam}</Text>
-            <Text style={styles.gameTime}>{game.time}</Text>
+            <Text style={styles.gameTime}>
+              {game.gameDate 
+                ? game.gameDate.toLocaleString('en-US', { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true 
+                  })
+                : game.time || 'Time TBD'
+              }
+            </Text>
           </View>
 
           <View style={styles.pickSection}>
-            <Text style={styles.sectionTitle}>Select Your Pick</Text>
+            <Text style={styles.sectionTitle}>Who wins against the spread?</Text>
             <View style={styles.pickOptions}>
               <TouchableOpacity
                 style={[styles.pickButton, selectedPick === 'away' && styles.pickButtonSelected]}
@@ -87,35 +130,42 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
             </View>
           </View>
 
-          <View style={styles.pickTypeSection}>
-            <Text style={styles.sectionTitle}>Pick Type</Text>
-            <View style={styles.pickTypeOptions}>
+          <View style={styles.shareSection}>
+            <View style={styles.shareSectionHeader}>
+              <Text style={styles.sectionTitle}>How do you want to track this?</Text>
+              <TouchableOpacity onPress={() => setShowHelp(true)}>
+                <Text style={styles.helpLink}>What's the difference?</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.shareOptions}>
               <TouchableOpacity
-                style={[styles.typeButton, pickType === 'solo' && styles.typeButtonSelected]}
+                style={[styles.shareButton, pickType === 'solo' && styles.shareButtonSelected]}
                 onPress={() => setPickType('solo')}
               >
-                <Text style={styles.typeIcon}>🎯</Text>
-                <Text style={[styles.typeText, pickType === 'solo' && styles.typeTextSelected]}>
-                  Solo Pick
+                <Text style={styles.shareIcon}>🎯</Text>
+                <Text style={[styles.shareText, pickType === 'solo' && styles.shareTextSelected]}>
+                  Just for me
                 </Text>
-                <Text style={styles.typeDescription}>Personal tracking only</Text>
+                <Text style={styles.shareSubtext}>Private tracking</Text>
               </TouchableOpacity>
+              
               <TouchableOpacity
-                style={[styles.typeButton, pickType === 'group' && styles.typeButtonSelected]}
+                style={[styles.shareButton, pickType === 'group' && styles.shareButtonSelected]}
                 onPress={() => setPickType('group')}
               >
-                <Text style={styles.typeIcon}>👥</Text>
-                <Text style={[styles.typeText, pickType === 'group' && styles.typeTextSelected]}>
-                  Group Pick
+                <Text style={styles.shareIcon}>👥</Text>
+                <Text style={[styles.shareText, pickType === 'group' && styles.shareTextSelected]}>
+                  Share with groups
                 </Text>
-                <Text style={styles.typeDescription}>Share with friends</Text>
+                <Text style={styles.shareSubtext}>Discuss with friends</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {pickType === 'group' && (
             <View style={styles.groupSection}>
-              <Text style={styles.sectionTitle}>Share with Groups</Text>
+              <Text style={styles.sectionTitle}>Select Groups</Text>
               {availableGroups.map(group => (
                 <TouchableOpacity
                   key={group}
@@ -134,14 +184,26 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
           <View style={styles.confidenceSection}>
             <Text style={styles.sectionTitle}>Confidence Level</Text>
             <View style={styles.confidenceOptions}>
-              {confidenceLevels.map(level => (
+              {confidenceLevels.map(({ level, value, color }) => (
                 <TouchableOpacity
                   key={level}
-                  style={[styles.confidenceButton, confidence === level && styles.confidenceButtonSelected]}
+                  style={[
+                    styles.confidenceButton,
+                    confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
+                  ]}
                   onPress={() => setConfidence(level)}
                 >
-                  <Text style={[styles.confidenceText, confidence === level && styles.confidenceTextSelected]}>
+                  <Text style={[
+                    styles.confidenceText,
+                    confidence === level && styles.confidenceTextSelected
+                  ]}>
                     {level}
+                  </Text>
+                  <Text style={[
+                    styles.confidenceValue,
+                    confidence === level && styles.confidenceTextSelected
+                  ]}>
+                    {value}%
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -149,16 +211,23 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
           </View>
 
           <View style={styles.reasoningSection}>
-            <Text style={styles.sectionTitle}>Your Reasoning (Optional)</Text>
+            <Text style={styles.sectionTitle}>Share Your Reasoning</Text>
+            <Text style={styles.reasoningSubtitle}>
+              This will be visible to all friends in "Our Picks"
+            </Text>
             <TextInput
               style={styles.reasoningInput}
-              placeholder="Why do you think this pick will hit?"
-              placeholderTextColor="#8E8E93"
+              placeholder="Why do you think this pick will hit? Share injury reports, weather, trends, or gut feelings..."
+              placeholderTextColor="#666"
               value={reasoning}
               onChangeText={setReasoning}
               multiline
-              numberOfLines={3}
+              numberOfLines={4}
+              maxLength={200}
             />
+            <Text style={styles.characterCount}>
+              {reasoning.length}/200
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -166,7 +235,9 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
             onPress={handleSubmit}
             disabled={!selectedPick}
           >
-            <Text style={styles.submitButtonText}>Submit Pick</Text>
+            <Text style={styles.submitButtonText}>
+              {pickType === 'solo' ? 'Save Pick' : 'Share Pick'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -201,6 +272,80 @@ const styles = StyleSheet.create({
   closeButton: {
     color: '#FFF',
     fontSize: 24,
+  },
+  helpCard: {
+    backgroundColor: 'rgba(255, 107, 53, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.3)',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+  },
+  helpTitle: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  helpText: {
+    color: '#FFF',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  helpClose: {
+    color: '#FF6B35',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  shareSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  helpLink: {
+    color: '#FF6B35',
+    fontSize: 12,
+    textDecorationLine: 'underline',
+  },
+  shareSection: {
+    marginBottom: 20,
+  },
+  shareOptions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  shareButton: {
+    flex: 1,
+    backgroundColor: '#2C2C2E',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  shareButtonSelected: {
+    backgroundColor: 'rgba(255, 107, 53, 0.2)',
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+  },
+  shareIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  shareText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  shareTextSelected: {
+    color: '#FF6B35',
+  },
+  shareSubtext: {
+    color: '#8E8E93',
+    fontSize: 11,
   },
   gameInfo: {
     backgroundColor: '#2C2C2E',
@@ -249,43 +394,6 @@ const styles = StyleSheet.create({
   pickButtonTextSelected: {
     color: '#FFF',
   },
-  pickTypeSection: {
-    marginBottom: 20,
-  },
-  pickTypeOptions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  typeButton: {
-    flex: 1,
-    backgroundColor: '#2C2C2E',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  typeButtonSelected: {
-    backgroundColor: '#FF6B35',
-    backgroundColor: 'rgba(255, 107, 53, 0.2)',
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-  },
-  typeIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  typeText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  typeTextSelected: {
-    color: '#FF6B35',
-  },
-  typeDescription: {
-    color: '#8E8E93',
-    fontSize: 11,
-  },
   groupSection: {
     marginBottom: 20,
   },
@@ -307,28 +415,40 @@ const styles = StyleSheet.create({
   },
   confidenceOptions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 6,
   },
   confidenceButton: {
     flex: 1,
     backgroundColor: '#2C2C2E',
-    padding: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     borderRadius: 8,
     alignItems: 'center',
   },
   confidenceButtonSelected: {
-    backgroundColor: '#FF6B35',
+    // Background color set dynamically
   },
   confidenceText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   confidenceTextSelected: {
     color: '#FFF',
   },
+  confidenceValue: {
+    color: '#8E8E93',
+    fontSize: 10,
+    marginTop: 2,
+  },
   reasoningSection: {
     marginBottom: 20,
+  },
+  reasoningSubtitle: {
+    color: '#8E8E93',
+    fontSize: 12,
+    marginBottom: 8,
   },
   reasoningInput: {
     backgroundColor: '#2C2C2E',
@@ -336,8 +456,14 @@ const styles = StyleSheet.create({
     padding: 12,
     color: '#FFF',
     fontSize: 14,
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
+  },
+  characterCount: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'right',
+    marginTop: 4,
   },
   submitButton: {
     backgroundColor: '#FF6B35',

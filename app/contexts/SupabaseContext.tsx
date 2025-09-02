@@ -1,17 +1,13 @@
 // app/(tabs)/games.tsx
 import PickModal from '@/components/PickModal';
+import { NFLGame } from '@/data/nfl-week1-2025';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { NFLGame } from '../data/nfl-week1-2025';
-
-// import { useSupabase } from '../contexts/SupabaseContext';
-import { savePick } from '../../services/picks';
-
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
-  formatDateLabel,
-  getGamesByWeek,
-  WEEK_INFO
+    formatDateLabel,
+    getGamesByWeek,
+    WEEK_INFO
 } from '../data/nfl-2025-schedule';
 
 interface PickData {
@@ -24,11 +20,7 @@ interface PickData {
   timestamp?: string;
 }
 
-
-const TEST_USER_ID = '64c9df63-2b66-4e03-9152-b766ec0926aa';
-
 export default function GamesScreen() {
-  // const { session } = useSupabase();
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [showPickModal, setShowPickModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState<NFLGame | null>(null);
@@ -36,57 +28,6 @@ export default function GamesScreen() {
 
   // Get all games for selected week
   const gamesForWeek = getGamesByWeek(selectedWeek);
-
-  const [games, setGames] = useState([
-  {
-    id: '2024010700',
-    homeTeam: 'Giants',
-    awayTeam: 'Cowboys',
-    homeTeamShort: 'NYG',
-    awayTeamShort: 'DAL',
-    spread: { home: 'NYG +3.5', away: 'DAL -3.5', value: 3.5 },
-    date: '2025-09-07',
-    time: '8:00 PM',
-    tv: ['NBC'],
-    overUnder: 45.5,
-    moneyline: { home: 150, away: -180 },
-    venue: 'MetLife Stadium',
-    isNeutralSite: false,
-    isPrimetime: true
-  },
-  {
-    id: '2024010701',
-    homeTeam: 'Warriors',
-    awayTeam: 'Lakers',
-    homeTeamShort: 'GSW',
-    awayTeamShort: 'LAL',
-    spread: { home: 'GSW -4.5', away: 'LAL +4.5', value: 4.5 },
-    date: '2025-09-07',
-    time: '10:30 PM',
-    tv: ['ESPN'],
-    overUnder: 215.5,
-    moneyline: { home: -200, away: 170 },
-    venue: 'Chase Center',
-    isNeutralSite: false,
-    isPrimetime: true
-  },
-  {
-    id: 'nfl_2024_w1_car_jax',
-    homeTeam: 'Jaguars',
-    awayTeam: 'Panthers',
-    homeTeamShort: 'JAX',
-    awayTeamShort: 'CAR',
-    spread: { home: 'JAX -7', away: 'CAR +7', value: 7 },
-    date: '2025-09-08',
-    time: '7:00 PM',
-    tv: ['ESPN'],
-    overUnder: 42.5,
-    moneyline: { home: -300, away: 250 },
-    venue: 'TIAA Bank Field',
-    isNeutralSite: false,
-    isPrimetime: false
-  }
-]);
 
   // Helper function to calculate time until game
   const getTimeToLock = (gameDate: string, gameTime: string): string => {
@@ -117,47 +58,23 @@ export default function GamesScreen() {
     }
   };
 
-    const handlePickSelection = (game: NFLGame) => {
-    console.log('Selected game ID:', game.id);  // Add this line
-    console.log('Full game object:', game);      // And this
+  const handlePickSelection = (game: NFLGame) => {
     setSelectedGame(game);
     setShowPickModal(true);
   };
 
-const handlePickSubmit = async (pickData: any) => {
+  const handlePickSubmit = (pickData: PickData) => {
     console.log('Pick submitted:', pickData);
     
     if (selectedGame) {
-      // Save to Supabase
-      const result = await savePick(TEST_USER_ID, {
-        game_id: selectedGame.id,
-        pick: pickData.pick,
-        confidence: pickData.confidence as 'Low' | 'Medium' | 'High',
-        reasoning: pickData.reasoning,
-        pick_type: pickData.type,
-        groups: pickData.groups,
+      // Store the user's pick
+      const newPicks = new Map(userPicks);
+      newPicks.set(selectedGame.id, {
+        ...pickData,
+        gameId: selectedGame.id,
+        timestamp: new Date().toISOString()
       });
-
-      if (result.success) {
-        // Update local state to show the pick immediately
-        const updatedGames = games.map(game => 
-          game.id === selectedGame.id 
-            ? {
-                ...game,
-                selectedPick: pickData.pick,
-                pickType: pickData.type,
-                confidence: pickData.confidence,
-                groups: pickData.groups,
-              }
-            : game
-        );
-        setGames(updatedGames);
-        
-        console.log('Pick saved to database!');
-      } else {
-        console.error('Failed to save pick:', result.error);
-        // You might want to show an error toast/alert here
-      }
+      setUserPicks(newPicks);
     }
     
     setShowPickModal(false);
@@ -240,7 +157,7 @@ const handlePickSubmit = async (pickData: any) => {
             <Text style={styles.noGamesText}>No games scheduled for this week</Text>
           </View>
         ) : (
-          games.map(game => {
+          gamesForWeek.map(game => {
             const userPick = userPicks.get(game.id);
             const timeToLock = getTimeToLock(game.date, game.time);
             const hasLines = game.spread.value !== 0;
@@ -280,6 +197,16 @@ const handlePickSubmit = async (pickData: any) => {
                   </Text>
                 </View>
 
+                {hasLines && (
+                  <View style={styles.oddsInfo}>
+                    <Text style={styles.oddsText}>O/U: {game.overUnder || 'TBD'}</Text>
+                    {game.moneyline.home !== 0 && (
+                      <Text style={styles.oddsText}>
+                        ML: {game.homeTeamShort} {game.moneyline.home > 0 ? '+' : ''}{game.moneyline.home}
+                      </Text>
+                    )}
+                  </View>
+                )}
 
                 <View style={styles.pickOptions}>
                   <TouchableOpacity

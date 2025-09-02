@@ -1,115 +1,121 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react'; //add useEffect
+import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { DEV_MODE } from '../lib/auth-dev';
+import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0); //add resend
 
-  const formatPhoneNumber = (text: string) => {
-    // Remove all non-numeric characters
-    const cleaned = text.replace(/\D/g, '');
-    
-    // Format as (XXX) XXX-XXXX for US numbers
-    if (countryCode === '+1') {
-      const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
-      if (match) {
-        const parts = [
-          match[1] ? `(${match[1]}` : '',
-          match[2] ? `) ${match[2]}` : match[1] ? ')' : '',
-          match[3] ? `-${match[3]}` : ''
-        ];
-        return parts.join('').trim();
-      }
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
     }
+  }, [resendTimer]);
+
+  const handleSendOTP = async () => {
+    // TEMPORARY: Skip SMS in dev mode
+    if (DEV_MODE) {
+    Alert.alert('Dev Mode', 'Skipping SMS - going to home');
+    router.replace('/(tabs)/home');
+    return;
+  }
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: phone,
+    });
     
-    return cleaned;
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setConfirmationResult(true);
+      setResendTimer(60); // 60 second cooldown
+      Alert.alert('Success', 'Check your phone for the verification code');``
+    }
+    setLoading(false);
   };
 
-  const handlePhoneChange = (text: string) => {
-    setPhoneNumber(formatPhoneNumber(text));
+  const handleResendCode = () => {
+    setOtp('');
+    handleSendOTP();
   };
 
-  const handleLogin = () => {
-    // TODO: Implement phone authentication
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-    if (cleanNumber.length >= 10) {
-      // Will connect to auth service later
+  const handleVerifyOTP = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.verifyOtp({
+      phone: phone,
+      token: otp,
+      type: 'sms'
+    });
+    
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
       router.replace('/(tabs)/home');
     }
+    setLoading(false);
   };
-
-  const handleFaceID = () => {
-    // TODO: Implement Face ID authentication
-    console.log('Face ID login');
-  };
-
-  const isValidPhone = phoneNumber.replace(/\D/g, '').length >= 10;
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.logo}>
-              <Text style={styles.logoIcon}>⚡</Text>
-            </View>
-            <Text style={styles.title}>Welcome Back!</Text>
-            <Text style={styles.subtitle}>Sports Picks with Friends</Text>
-          </View>
+      <View style={styles.content}>
+        <Text style={styles.title}>Welcome to justPicks</Text>
+        
+        <TextInput
+          style={styles.input}
+          placeholder="+1 (555) 123-4567"
+          placeholderTextColor="#666"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          editable={!confirmationResult}
+        />
 
-          <View style={styles.form}>
-            <View style={styles.phoneContainer}>
-              <TouchableOpacity style={styles.countryCode}>
-                <Text style={styles.countryCodeText}>{countryCode}</Text>
-                <Text style={styles.countryFlag}>🇺🇸</Text>
-              </TouchableOpacity>
-              
-              <TextInput
-                style={styles.phoneInput}
-                placeholder="(555) 123-4567"
-                placeholderTextColor="#8E8E93"
-                value={phoneNumber}
-                onChangeText={handlePhoneChange}
-                keyboardType="phone-pad"
-                maxLength={14} // (XXX) XXX-XXXX
-              />
-            </View>
-
-            <TouchableOpacity 
-              style={[styles.primaryButton, !isValidPhone && styles.primaryButtonDisabled]} 
-              onPress={handleLogin}
-              disabled={!isValidPhone}
-            >
-              <Text style={styles.primaryButtonText}>Continue</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.faceIDButton} onPress={handleFaceID}>
-              <Ionicons name="person-circle-outline" size={20} color="#FFF" />
-              <Text style={styles.faceIDButtonText}>Sign in with Face ID</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.helpText}>
-              We'll send you a verification code
+        {confirmationResult && (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter 6-digit code"
+            placeholderTextColor="#666"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+          
+          {resendTimer > 0 ? (
+            <Text style={styles.resendText}>
+              Resend code in {resendTimer}s
             </Text>
-          </View>
+          ) : (
+            <TouchableOpacity onPress={handleResendCode}>
+              <Text style={styles.resendLink}>
+                Didn't receive a code? Tap to resend
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
+      )}
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Don't have an account? {' '}
-              <Link href="/(auth)/register" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.linkText}>Sign Up</Text>
-                </TouchableOpacity>
-              </Link>
-            </Text>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={confirmationResult ? handleVerifyOTP : handleSendOTP}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? 'Loading...' : confirmationResult ? 'Verify Code' : 'Send Code'}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.disclaimer}>
+          By continuing, you agree to receive SMS verification codes
+        </Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -119,124 +125,55 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  keyboardView: {
-    flex: 1,
-  },
   content: {
     flex: 1,
     padding: 24,
     justifyContent: 'center',
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#1C1C1E',
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoIcon: {
-    fontSize: 32,
-  },
   title: {
+    color: '#FFF',
     fontSize: 28,
     fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  input: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    padding: 16,
     color: '#FFF',
-    marginBottom: 8,
-  },
-  subtitle: {
     fontSize: 16,
-    color: '#8E8E93',
-  },
-  form: {
-    marginBottom: 32,
-  },
-  phoneContainer: {
-    flexDirection: 'row',
     marginBottom: 16,
-    gap: 12,
   },
-  countryCode: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  countryCodeText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  countryFlag: {
-    fontSize: 20,
-  },
-  phoneInput: {
-    flex: 1,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    color: '#FFF',
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  primaryButton: {
+  button: {
     backgroundColor: '#FF6B35',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: 8,
   },
-  primaryButtonDisabled: {
-    backgroundColor: '#333',
-  },
-  primaryButtonText: {
+  buttonText: {
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  faceIDButton: {
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  faceIDButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  helpText: {
+  disclaimer: {
+    color: '#8E8E93',
+    fontSize: 12,
     textAlign: 'center',
+    marginTop: 20,
+  },
+  resendText: {
     color: '#8E8E93',
     fontSize: 14,
+    textAlign: 'center',
+    marginTop: 12,
   },
-  footer: {
-    alignItems: 'center',
-  },
-  footerText: {
-    color: '#8E8E93',
-    fontSize: 14,
-  },
-  linkText: {
+  resendLink: {
     color: '#FF6B35',
-  },
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 12,
+    textDecorationLine: 'underline',
+}
 });
