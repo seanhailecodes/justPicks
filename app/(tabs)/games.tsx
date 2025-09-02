@@ -117,12 +117,18 @@ export default function GamesScreen() {
     }
   };
 
-    const handlePickSelection = (game: NFLGame) => {
-    console.log('Selected game ID:', game.id);  // Add this line
-    console.log('Full game object:', game);      // And this
+    // For MVP - just use a simple type or 'any'
+  const handlePickSelection = (game: any) => {
     setSelectedGame(game);
     setShowPickModal(true);
   };
+
+  //   const handlePickSelection = (game: NFLGame) => {
+  //   console.log('Selected game ID:', game.id);  // Add this line
+  //   console.log('Full game object:', game);      // And this
+  //   setSelectedGame(game);
+  //   setShowPickModal(true);
+  // };
 
 const handlePickSubmit = async (pickData: any) => {
     console.log('Pick submitted:', pickData);
@@ -139,24 +145,22 @@ const handlePickSubmit = async (pickData: any) => {
       });
 
       if (result.success) {
-        // Update local state to show the pick immediately
-        const updatedGames = games.map(game => 
-          game.id === selectedGame.id 
-            ? {
-                ...game,
-                selectedPick: pickData.pick,
-                pickType: pickData.type,
-                confidence: pickData.confidence,
-                groups: pickData.groups,
-              }
-            : game
-        );
-        setGames(updatedGames);
+        // Update the userPicks Map to show the pick immediately
+        const newPicks = new Map(userPicks);
+        newPicks.set(selectedGame.id, {
+          pick: pickData.pick,
+          confidence: pickData.confidence,
+          reasoning: pickData.reasoning,
+          groups: pickData.groups,
+          type: pickData.type,
+          gameId: selectedGame.id,
+          timestamp: new Date().toISOString()
+        });
+        setUserPicks(newPicks);
         
         console.log('Pick saved to database!');
       } else {
         console.error('Failed to save pick:', result.error);
-        // You might want to show an error toast/alert here
       }
     }
     
@@ -166,8 +170,7 @@ const handlePickSubmit = async (pickData: any) => {
     if (pickData.type === 'group' && pickData.groups.length > 0) {
       router.push('/group/1');
     }
-  };
-
+};
   const handleViewDetails = (gameId: string) => {
     router.push(`/game/${gameId}`);
   };
@@ -190,6 +193,8 @@ const handlePickSubmit = async (pickData: any) => {
     if (timeToLock.includes('m')) return '#FF3B30';
     return '#34C759';
   };
+
+  console.log('UserPicks Map:', Array.from(userPicks.entries()));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -275,45 +280,46 @@ const handlePickSubmit = async (pickData: any) => {
                   <Text style={[
                     styles.lockTime,
                     { color: getLockTimeColor(timeToLock) }
-                  ]}>
-                    {timeToLock}
+                    ]}>
+                    {userPick ? '✓ Pick locked' : timeToLock}
                   </Text>
                 </View>
 
 
                 <View style={styles.pickOptions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickButton,
-                      userPick?.pick === game.spread.away && styles.pickButtonSelected,
-                      !hasLines && styles.pickButtonDisabled
-                    ]}
-                    onPress={() => hasLines && handlePickSelection(game)}
-                    disabled={timeToLock === 'LOCKED' || !hasLines}
-                  >
-                    <Text style={[
-                      styles.pickButtonText,
-                      userPick?.pick === game.spread.away && styles.pickButtonTextSelected
-                    ]}>
-                      {hasLines ? game.spread.away : `${game.awayTeamShort} -`}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickButton,
-                      userPick?.pick === game.spread.home && styles.pickButtonSelected,
-                      !hasLines && styles.pickButtonDisabled
-                    ]}
-                    onPress={() => hasLines && handlePickSelection(game)}
-                    disabled={timeToLock === 'LOCKED' || !hasLines}
-                  >
-                    <Text style={[
-                      styles.pickButtonText,
-                      userPick?.pick === game.spread.home && styles.pickButtonTextSelected
-                    ]}>
-                      {hasLines ? game.spread.home : `${game.homeTeamShort} -`}
-                    </Text>
-                  </TouchableOpacity>
+                 <TouchableOpacity
+                  style={[
+                    styles.pickButton,
+                    userPick?.pick === 'away' && styles.pickButtonSelected,               
+                    !hasLines && styles.pickButtonDisabled
+                  ]}
+                  onPress={() => hasLines && handlePickSelection(game)}
+                  disabled={timeToLock === 'LOCKED' || !hasLines}
+                >
+                  <Text style={[
+                    styles.pickButtonText,
+                    userPick?.pick === 'away' && styles.pickButtonTextSelected               
+                  ]}>
+                    {hasLines ? game.spread.away : `${game.awayTeamShort} -`}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.pickButton,
+                    userPick?.pick === 'home' && styles.pickButtonSelected,               
+                    !hasLines && styles.pickButtonDisabled
+                  ]}
+                  onPress={() => hasLines && handlePickSelection(game)}
+                  disabled={timeToLock === 'LOCKED' || !hasLines}
+                >
+                  <Text style={[
+                    styles.pickButtonText,
+                    userPick?.pick === 'home' && styles.pickButtonTextSelected               
+                  ]}>
+                    {hasLines ? game.spread.home : `${game.homeTeamShort} -`}
+                  </Text>
+                </TouchableOpacity>
                 </View>
 
                 {!hasLines && (
