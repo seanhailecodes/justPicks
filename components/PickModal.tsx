@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface PickModalProps {
   visible: boolean;
@@ -71,7 +71,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <ScrollView style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Make Your Pick</Text>
             <TouchableOpacity onPress={onClose}>
@@ -239,7 +239,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               {pickType === 'solo' ? 'Save Pick' : 'Share Pick'}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );

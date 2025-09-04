@@ -1,92 +1,137 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
+
+interface GameDetails {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamShort: string;
+  awayTeamShort: string;
+  spread: { home: string; away: string; value: number };
+  time: string;
+  date: string;
+  locked: boolean;
+  timeToLock: string;
+}
+
+interface FriendPick {
+  id: string;
+  username: string;
+  pick: 'home' | 'away';
+  confidence: string;
+  confidenceValue: number;
+  confidenceColor: string;
+  reasoning?: string;
+  timestamp: string;
+  winRate: number;
+  totalPicks: number;
+}
 
 export default function GroupPicksScreen() {
   const { gameId } = useLocalSearchParams();
+  const [gameData, setGameData] = useState<GameDetails | null>(null);
+  const [friendPicks, setFriendPicks] = useState<FriendPick[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data for the game
-  const gameData = {
-    homeTeam: 'Giants',
-    awayTeam: 'Cowboys',
-    spread: { home: 'NYG +3.5', away: 'DAL -3.5' },
-    time: 'Tonight 8:00 PM',
-    locked: false,
-    timeToLock: '2h',
+  useEffect(() => {
+    if (gameId) {
+      loadGameData(gameId as string);
+    }
+  }, [gameId]);
+
+  const loadGameData = async (id: string) => {
+    setIsLoading(true);
+    try {
+      console.log('Loading game data for ID:', id);
+
+      // First, fetch the game details from the games table
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (gameError) {
+        console.error('Error fetching game:', gameError);
+        throw gameError;
+      }
+
+      console.log('Game data loaded:', gameData);
+
+      // Transform game data to match our interface
+      const game: GameDetails = {
+        id: gameData.id,
+        homeTeam: gameData.home_team,
+        awayTeam: gameData.away_team,
+        homeTeamShort: gameData.home_team,
+        awayTeamShort: gameData.away_team,
+        spread: {
+          home: `${gameData.home_team} ${gameData.home_spread > 0 ? '+' : ''}${gameData.home_spread}`,
+          away: `${gameData.away_team} ${gameData.away_spread > 0 ? '+' : ''}${gameData.away_spread}`,
+          value: Math.abs(gameData.home_spread),
+        },
+        time: new Date(gameData.game_date).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        date: new Date(gameData.game_date).toLocaleDateString(),
+        locked: gameData.locked || false,
+        timeToLock: '2h', // Calculate this based on game_date if needed
+      };
+
+      setGameData(game);
+
+      // Now fetch all picks for this game
+      const { data: picksData, error: picksError } = await supabase
+        .from('picks')
+        .select('*')
+        .eq('game_id', id);
+
+      if (picksError) {
+        console.error('Error fetching picks:', picksError);
+        // Don't throw - just show no picks
+        setFriendPicks([]);
+        return;
+      }
+
+      console.log('Picks data loaded:', picksData);
+
+      // Transform picks data to match our interface
+      const picks: FriendPick[] = (picksData || []).map((pick, index) => ({
+        id: pick.id.toString(),
+        username: `user_${pick.user_id.slice(-8)}`, // Use last 8 chars of user ID as username
+        pick: pick.team_picked as 'home' | 'away',
+        confidence: pick.confidence,
+        confidenceValue: pick.confidence === 'High' ? 85 : pick.confidence === 'Medium' ? 65 : 45,
+        confidenceColor: pick.confidence === 'High' ? '#34C759' : pick.confidence === 'Medium' ? '#FFCC00' : '#FF9500',
+        reasoning: pick.reasoning || 'No reasoning provided',
+        timestamp: new Date(pick.created_at).toLocaleString(),
+        winRate: 70 + (index * 5), // Mock win rate for now
+        totalPicks: 20 + (index * 10), // Mock total picks for now
+      }));
+
+      setFriendPicks(picks);
+      console.log('Processed picks:', picks.length);
+
+    } catch (error) {
+      console.error('Error loading game data:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
-
-  // Mock picks from friends with win rates
-  const friendPicks = [
-    {
-      id: 1,
-      username: 'miketheman',
-      pick: 'away',
-      confidence: 'High',
-      confidenceValue: 80,
-      confidenceColor: '#34C759',
-      reasoning: "Cowboys defense has been shaky lately, but Giants offense is even worse. Taking Cowboys to cover easily.",
-      timestamp: '5 min ago',
-      winRate: 75,
-      totalPicks: 48,
-    },
-    {
-      id: 2,
-      username: 'sarah_picks',
-      pick: 'home',
-      confidence: 'Medium',
-      confidenceValue: 60,
-      confidenceColor: '#FFCC00',
-      reasoning: "Weather report shows 15mph winds. This could affect Dak's passing game. Giants keep it close at home.",
-      timestamp: '12 min ago',
-      winRate: 68,
-      totalPicks: 31,
-    },
-    {
-      id: 3,
-      username: 'johnny99',
-      pick: 'home',
-      confidence: 'Very High',
-      confidenceValue: 95,
-      confidenceColor: '#00C7BE',
-      reasoning: "Giants are 4-1 ATS at home this season. Cowboys struggling on the road. This line is way off - hammer the Giants!",
-      timestamp: '28 min ago',
-      winRate: 82,
-      totalPicks: 45,
-    },
-    {
-      id: 4,
-      username: 'pickmaster',
-      pick: 'away',
-      confidence: 'Low',
-      confidenceValue: 40,
-      confidenceColor: '#FF9500',
-      reasoning: "Not confident but leaning Cowboys. Short week for both teams.",
-      timestamp: '1 hour ago',
-      winRate: 58,
-      totalPicks: 12,
-    },
-    {
-      id: 5,
-      username: 'betsy_sharp',
-      pick: 'home',
-      confidence: 'High',
-      confidenceValue: 80,
-      confidenceColor: '#34C759',
-      reasoning: "Daniel Jones has been solid at home. Giants defense will keep this close.",
-      timestamp: '2 hours ago',
-      winRate: 71,
-      totalPicks: 55,
-    },
-  ];
 
   // Calculate weighted consensus
   const calculateConsensus = () => {
+    if (!friendPicks.length) return null;
+
     let homeScore = 0;
     let awayScore = 0;
     let totalWeight = 0;
 
     friendPicks.forEach(pick => {
-      // Weight = confidence * (1 + winRate/100)
-      // This gives win rate a 0-100% boost to the confidence score
       const weight = pick.confidenceValue * (1 + pick.winRate / 100);
       totalWeight += weight;
       
@@ -107,7 +152,7 @@ export default function GroupPicksScreen() {
       awayPercentage,
       totalWeight,
       recommendation: homePercentage > 50 ? 'home' : 'away',
-      strength: Math.abs(homePercentage - 50), // How strong is the consensus
+      strength: Math.abs(homePercentage - 50),
     };
   };
 
@@ -117,15 +162,36 @@ export default function GroupPicksScreen() {
   const homePicks = friendPicks.filter(p => p.pick === 'home').length;
   const awayPicks = friendPicks.filter(p => p.pick === 'away').length;
   const totalPicks = friendPicks.length;
-  const pendingPicks = 5 - totalPicks; // Assuming 5 total friends
+  const pendingPicks = Math.max(0, 10 - totalPicks); // Assuming 10 total friends
 
   const handleBack = () => {
     router.back();
   };
 
   const getPickDisplay = (pick: string) => {
+    if (!gameData) return '';
     return pick === 'home' ? gameData.spread.home : gameData.spread.away;
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading game details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!gameData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Game not found</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -135,9 +201,9 @@ export default function GroupPicksScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerSubtitle}>
-            {gameData.awayTeam} @ {gameData.homeTeam}
+            {gameData.awayTeamShort} @ {gameData.homeTeamShort}
           </Text>
-          <Text style={styles.headerTime}>{gameData.time}</Text>
+          <Text style={styles.headerTime}>{gameData.date} • {gameData.time}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -159,45 +225,47 @@ export default function GroupPicksScreen() {
         </View>
 
         {/* Consensus Card */}
-        <View style={styles.consensusCard}>
-          <Text style={styles.consensusTitle}>Overall Consensus</Text>
-          
-          <View style={styles.consensusBoxes}>
-            <TouchableOpacity 
-              style={[
-                styles.consensusBox,
-                consensus.recommendation === 'away' && styles.consensusBoxActive
-              ]}
-            >
-              <Text style={styles.consensusTeamName}>{gameData.awayTeam}</Text>
-              <Text style={styles.consensusSpread}>{gameData.spread.away}</Text>
-              <Text style={styles.consensusCount}>{awayPicks} picks ({consensus.awayPercentage}%)</Text>
-            </TouchableOpacity>
+        {consensus && (
+          <View style={styles.consensusCard}>
+            <Text style={styles.consensusTitle}>Community Consensus</Text>
             
-            <Text style={styles.vsText}>vs</Text>
-            
-            <TouchableOpacity 
-              style={[
-                styles.consensusBox,
-                consensus.recommendation === 'home' && styles.consensusBoxActive
-              ]}
-            >
-              <Text style={styles.consensusTeamName}>{gameData.homeTeam}</Text>
-              <Text style={styles.consensusSpread}>{gameData.spread.home}</Text>
-              <Text style={styles.consensusCount}>{homePicks} picks ({consensus.homePercentage}%)</Text>
-            </TouchableOpacity>
+            <View style={styles.consensusBoxes}>
+              <TouchableOpacity 
+                style={[
+                  styles.consensusBox,
+                  consensus.recommendation === 'away' && styles.consensusBoxActive
+                ]}
+              >
+                <Text style={styles.consensusTeamName}>{gameData.awayTeamShort}</Text>
+                <Text style={styles.consensusSpread}>{gameData.spread.away}</Text>
+                <Text style={styles.consensusCount}>{awayPicks} picks ({consensus.awayPercentage}%)</Text>
+              </TouchableOpacity>
+              
+              <Text style={styles.vsText}>vs</Text>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.consensusBox,
+                  consensus.recommendation === 'home' && styles.consensusBoxActive
+                ]}
+              >
+                <Text style={styles.consensusTeamName}>{gameData.homeTeamShort}</Text>
+                <Text style={styles.consensusSpread}>{gameData.spread.home}</Text>
+                <Text style={styles.consensusCount}>{homePicks} picks ({consensus.homePercentage}%)</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Quick Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{homePicks}</Text>
-            <Text style={styles.statLabel}>Giants</Text>
+            <Text style={styles.statLabel}>{gameData.homeTeamShort}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{awayPicks}</Text>
-            <Text style={styles.statLabel}>Cowboys</Text>
+            <Text style={styles.statLabel}>{gameData.awayTeamShort}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{pendingPicks}</Text>
@@ -206,34 +274,41 @@ export default function GroupPicksScreen() {
         </View>
 
         {/* Friends' Picks */}
-        <Text style={styles.sectionTitle}>Our Picks</Text>
+        <Text style={styles.sectionTitle}>Community Picks</Text>
         
-        {friendPicks.map(friend => (
-          <View key={friend.id} style={styles.pickCard}>
-            <View style={styles.pickHeader}>
-              <View style={styles.userInfo}>
-                <Text style={styles.username}>{friend.username === 'You' ? 'You' : friend.username.charAt(0).toUpperCase() + friend.username.slice(1)}</Text>
-                <View style={styles.winRateBadge}>
-                  <Text style={styles.winRateText}>{friend.winRate}% wins</Text>
+        {friendPicks.length > 0 ? (
+          friendPicks.map(friend => (
+            <View key={friend.id} style={styles.pickCard}>
+              <View style={styles.pickHeader}>
+                <View style={styles.userInfo}>
+                  <Text style={styles.username}>{friend.username}</Text>
+                  <View style={styles.winRateBadge}>
+                    <Text style={styles.winRateText}>{friend.winRate}% wins</Text>
+                  </View>
+                </View>
+                <View style={styles.pickInfo}>
+                  <View style={[styles.confidenceBadge, { backgroundColor: friend.confidenceColor }]}>
+                    <Text style={styles.confidenceText}>
+                      {friend.confidence}
+                    </Text>
+                  </View>
                 </View>
               </View>
-              <View style={styles.pickInfo}>
-                <View style={[styles.confidenceBadge, { backgroundColor: friend.confidenceColor }]}>
-                  <Text style={styles.confidenceText}>
-                    {friend.confidence}
-                  </Text>
-                </View>
+              
+              <View style={styles.pickContent}>
+                <Text style={styles.pickChoice}>{getPickDisplay(friend.pick)}</Text>
+                {friend.reasoning && (
+                  <Text style={styles.reasoning}>"{friend.reasoning}"</Text>
+                )}
               </View>
             </View>
-            
-            <View style={styles.pickContent}>
-              <Text style={styles.pickChoice}>{getPickDisplay(friend.pick)}</Text>
-              {friend.reasoning && (
-                <Text style={styles.reasoning}>"{friend.reasoning}"</Text>
-              )}
-            </View>
+          ))
+        ) : (
+          <View style={styles.noPicksCard}>
+            <Text style={styles.noPicksText}>No picks yet for this game</Text>
+            <Text style={styles.noPicksSubtext}>Be the first to make a prediction!</Text>
           </View>
-        ))}
+        )}
 
         {/* Your Pick Reminder */}
         {!gameData.locked && (
@@ -256,6 +331,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#8E8E93',
+    fontSize: 16,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -273,11 +357,6 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     alignItems: 'center',
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   headerSubtitle: {
     color: '#FFF',
@@ -331,7 +410,6 @@ const styles = StyleSheet.create({
   },
   consensusCard: {
     marginBottom: 20,
-    paddingHorizontal: 16,
   },
   consensusTitle: {
     color: '#FFF',
@@ -463,6 +541,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontStyle: 'italic',
+  },
+  noPicksCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 40,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  noPicksText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  noPicksSubtext: {
+    color: '#8E8E93',
+    fontSize: 14,
+    textAlign: 'center',
   },
   makePickButton: {
     backgroundColor: '#FF6B35',
