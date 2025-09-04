@@ -25,7 +25,7 @@ export default function GroupsScreen() {
   };
 
   const handleViewPicks = () => {
-    router.push('/group/group-picks');
+  router.push('/group/group-picks?groups=Work Friends,Family Picks');
   };
 
   return (
@@ -43,38 +43,38 @@ export default function GroupsScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Group Card */}
-        <TouchableOpacity style={styles.groupCard} onPress={handleViewPicks}>
-          <View style={styles.groupHeader}>
-            <View>
-              <Text style={styles.groupTitle}>Our Picks</Text>
-              <Text style={styles.groupSubtitle}>All your friends in one place</Text>
-            </View>
-            <Text style={styles.memberCount}>{friends.length} friends</Text>
+      <View style={styles.groupCard}>
+        <View style={styles.groupHeader}>
+          <View>
+            <Text style={styles.groupTitle}>Our Picks</Text>
+            <Text style={styles.groupSubtitle}>All your friends in one place</Text>
           </View>
-          
-          <View style={styles.groupStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{activePicks}</Text>
-              <Text style={styles.statLabel}> Picks Made</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, styles.pendingColor]}>{pendingPicks}</Text>
-              <Text style={styles.statLabel}>Picks Pending</Text>
-            </View>
+          <Text style={styles.memberCount}>{friends.length} friends</Text>
+        </View>
+        
+        <View style={styles.groupStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{activePicks}</Text>
+            <Text style={styles.statLabel}> Picks Made</Text>
           </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, styles.pendingColor]}>{pendingPicks}</Text>
+            <Text style={styles.statLabel}>Picks Pending</Text>
+          </View>
+        </View>
 
-          <TouchableOpacity style={styles.discussButton}>
-            <Text style={styles.discussButtonText}>See Group Picks →</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.discussButton} onPress={handleViewPicks}>
+          <Text style={styles.discussButtonText}>See Group Picks →</Text>
         </TouchableOpacity>
+      </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search friends..."
+            placeholder="Search friends...might not work yet"
             placeholderTextColor="#666"
             value={searchQuery}
             onChangeText={setSearchQuery}
