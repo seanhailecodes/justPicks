@@ -1,13 +1,32 @@
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function HomeScreen() {
+  const [displayName, setDisplayName] = useState('');
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        // Extract name from email (part before @)
+        const name = user.email.split('@')[0];
+        // Capitalize first letter
+        const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
+        setDisplayName(formattedName);
+      }
+    };
+    
+    fetchUser();
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good evening!</Text>
-          <Text style={styles.userName}>Hey Alex</Text>
+          <Text style={styles.userName}>Hey {displayName || 'there'}</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/(tabs)/notifications')}>
           <Text style={styles.notificationIcon}>🔔</Text>
@@ -241,5 +260,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 4,
+  },
+  viewLeaderboard: {
+    color: '#FF6B35',
+    fontSize: 14,
+    marginTop: 4,
   },
 });
