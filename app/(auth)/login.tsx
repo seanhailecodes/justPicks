@@ -1,121 +1,181 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react'; //add useEffect
-import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { DEV_MODE } from '../lib/auth-dev';
+import { useEffect, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0); //add resend
+  const [isSignUp, setIsSignUp] = useState(false);
 
+  // Check for existing session on mount
   useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendTimer]);
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.replace('/(tabs)/home');
+      }
+    };
+    checkSession();
+  }, []);
 
-  const handleSendOTP = async () => {
-    // TEMPORARY: Skip SMS in dev mode
-    if (DEV_MODE) {
-    Alert.alert('Dev Mode', 'Skipping SMS - going to home');
-    router.replace('/(tabs)/home');
+  // Handle auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        router.replace('/(tabs)/home');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+    const handleAuth = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    setLoading(true);
+
+    if (isSignUp) {
+      // Sign up new user
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        // Auto sign in after signup
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password,
+        });
+        
+        if (signInError) {
+          Alert.alert('Account created!', 'Please check your email to verify your account before logging in.');
+        }
+        // If successful, the onAuthStateChange listener will handle navigation
+      }
+    } else {
+      // Sign in existing user
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) {
+        Alert.alert('Error', error.message);
+      }
+    }
+
+    setLoading(false);
+  };
+
+    const handlePasswordReset = async () => {
+  if (!email.trim()) {
+    Alert.alert('Error', 'Please enter your email address');
     return;
   }
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: phone,
-    });
-    
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setConfirmationResult(true);
-      setResendTimer(60); // 60 second cooldown
-      Alert.alert('Success', 'Check your phone for the verification code');``
-    }
-    setLoading(false);
-  };
 
-  const handleResendCode = () => {
-    setOtp('');
-    handleSendOTP();
-  };
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: 'justpicks://reset-password',
+  });
 
-  const handleVerifyOTP = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
-      phone: phone,
-      token: otp,
-      type: 'sms'
-    });
-    
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      router.replace('/(tabs)/home');
-    }
-    setLoading(false);
-  };
+  if (error) {
+    Alert.alert('Error', error.message);
+  } else {
+    Alert.alert('Check your email', 'Password reset link sent!');
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.content}
+      >
         <Text style={styles.title}>Welcome to justPicks</Text>
         
+        <Text style={styles.subtitle}>
+          {isSignUp ? 'Create your account' : 'Sign in to continue'}
+        </Text>
+
         <TextInput
           style={styles.input}
-          placeholder="+1 (555) 123-4567"
+          placeholder="your.email@example.com"
           placeholderTextColor="#666"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          editable={!confirmationResult}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
-        {confirmationResult && (
-        <>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter 6-digit code"
-            placeholderTextColor="#666"
-            value={otp}
-            onChangeText={setOtp}
-            keyboardType="number-pad"
-            maxLength={6}
-          />
-          
-          {resendTimer > 0 ? (
-            <Text style={styles.resendText}>
-              Resend code in {resendTimer}s
-            </Text>
-          ) : (
-            <TouchableOpacity onPress={handleResendCode}>
-              <Text style={styles.resendLink}>
-                Didn't receive a code? Tap to resend
-              </Text>
-            </TouchableOpacity>
-          )}
-        </>
-      )}
+        <TextInput
+          style={styles.input}
+          placeholder="Password (min 6 characters)"
+          placeholderTextColor="#666"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
 
         <TouchableOpacity
           style={styles.button}
-          onPress={confirmationResult ? handleVerifyOTP : handleSendOTP}
+          onPress={handleAuth}
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Loading...' : confirmationResult ? 'Verify Code' : 'Send Code'}
+            {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Log In'}
           </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.switchButton}
+          onPress={() => setIsSignUp(!isSignUp)}
+        >
+          <Text style={styles.switchText}>
+            {isSignUp 
+              ? 'Already have an account? Log In' 
+              : "Don't have an account? Sign Up"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Temporary debug button */}
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#666', marginTop: 20 }]}
+          onPress={async () => {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+              Alert.alert('Error signing out', error.message);
+            } else {
+              Alert.alert('Signed out', 'Session cleared');
+            }
+          }}
+        >
+          <Text style={styles.buttonText}>Debug: Sign Out</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#444', marginTop: 10 }]}
+          onPress={handlePasswordReset}
+        >
+          <Text style={styles.buttonText}>Reset Password</Text>
+        </TouchableOpacity>
+
         <Text style={styles.disclaimer}>
-          By continuing, you agree to receive SMS verification codes
+          {isSignUp 
+            ? 'Your account will be created instantly'
+            : 'Welcome back! Enter your credentials to continue'
+          }
         </Text>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -135,7 +195,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: '#8E8E93',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
   },
   input: {
     backgroundColor: '#1C1C1E',
@@ -157,23 +223,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  switchButton: {
+    marginTop: 20,
+    padding: 10,
+  },
+  switchText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   disclaimer: {
     color: '#8E8E93',
     fontSize: 12,
     textAlign: 'center',
     marginTop: 20,
   },
-  resendText: {
-    color: '#8E8E93',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 12,
-  },
-  resendLink: {
-    color: '#FF6B35',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 12,
-    textDecorationLine: 'underline',
-}
 });

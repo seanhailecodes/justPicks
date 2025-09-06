@@ -1,20 +1,46 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
+import { getFriendsWithStats, getGroupStats, Friend, GroupStats } from '../lib/database';
 
 export default function GroupsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Mock data for MVP
-  const friends = [
-    { id: 1, username: 'miketheman', picks: 24, accuracy: 75, status: 'active' },
-    { id: 2, username: 'sarah_picks', picks: 31, accuracy: 68, status: 'pending' },
-    { id: 3, username: 'johnny99', picks: 45, accuracy: 82, status: 'active' },
-    { id: 4, username: 'pickmaster', picks: 12, accuracy: 58, status: 'active' },
-  ];
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [groupStats, setGroupStats] = useState<GroupStats>({ activePicks: 0, pendingPicks: 0, totalFriends: 0 });
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const activePicks = 3;
-  const pendingPicks = 2;
+  useEffect(() => {
+    loadUserAndData();
+  }, []);
+
+  const loadUserAndData = async () => {
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No authenticated user');
+        setLoading(false);
+        return;
+      }
+
+      setCurrentUserId(user.id);
+
+      // Load friends and stats
+      const [friendsData, statsData] = await Promise.all([
+        getFriendsWithStats(user.id),
+        getGroupStats(user.id)
+      ]);
+
+      setFriends(friendsData);
+      setGroupStats(statsData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredFriends = friends.filter(friend => 
     friend.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -25,8 +51,18 @@ export default function GroupsScreen() {
   };
 
   const handleViewPicks = () => {
-  router.push('/group/group-picks?groups=Work Friends,Family Picks');
+    router.push('/group/group-picks?groups=Work Friends,Family Picks');
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ color: '#FFF', fontSize: 18 }}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -43,38 +79,38 @@ export default function GroupsScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Group Card */}
-      <View style={styles.groupCard}>
-        <View style={styles.groupHeader}>
-          <View>
-            <Text style={styles.groupTitle}>Our Picks</Text>
-            <Text style={styles.groupSubtitle}>All your friends in one place</Text>
+        <View style={styles.groupCard}>
+          <View style={styles.groupHeader}>
+            <View>
+              <Text style={styles.groupTitle}>Our Picks</Text>
+              <Text style={styles.groupSubtitle}>All your friends in one place</Text>
+            </View>
+            <Text style={styles.memberCount}>{groupStats.totalFriends} friends</Text>
           </View>
-          <Text style={styles.memberCount}>{friends.length} friends</Text>
-        </View>
-        
-        <View style={styles.groupStats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{activePicks}</Text>
-            <Text style={styles.statLabel}> Picks Made</Text>
+          
+          <View style={styles.groupStats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{groupStats.activePicks}</Text>
+              <Text style={styles.statLabel}>Picks Made</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, styles.pendingColor]}>{groupStats.pendingPicks}</Text>
+              <Text style={styles.statLabel}>Picks Pending</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, styles.pendingColor]}>{pendingPicks}</Text>
-            <Text style={styles.statLabel}>Picks Pending</Text>
-          </View>
-        </View>
 
-        <TouchableOpacity style={styles.discussButton} onPress={handleViewPicks}>
-          <Text style={styles.discussButtonText}>See Group Picks →</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.discussButton} onPress={handleViewPicks}>
+            <Text style={styles.discussButtonText}>See Group Picks →</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search friends...might not work yet"
+            placeholder="Search friends..."
             placeholderTextColor="#666"
             value={searchQuery}
             onChangeText={setSearchQuery}

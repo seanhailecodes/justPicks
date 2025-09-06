@@ -1,6 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getGamesWithGroupPicks } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 interface FriendPick {
   id: string;
@@ -24,143 +26,174 @@ export default function GroupPicksScreen() {
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [gamesData, setGamesData] = useState<any[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGamesAndPicks();
   }, [selectedWeek, selectedGroup]);
 
-  const loadGamesAndPicks = () => {
-    // Week 1 games with actual team names
-    const weekGames = [
-      {
-        id: '2025_W1_DAL_NYG',
-        homeTeam: 'Giants',
-        awayTeam: 'Cowboys',
-        homeTeamShort: 'NYG',
-        awayTeamShort: 'DAL',
-        spread: { home: 'NYG +3.5', away: 'DAL -3.5' },
-        time: 'Sun 1:00 PM',
-        date: 'Sep 7',
-        timeToLock: '24h',
-      },
-      {
-        id: '2025_W1_RAV_CHI',
-        homeTeam: 'Bears',
-        awayTeam: 'Ravens',
-        homeTeamShort: 'CHI',
-        awayTeamShort: 'RAV',
-        spread: { home: 'CHI -3', away: 'RAV +3' },
-        time: 'Sun 1:00 PM',
-        date: 'Sep 7',
-        timeToLock: '24h',
-      },
-      {
-        id: '2025_W1_STE_FAL',
-        homeTeam: 'Falcons',
-        awayTeam: 'Steelers', 
-        homeTeamShort: 'ATL',
-        awayTeamShort: 'PIT',
-        spread: { home: 'ATL -3', away: 'PIT +3' },
-        time: 'Sun 1:00 PM',
-        date: 'Sep 7',
-        timeToLock: '24h',
-      },
-      {
-        id: '2025_W1_BUF_MIA',
-        homeTeam: 'Dolphins',
-        awayTeam: 'Bills',
-        homeTeamShort: 'MIA',
-        awayTeamShort: 'BUF',
-        spread: { home: 'MIA +2.5', away: 'BUF -2.5' },
-        time: 'Sun 4:25 PM',
-        date: 'Sep 7',
-        timeToLock: '28h',
-      },
-      {
-        id: '2025_W1_GB_PHI',
-        homeTeam: 'Eagles',
-        awayTeam: 'Packers',
-        homeTeamShort: 'PHI',
-        awayTeamShort: 'GB',
-        spread: { home: 'PHI -4.5', away: 'GB +4.5' },
-        time: 'Sun 8:20 PM',
-        date: 'Sep 7',
-        timeToLock: '32h',
-      }
-    ];
+  const loadGamesAndPicks = async () => {
+  try {
+    // Get current user with debugging
+    console.log('=== GROUP PICKS AUTH DEBUG ===');
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log('User from getUser():', user);
+    console.log('Auth error:', authError);
     
-    setGamesData(weekGames);
+    if (!user) {
+      console.log('No authenticated user found, checking session...');
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Session:', session);
+      console.log('================================');
+      setLoading(false);
+      return;
+    }
 
-    // Generate mock picks for each game
-    const allPicksByGame: Record<string, FriendPick[]> = {};
+    console.log('Using authenticated user ID:', user.id);
+    console.log('================================');
+    setCurrentUserId(user.id);
+
+    // Load games with group picks from database
+    const gamesWithPicks = await getGamesWithGroupPicks(user.id, selectedWeek, 2025);
+    console.log('Games with picks loaded:', gamesWithPicks.length);
     
-    weekGames.forEach(game => {
-      const mockPicks: FriendPick[] = [
-        {
-          id: `${game.id}_1`,
-          username: 'miketheman',
-          pick: Math.random() > 0.5 ? 'home' : 'away',
-          confidence: 'High',
-          confidenceValue: 85,
-          confidenceColor: '#34C759',
-          reasoning: `I like the ${Math.random() > 0.5 ? game.homeTeamShort : game.awayTeamShort} to cover here`,
-          timestamp: '5 min ago',
-          winRate: 75,
-          totalPicks: 48,
-        },
-        {
-          id: `${game.id}_2`,
-          username: 'sarah_picks',
-          pick: Math.random() > 0.5 ? 'home' : 'away',
-          confidence: 'Medium',
-          confidenceValue: 60,
-          confidenceColor: '#FF9500',
-          reasoning: `${game.homeTeamShort} at home is tough to beat`,
-          timestamp: '12 min ago',
-          winRate: 68,
-          totalPicks: 31,
-        },
-        {
-          id: `${game.id}_3`,
-          username: 'You',
-          pick: 'home',
-          confidence: 'High',
-          confidenceValue: 80,
-          confidenceColor: '#34C759',
-          reasoning: 'My analysis favors the home team',
-          timestamp: 'Just now',
-          winRate: 73,
-          totalPicks: 36,
-        },
-        // Add some members who haven't picked yet for variety
-        ...(Math.random() > 0.7 ? [{
-          id: `${game.id}_4`,
-          username: 'johnny99',
-          pick: 'away' as const,
-          confidence: 'Very High',
-          confidenceValue: 95,
-          confidenceColor: '#00C7BE',
-          reasoning: `${game.awayTeamShort} wins big on the road`,
-          timestamp: '28 min ago',
-          winRate: 82,
-          totalPicks: 45,
-        }] : [])
-      ];
-
-      // Calculate weighted scores and sort
-      const picksWithScores = mockPicks.map(pick => ({
-        ...pick,
-        weightedScore: pick.confidenceValue * (1 + pick.winRate / 100)
-      }));
       
-      picksWithScores.sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0));
-      allPicksByGame[game.id] = picksWithScores;
-    });
-    
-    setFriendPicksByGame(allPicksByGame);
+      // Transform database data to match original interface
+      const transformedGames = gamesWithPicks.map(game => ({
+        id: game.id,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        homeTeamShort: game.home_team,
+        awayTeamShort: game.away_team,
+        spread: { home: game.home_spread, away: game.away_spread },
+        time: formatGameTime(game.game_date),
+        date: formatGameDate(game.game_date),
+        timeToLock: getTimeToLock(game.game_date),
+        locked: game.locked
+      }));
+
+      setGamesData(transformedGames);
+
+      // Transform picks to match original FriendPick interface
+      const allPicksByGame: Record<string, FriendPick[]> = {};
+      
+      gamesWithPicks.forEach(game => {
+        const transformedPicks: FriendPick[] = game.picks.map(pick => ({
+          id: pick.id,
+          username: pick.username,
+          pick: pick.pick as 'home' | 'away',
+          confidence: pick.confidence,
+          confidenceValue: getConfidenceValue(pick.confidence),
+          confidenceColor: getConfidenceColor(pick.confidence),
+          reasoning: pick.reasoning,
+          timestamp: formatTimeAgo(pick.created_at),
+          winRate: pick.winRate,
+          totalPicks: pick.totalPicks,
+          weightedScore: pick.weightedScore
+        }));
+
+        // Sort by weighted score
+        transformedPicks.sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0));
+        allPicksByGame[game.id] = transformedPicks;
+      });
+      
+      setFriendPicksByGame(allPicksByGame);
+    } catch (error) {
+      console.error('Error loading group picks data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Calculate consensus for a specific game
+  // Helper functions to format data
+  const formatGameTime = (dateStr: string): string => {
+    try {
+      const gameDate = new Date(dateStr);
+      return gameDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return 'TBD';
+    }
+  };
+
+  const formatGameDate = (dateStr: string): string => {
+    try {
+      const gameDate = new Date(dateStr);
+      return gameDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return 'TBD';
+    }
+  };
+
+  const getTimeToLock = (dateStr: string): string => {
+    try {
+      const gameDate = new Date(dateStr);
+      const now = new Date();
+      const diffMs = gameDate.getTime() - now.getTime();
+      
+      if (diffMs <= 0) return 'LOCKED';
+      
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMinutes / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h`;
+      if (diffHours > 0) return `${diffHours}h ${diffMinutes % 60}m`;
+      if (diffMinutes > 0) return `${diffMinutes}m`;
+      
+      return 'LOCKED';
+    } catch {
+      return 'Soon';
+    }
+  };
+
+  const getConfidenceValue = (confidence: string): number => {
+    switch (confidence?.toLowerCase()) {
+      case 'very high': return 95;
+      case 'high': return 85;
+      case 'medium': return 60;
+      case 'low': return 40;
+      default: return 50;
+    }
+  };
+
+  const getConfidenceColor = (confidence: string): string => {
+    switch (confidence?.toLowerCase()) {
+      case 'very high': return '#00C7BE';
+      case 'high': return '#34C759';
+      case 'medium': return '#FF9500';
+      case 'low': return '#FF3B30';
+      default: return '#8E8E93';
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string): string => {
+    try {
+      const pickDate = new Date(dateStr);
+      const now = new Date();
+      const diffMinutes = Math.floor((now.getTime() - pickDate.getTime()) / (1000 * 60));
+      
+      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 60) return `${diffMinutes} min ago`;
+      
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays}d ago`;
+    } catch {
+      return 'Recently';
+    }
+  };
+
+  // Calculate consensus for a specific game (keep original logic)
   const calculateGameConsensus = (picks: FriendPick[]) => {
     if (!picks || picks.length === 0) return null;
 
@@ -191,7 +224,7 @@ export default function GroupPicksScreen() {
     };
   };
 
-  if (!gamesData.length) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -382,6 +415,7 @@ export default function GroupPicksScreen() {
   );
 }
 
+// Keep ALL your original styles exactly as they were
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -781,7 +815,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-
   gameHeaderRight: {
     alignItems: 'flex-end',
   },
