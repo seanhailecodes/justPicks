@@ -1,19 +1,63 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { supabase, getUserStats, getUserProfile } from '../lib/supabase';
+
+interface UserStats {
+  accuracy: number;
+  totalPicks: number;
+  correctPicks: number;
+  incorrectPicks: number;
+  wrongPicks: number;
+  pendingPicks: number;
+  spreadAccuracy: { percentage: number; wins: number; total: number };
+  moneylineAccuracy: { percentage: number; wins: number; total: number };
+  overUnderAccuracy: { percentage: number; wins: number; total: number };
+  parlayAccuracy: { percentage: number; wins: number; total: number };
+  winRate: number;
+  currentWeek: number;
+  currentWeekPicks: number;
+  decidedPicks: number;
+}
+
+interface UserProfile {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  email: string | null;
+  created_at: string;
+}
+
+const defaultUserStats: UserStats = {
+  accuracy: 0,
+  totalPicks: 0,
+  correctPicks: 0,
+  incorrectPicks: 0,
+  wrongPicks: 0,
+  pendingPicks: 0,
+  spreadAccuracy: { percentage: 0, wins: 0, total: 0 },
+  moneylineAccuracy: { percentage: 0, wins: 0, total: 0 },
+  overUnderAccuracy: { percentage: 0, wins: 0, total: 0 },
+  parlayAccuracy: { percentage: 0, wins: 0, total: 0 },
+  winRate: 0,
+  currentWeek: 1,
+  currentWeekPicks: 0,
+  decidedPicks: 0
+};
+
+const defaultUserProfile: UserProfile = {
+  id: '',
+  username: null,
+  display_name: null,
+  email: null,
+  created_at: new Date().toISOString()
+};
 
 export default function ProfileScreen() {
   const [hiddenIdentity, setHiddenIdentity] = useState(true);
-
-  const userStats = {
-    accuracy: 73,
-    riskLevel: 'Diamond',  // Diamond, Gold, Silver, Bronze
-    totalPicks: 180,
-    spreadAccuracy: { percentage: 68, wins: 34, total: 50 },
-    moneylineAccuracy: { percentage: 81, wins: 65, total: 80 },
-    overUnderAccuracy: { percentage: 72, wins: 36, total: 50 },
-    parlayAccuracy: { percentage: 45, wins: 9, total: 20 },
-  };
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const menuItems = [
     { id: 'history', title: 'Pick History', icon: '📊' },
@@ -22,6 +66,58 @@ export default function ProfileScreen() {
     { id: 'account', title: 'Account Settings', icon: '⚙️' },
     { id: 'support', title: 'Support', icon: '❓' },
   ];
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+      // Set default stats first
+      setUserStats(defaultUserStats);
+      
+      // Set basic profile
+      setUserProfile({
+        id: user.id,
+        username: user.user_metadata?.username || user.email?.split('@')[0] || 'User',
+        display_name: null,
+        email: user.email || null,
+        created_at: user.created_at || new Date().toISOString()
+      });
+      
+      // Try to load real stats (but don't fail if it doesn't work)
+      try {
+        const statsResult = await getUserStats(user.id);
+        if (statsResult?.success && statsResult?.data) {
+          setUserStats({
+            ...defaultUserStats,
+            totalPicks: statsResult.data.totalPicks || 0,
+            correctPicks: statsResult.data.correctPicks || 0,
+            incorrectPicks: statsResult.data.incorrectPicks || 0,
+            wrongPicks: statsResult.data.incorrectPicks || 0,
+            pendingPicks: statsResult.data.pendingPicks || 0,
+            winRate: statsResult.data.winRate || 0,
+            accuracy: statsResult.data.winRate || 0,
+            currentWeek: statsResult.data.currentWeek || 1,
+            currentWeekPicks: statsResult.data.currentWeekPicks || 0,
+            decidedPicks: statsResult.data.decidedPicks || 0
+          });
+        }
+      } catch (statsError) {
+        console.log('Stats loading failed, using defaults');
+      }
+    }
+  } catch (error) {
+    console.error('Error loading user data:', error);
+    setUserStats(defaultUserStats);
+    setUserProfile(defaultUserProfile);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleMenuPress = (itemId: string) => {
     if (itemId === 'history') {
@@ -32,9 +128,16 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSignOut = () => {
-    // TODO: Implement sign out
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
     router.replace('/(auth)/login');
+  };
+
+  const getRiskLevel = (accuracy: number) => {
+    if (accuracy >= 70) return 'Diamond';
+    if (accuracy >= 60) return 'Gold';
+    if (accuracy >= 50) return 'Silver';
+    return 'Bronze';
   };
 
   const getRiskLevelColor = (level: string) => {
@@ -82,6 +185,35 @@ export default function ProfileScreen() {
     }
   };
 
+  const formatMemberSince = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF6B35" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!userStats || !userProfile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Error loading profile data</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const riskLevel = getRiskLevel(userStats.accuracy);
+  const displayName = userProfile.display_name || userProfile.username || 'PickMaster';
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -101,10 +233,12 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarEmoji}>🎯</Text>
           </View>
-          <Text style={styles.username}>PickMaster47</Text>
-          <Text style={styles.profileInfo}>Hidden Identity • Member since Dec 2024</Text>
-          <Text style={[styles.riskLevel, { color: getRiskLevelColor(userStats.riskLevel) }]}>
-            💎 {userStats.riskLevel} Tier Picker
+          <Text style={styles.username}>{displayName}</Text>
+          <Text style={styles.profileInfo}>
+            {hiddenIdentity ? 'Hidden Identity' : userProfile.email} • Member since {formatMemberSince(userProfile.created_at)}
+          </Text>
+          <Text style={[styles.riskLevel, { color: getRiskLevelColor(riskLevel) }]}>
+            {riskLevel === 'Diamond' ? '💎' : riskLevel === 'Gold' ? '🥇' : riskLevel === 'Silver' ? '🥈' : '🥉'} {riskLevel} Tier Picker
           </Text>
         </View>
 
@@ -118,8 +252,8 @@ export default function ProfileScreen() {
               <Text style={styles.mainStatLabel}>Accuracy</Text>
             </View>
             <View style={styles.mainStatItem}>
-              <Text style={[styles.mainStatValue, { color: getRiskLevelColor(userStats.riskLevel), fontSize: 24 }]}>
-                💎 {userStats.riskLevel}
+              <Text style={[styles.mainStatValue, { color: getRiskLevelColor(riskLevel), fontSize: 24 }]}>
+                {riskLevel === 'Diamond' ? '💎' : riskLevel === 'Gold' ? '🥇' : riskLevel === 'Silver' ? '🥈' : '🥉'} {riskLevel}
               </Text>
               <Text style={styles.mainStatLabel}>Tier Rating</Text>
             </View>
@@ -151,19 +285,27 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Total Picks Summary */}
+          <View style={styles.totalPicksRow}>
+            <Text style={styles.totalPicksLabel}>Total Picks: {userStats.totalPicks}</Text>
+            <Text style={styles.totalPicksBreakdown}>
+              ✅ {userStats.correctPicks} • ❌ {userStats.wrongPicks} • ⏳ {userStats.pendingPicks}
+            </Text>
+          </View>
         </View>
 
         {/* Risk Assessment */}
         <View style={styles.riskCard}>
           <Text style={styles.sectionTitle}>Picker Rating</Text>
           <View style={styles.riskBarContainer}>
-            <View style={[styles.riskBar, { width: getRiskLevelWidth(userStats.riskLevel), backgroundColor: getRiskLevelColor(userStats.riskLevel) }]} />
+            <View style={[styles.riskBar, { width: getRiskLevelWidth(riskLevel), backgroundColor: getRiskLevelColor(riskLevel) }]} />
           </View>
-          <Text style={[styles.riskLevelText, { color: getRiskLevelColor(userStats.riskLevel) }]}>
-            💎 {userStats.riskLevel} Tier
+          <Text style={[styles.riskLevelText, { color: getRiskLevelColor(riskLevel) }]}>
+            {riskLevel === 'Diamond' ? '💎' : riskLevel === 'Gold' ? '🥇' : riskLevel === 'Silver' ? '🥈' : '🥉'} {riskLevel} Tier
           </Text>
           <Text style={styles.riskDescription}>
-            {getRiskLevelDescription(userStats.riskLevel)}
+            {getRiskLevelDescription(riskLevel)}
           </Text>
         </View>
 
@@ -213,6 +355,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#8E8E93',
+    fontSize: 16,
+    marginTop: 16,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 16,
   },
   header: {
     flexDirection: 'row',
@@ -318,6 +474,23 @@ const styles = StyleSheet.create({
   statRowValue: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  totalPicksRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    paddingTop: 16,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  totalPicksLabel: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  totalPicksBreakdown: {
+    color: '#8E8E93',
+    fontSize: 14,
   },
   riskCard: {
     backgroundColor: '#1C1C1E',

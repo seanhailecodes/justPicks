@@ -5,9 +5,15 @@ import { supabase } from '../lib/supabase';
 
 export default function HomeScreen() {
   const [displayName, setDisplayName] = useState('');
+  const [stats, setStats] = useState({
+    correct: 0,
+    wrong: 0,
+    pending: 0,
+    accuracy: 0
+  });
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
         // Extract name from email (part before @)
@@ -15,10 +21,27 @@ export default function HomeScreen() {
         // Capitalize first letter
         const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
         setDisplayName(formattedName);
+
+        // Fetch user's picks
+        const { data: picks } = await supabase
+          .from('picks')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (picks) {
+          // Count based on the 'correct' field
+          const correct = picks.filter(p => p.correct === true).length;
+          const wrong = picks.filter(p => p.correct === false).length;
+          const pending = picks.filter(p => p.correct === null).length;
+          const total = correct + wrong;
+          const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+          setStats({ correct, wrong, pending, accuracy });
+        }
       }
     };
     
-    fetchUser();
+    fetchUserData();
   }, []);
 
   return (
@@ -42,21 +65,21 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Stats Card */}
+        {/* Stats Card - Now with real data */}
         <View style={styles.statsCard}>
           <Text style={styles.statsLabel}>Your Prediction Accuracy</Text>
-          <Text style={styles.statsValue}>73%</Text>
+          <Text style={styles.statsValue}>{stats.accuracy}%</Text>
           <View style={styles.statsBreakdown}>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, styles.statCorrect]}>24</Text>
+              <Text style={[styles.statNumber, styles.statCorrect]}>{stats.correct}</Text>
               <Text style={styles.statLabel}>Correct</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, styles.statWrong]}>9</Text>
+              <Text style={[styles.statNumber, styles.statWrong]}>{stats.wrong}</Text>
               <Text style={styles.statLabel}>Wrong</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, styles.statPending]}>3</Text>
+              <Text style={[styles.statNumber, styles.statPending]}>{stats.pending}</Text>
               <Text style={styles.statLabel}>Pending</Text>
             </View>
           </View>

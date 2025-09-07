@@ -1,104 +1,168 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getUserPickHistory, supabase } from '../lib/supabase';
+
+interface PickHistoryItem {
+  id: string;
+  game_id: string;
+  pick: string;
+  team_picked: string;
+  confidence: string;
+  reasoning: string;
+  result: boolean | null;
+  correct: boolean | null;
+  created_at: string;
+  week: number;
+  season: number;
+  pick_type: string;
+  games?: {
+    home_team: string;
+    away_team: string;
+    game_date: string;
+    home_score: number | null;
+    away_score: number | null;
+  };
+}
 
 export default function PickHistoryScreen() {
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'incorrect', 'pending'
+  const [pickHistory, setPickHistory] = useState<PickHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const pickHistory = [
-    {
-      id: 1,
-      date: 'Today',
-      game: 'Cowboys @ Giants',
-      pick: 'NYG +3.5',
-      result: 'pending',
-      confidence: 'Medium',
-      groups: ['Work Friends', 'Family Picks'],
-    },
-    {
-      id: 2,
-      date: 'Yesterday',
-      game: 'Lakers @ Warriors',
-      pick: 'GSW -4.5',
-      result: 'correct',
-      score: 'GSW 118, LAL 108',
-      confidence: 'High',
-      groups: ['Work Friends'],
-    },
-    {
-      id: 3,
-      date: 'Dec 26',
-      game: 'Chiefs @ Raiders',
-      pick: 'KC -7.5',
-      result: 'incorrect',
-      score: 'KC 20, LV 14',
-      confidence: 'High',
-      groups: ['Family Picks'],
-    },
-    {
-      id: 4,
-      date: 'Dec 25',
-      game: 'Celtics @ Bucks',
-      pick: 'Over 228.5',
-      result: 'correct',
-      score: 'BOS 119, MIL 116 (Total: 235)',
-      confidence: 'Medium',
-      groups: ['College Buddies'],
-    },
-    {
-      id: 5,
-      date: 'Dec 24',
-      game: 'Ravens @ 49ers',
-      pick: 'BAL +3.5',
-      result: 'correct',
-      score: 'SF 19, BAL 17',
-      confidence: 'Low',
-      groups: ['Work Friends'],
-    },
-  ];
+  useEffect(() => {
+    loadPickHistory();
+  }, []);
+
+  const loadPickHistory = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const history = await getUserPickHistory(user.id);
+        setPickHistory(history || []);
+      }
+    } catch (error) {
+      console.error('Error loading pick history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getFilteredPicks = () => {
     if (filter === 'all') return pickHistory;
-    return pickHistory.filter(pick => pick.result === filter);
+    if (filter === 'correct') return pickHistory.filter(pick => pick.correct === true);
+    if (filter === 'incorrect') return pickHistory.filter(pick => pick.correct === false);
+    if (filter === 'pending') return pickHistory.filter(pick => pick.correct === null);
+    return pickHistory;
   };
 
-  const getResultColor = (result: string) => {
-    switch (result) {
-      case 'correct': return '#34C759';
-      case 'incorrect': return '#FF3B30';
-      case 'pending': return '#FF9500';
-      default: return '#8E8E93';
-    }
+  const getResultColor = (result: boolean | null) => {
+    if (result === true) return '#34C759';
+    if (result === false) return '#FF3B30';
+    return '#FF9500'; // pending
   };
 
-  const getResultIcon = (result: string) => {
-    switch (result) {
-      case 'correct': return '✅';
-      case 'incorrect': return '❌';
-      case 'pending': return '⏳';
-      default: return '';
-    }
+  const getResultIcon = (result: boolean | null) => {
+    if (result === true) return '✅';
+    if (result === false) return '❌';
+    return '⏳'; // pending
+  };
+
+  const getResultText = (result: boolean | null) => {
+    if (result === true) return 'Correct';
+    if (result === false) return 'Incorrect';
+    return 'Pending';
   };
 
   const getConfidenceColor = (confidence: string) => {
-    switch (confidence) {
-      case 'High': return '#34C759';
-      case 'Medium': return '#FF9500';
-      case 'Low': return '#FF3B30';
+    switch (confidence?.toLowerCase()) {
+      case 'high': return '#34C759';
+      case 'medium': return '#FF9500';
+      case 'low': return '#FF3B30';
       default: return '#8E8E93';
     }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const formatGameTitle = (pick: PickHistoryItem) => {
+    if (pick.games) {
+      return `${pick.games.away_team} @ ${pick.games.home_team}`;
+    }
+    // Fallback to game_id parsing if games data isn't available
+    const parts = pick.game_id.split('-');
+    if (parts.length >= 4) {
+      return `${parts[3]} @ ${parts[2]}`;
+    }
+    return pick.game_id;
+  };
+
+  const formatPickChoice = (pick: PickHistoryItem) => {
+    if (pick.pick_type === 'spread') {
+      return `${pick.team_picked.toUpperCase()} (Spread)`;
+    }
+    if (pick.pick_type === 'moneyline') {
+      return `${pick.team_picked.toUpperCase()} (ML)`;
+    }
+    if (pick.pick_type === 'over_under') {
+      return `${pick.pick === 'over' ? 'Over' : 'Under'}`;
+    }
+    return pick.team_picked.toUpperCase();
+  };
+
+  const formatScore = (pick: PickHistoryItem) => {
+    // Since we don't have games data, we can't show scores
+    // Could be enhanced later if you add game results to your database
+    return null;
   };
 
   const stats = {
     total: pickHistory.length,
-    correct: pickHistory.filter(p => p.result === 'correct').length,
-    incorrect: pickHistory.filter(p => p.result === 'incorrect').length,
-    pending: pickHistory.filter(p => p.result === 'pending').length,
+    correct: pickHistory.filter(p => p.correct === true).length,
+    incorrect: pickHistory.filter(p => p.correct === false).length,
+    pending: pickHistory.filter(p => p.correct === null).length,
   };
+
+  const winRate = stats.correct + stats.incorrect > 0 
+    ? Math.round((stats.correct / (stats.correct + stats.incorrect)) * 100)
+    : 0;
 
   const handleBack = () => {
     router.back();
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Pick History</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF6B35" />
+          <Text style={styles.loadingText}>Loading pick history...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -126,7 +190,7 @@ export default function PickHistoryScreen() {
         </View>
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: '#FF6B35' }]}>
-            {Math.round((stats.correct / (stats.correct + stats.incorrect)) * 100)}%
+            {winRate}%
           </Text>
           <Text style={styles.statLabel}>Win Rate</Text>
         </View>
@@ -159,37 +223,55 @@ export default function PickHistoryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {getFilteredPicks().map(pick => (
-          <TouchableOpacity key={pick.id} style={styles.pickCard}>
-            <View style={styles.pickHeader}>
-              <View>
-                <Text style={styles.pickDate}>{pick.date}</Text>
-                <Text style={styles.pickGame}>{pick.game}</Text>
+        {getFilteredPicks().length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              {filter === 'all' ? 'No picks yet' : `No ${filter} picks`}
+            </Text>
+            <Text style={styles.emptyStateSubtext}>
+              {filter === 'all' 
+                ? 'Start making picks to see your history here!'
+                : `You don't have any ${filter} picks yet.`
+              }
+            </Text>
+          </View>
+        ) : (
+          getFilteredPicks().map(pick => (
+            <TouchableOpacity key={pick.id} style={styles.pickCard}>
+              <View style={styles.pickHeader}>
+                <View>
+                  <Text style={styles.pickDate}>{formatDate(pick.created_at)}</Text>
+                  <Text style={styles.pickGame}>{formatGameTitle(pick)}</Text>
+                </View>
+                <Text style={styles.resultIcon}>{getResultIcon(pick.correct)}</Text>
               </View>
-              <Text style={styles.resultIcon}>{getResultIcon(pick.result)}</Text>
-            </View>
 
-            <View style={styles.pickDetails}>
-              <Text style={styles.pickChoice}>{pick.pick}</Text>
-              <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) }]}>
-                <Text style={styles.confidenceText}>{pick.confidence}</Text>
+              <View style={styles.pickDetails}>
+                <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
+                <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) }]}>
+                  <Text style={styles.confidenceText}>{pick.confidence || 'Medium'}</Text>
+                </View>
               </View>
-            </View>
 
-            {pick.score && (
-              <Text style={styles.scoreText}>{pick.score}</Text>
-            )}
+              {formatScore(pick) && (
+                <Text style={styles.scoreText}>{formatScore(pick)}</Text>
+              )}
 
-            <View style={styles.pickFooter}>
-              <Text style={styles.groupsText}>
-                Shared with: {pick.groups.join(', ')}
-              </Text>
-              <Text style={[styles.resultText, { color: getResultColor(pick.result) }]}>
-                {pick.result.charAt(0).toUpperCase() + pick.result.slice(1)}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+              {pick.reasoning && (
+                <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
+              )}
+
+              <View style={styles.pickFooter}>
+                <Text style={styles.weekText}>
+                  Week {pick.week} • {pick.pick_type.replace('_', ' ').toUpperCase()}
+                </Text>
+                <Text style={[styles.resultText, { color: getResultColor(pick.correct) }]}>
+                  {getResultText(pick.correct)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -199,6 +281,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#8E8E93',
+    fontSize: 16,
+    marginTop: 16,
   },
   header: {
     flexDirection: 'row',
@@ -277,6 +369,22 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    color: '#8E8E93',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   pickCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
@@ -328,12 +436,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 8,
   },
+  reasoningText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
   pickFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  groupsText: {
+  weekText: {
     color: '#8E8E93',
     fontSize: 12,
   },
