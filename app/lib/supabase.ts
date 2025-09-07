@@ -1,30 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
+import storage from './storage';
 
 //  Conditional storage based on platform
-const createStorage = () => {
-  if (Platform.OS === 'web') {
-    // Use localStorage for web
-    return {
-      getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
-      setItem: (key: string, value: string) => Promise.resolve(localStorage.setItem(key, value)),
-      removeItem: (key: string) => Promise.resolve(localStorage.removeItem(key)),
-    };
-  } else {
-    // Use AsyncStorage for mobile
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    return AsyncStorage;
-  }
-};
+// const createStorage = () => {
+//   if (Platform.OS === 'web') {
+//     // Use localStorage for web
+//     return {
+//       getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
+//       setItem: (key: string, value: string) => Promise.resolve(localStorage.setItem(key, value)),
+//       removeItem: (key: string) => Promise.resolve(localStorage.removeItem(key)),
+//     };
+//   } else {
+//     // Use AsyncStorage for mobile
+//     const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+//     return AsyncStorage;
+//   }
+// };
 
 const supabaseUrl = 'https://oyedfzsqqqdfrmhbcbwb.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95ZWRmenNxcXFkZnJtaGJjYndiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODMwMDksImV4cCI6MjA3MjE1OTAwOX0.zlQAXksbwfK6y-pIQVgju9e1DG-Kj8Gmbpvvs9TPU5g';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: storage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
