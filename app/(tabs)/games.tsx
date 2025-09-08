@@ -78,7 +78,7 @@ export default function GamesScreen() {
   const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
 
   // Load user picks from database
-  const loadUserPicks = async (userId: string = '64a6ef63-2b66-4e03-9152-b766ec0926aa') => {
+  const loadUserPicks = async (userId: string) => {
     try {
       const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
       const result = await getUserPicks(userId, weekNumber);
@@ -346,10 +346,14 @@ export default function GamesScreen() {
       setSelectedGame(null);
       console.log('3. Modal closed successfully');
       
-      // Use real user ID for development (your seanhaile.codes@gmail.com account)
-        const userId = '64a6ef63-2b66-4e03-9152-b766ec0926aa';
-        console.log('4. Using real user ID for development:', userId);
-      
+      // Use actual logged-in user ID
+      if (!session?.user?.id) {
+        alert('Please log in to make picks');
+        return;
+      }
+      const userId = session.user.id;
+      console.log('4. Using actual user ID:', userId);
+
       if (selectedGame && selectedGame.originalId) {
         console.log('5. Saving pick for game:', selectedGame.originalId);
         
