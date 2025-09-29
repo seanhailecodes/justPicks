@@ -66,7 +66,8 @@ export async function getFriendsWithStats(userId: string): Promise<Friend[]> {
     })
   );
 
-return friendsWithStats.filter(friend => friend !== null);}
+  return friendsWithStats.filter(friend => friend !== null);
+}
 
 // Get group statistics for current user
 export async function getGroupStats(userId: string): Promise<GroupStats> {
@@ -97,7 +98,6 @@ export async function getGroupStats(userId: string): Promise<GroupStats> {
     totalFriends: totalFriends || 0
   };
 }
-
 
 export interface GameWithPicks {
   id: string;
@@ -135,26 +135,8 @@ export interface GameConsensus {
   awayPicks: number;
 }
 
-// Get games with picks for a specific week and user's friends
+// Get games with picks for a specific week from ALL users
 export async function getGamesWithGroupPicks(userId: string, week: number, season: number = 2025): Promise<GameWithPicks[]> {
-  console.log('=== DEBUGGING GROUP PICKS QUERY ===');
-  console.log('User ID:', userId);
-  console.log('Week:', week, 'Season:', season);
-
-  // Get user's friends
-  const { data: friendships, error: friendError } = await supabase
-    .from('friendships')
-    .select('friend_id')
-    .eq('user_id', userId)
-    .eq('status', 'accepted');
-
-  console.log('Friendships query result:', friendships);
-  console.log('Friendships error:', friendError);
-
-  const friendIds = friendships?.map(f => f.friend_id) || [];
-  const allUserIds = [userId, ...friendIds];
-  console.log('All user IDs to query:', allUserIds);
-
   // Get games for the week
   const { data: games, error: gamesError } = await supabase
     .from('games')
@@ -163,38 +145,54 @@ export async function getGamesWithGroupPicks(userId: string, week: number, seaso
     .eq('season', season)
     .order('game_date');
 
-  console.log('Games query result:', games?.length, 'games found');
-  console.log('Games error:', gamesError);
-
   if (gamesError) {
     console.error('Error fetching games:', gamesError);
     return [];
   }
 
-  // Get all picks for these games from friends and user
+  // Get ALL picks for these games from ALL users
   const { data: picks, error: picksError } = await supabase
     .from('picks')
     .select('*')
-    .in('user_id', allUserIds)
     .eq('week', week)
     .eq('season', season);
 
-  console.log('Picks query result:', picks?.length, 'picks found');
-  console.log('Picks error:', picksError);
-  console.log('===================================');
+  if (picksError) {
+    console.error('Error fetching picks:', picksError);
+    return [];
+  }
 
-  // ... rest of your existing function
-
+  // Get unique user IDs from picks
+  const uniqueUserIds = [...new Set(picks?.map(p => p.user_id) || [])];
+  
   // Get user info for pick authors
-  const userPromises = allUserIds.map(async (uid) => {
+  const userPromises = uniqueUserIds.map(async (uid) => {
     if (uid === userId) {
       return { id: uid, username: 'You' };
     }
     
-    const { data: authUser } = await supabase.auth.admin.getUserById(uid);
+    // For other users, try to get their email from profiles or use generic username
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, username, display_name')
+        .eq('id', uid)
+        .single();
+      
+      if (profile) {
+        return {
+          id: uid,
+          username: profile.username || profile.display_name || profile.email?.split('@')[0] || 'User'
+        };
+      }
+    } catch (error) {
+      console.log('Could not get profile for:', uid);
+    }
+    
+    // Fallback to generic username
     return {
       id: uid,
-      username: authUser.user?.email?.split('@')[0] || 'User'
+      username: 'User'
     };
   });
 
@@ -202,7 +200,7 @@ export async function getGamesWithGroupPicks(userId: string, week: number, seaso
   const userMap = Object.fromEntries(users.map(u => [u.id, u.username]));
 
   // Get pick and accuracy stats for each user
-  const userStatsPromises = allUserIds.map(async (uid) => {
+  const userStatsPromises = uniqueUserIds.map(async (uid) => {
     const { count: totalPicks } = await supabase
       .from('picks')
       .select('*', { count: 'exact', head: true })
@@ -213,7 +211,6 @@ export async function getGamesWithGroupPicks(userId: string, week: number, seaso
       .select('*', { count: 'exact', head: true })
       .eq('user_id', uid)
       .eq('correct', true);
-      
 
     return {
       user_id: uid,
@@ -227,7 +224,7 @@ export async function getGamesWithGroupPicks(userId: string, week: number, seaso
 
   // Combine games with their picks
   const gamesWithPicks: GameWithPicks[] = games.map(game => {
-    const gamePicks = picks.filter(pick => pick.game_id === game.id);
+    const gamePicks = picks?.filter(pick => pick.game_id === game.id) || [];
     
     const picksWithUser: PickWithUser[] = gamePicks.map(pick => {
       const stats = statsMap[pick.user_id] || { totalPicks: 0, winRate: 0 };

@@ -77,6 +77,121 @@ export default function GamesScreen() {
   const sports = ['Football', 'Basketball', 'College', 'Other'];
   const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
 
+  // Helper function to extract spread value from string like "NYJ +3" -> 3
+  const getSpreadValue = (spreadString: string): number => {
+    const match = spreadString.match(/([+-]\d+\.?\d*)/);
+    return match ? parseFloat(match[1]) : 0;
+  };
+
+  // Development function to populate games for current week only
+  const populateCurrentWeekGames = async () => {
+    console.log('Starting current week database population...');
+    
+    if (__DEV__) {
+      try {
+        // Get current week from database, with fallback to hardcoded logic
+        let currentWeek;
+        const { data: appState, error: weekError } = await supabase
+          .from('app_state')
+          .select('current_week')
+          .single();
+
+        if (weekError || !appState?.current_week) {
+          console.warn('Could not get current week from database, using fallback logic:', weekError);
+          currentWeek = getCurrentNFLWeek(); // Use the hardcoded fallback
+        } else {
+          currentWeek = appState.current_week;
+        }
+        console.log(`Database says current week is: ${currentWeek}`);
+        
+        // Select only the current week's games
+        let currentWeekGames = [];
+        if (currentWeek === 1) {
+          currentWeekGames = NFL_WEEK_1_2025;
+        } else if (currentWeek === 2) {
+          currentWeekGames = NFL_WEEK_2_2025;
+        }
+        // Add more weeks as needed
+        
+        if (currentWeekGames.length === 0) {
+          alert(`No games found for week ${currentWeek}`);
+          return;
+        }
+
+        const games = currentWeekGames.map(game => {
+          // Convert the game time to 24-hour format for database storage
+          const convertTo24Hour = (timeStr: string): string => {
+            const [time, period] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':');
+            let hour24 = parseInt(hours);
+            
+            if (period === 'PM' && hour24 !== 12) {
+              hour24 += 12;
+            } else if (period === 'AM' && hour24 === 12) {
+              hour24 = 0;
+            }
+            
+            return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
+          };
+
+          // Create proper ISO datetime string
+          const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}`;
+          
+          return {
+            id: game.id,
+            week: game.week,
+            season: 2025,
+            home_team: game.homeTeamShort,
+            away_team: game.awayTeamShort,
+            home_spread: getSpreadValue(game.spread.home),
+            away_spread: getSpreadValue(game.spread.away),
+            league: 'NFL',
+            game_date: gameDateTime,
+            locked: false,
+          };
+        });
+
+        console.log(`Populating ${games.length} games for week ${currentWeek}`);
+        console.log('Sample game with preserved time:', games[0]);
+
+        // Use upsert to handle duplicates gracefully
+        const { data, error } = await supabase
+          .from('games')
+          .upsert(games, { 
+            onConflict: 'id',
+            ignoreDuplicates: false 
+          });
+
+        if (error) {
+          console.error('Population error:', error);
+          alert(`Error: ${error.message}`);
+        } else {
+          alert(`Success! Populated ${games.length} games for week ${currentWeek}`);
+        }
+      } catch (err) {
+        console.error('Population failed:', err);
+        alert('Population failed - check console');
+      }
+    }
+  };
+
+  // Helper function to determine current NFL week
+  const getCurrentNFLWeek = (): number => {
+    // You'll need to implement this based on your app's logic
+    // For now, hardcode or use date logic
+    const currentDate = new Date();
+    
+    // Example logic - adjust based on your needs
+    if (currentDate >= new Date('2025-09-04') && currentDate < new Date('2025-09-11')) {
+      return 1;
+    } else if (currentDate >= new Date('2025-09-11') && currentDate < new Date('2025-09-18')) {
+      return 2;
+    }
+    // Add more weeks...
+    
+    return 1; // Default to week 1
+  };
+
   // Load user picks from database
   const loadUserPicks = async (userId: string) => {
     try {
@@ -212,17 +327,24 @@ export default function GamesScreen() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        loadUserPicks(session.user.id);
+        // Add a small delay to ensure session is fully established
+        setTimeout(() => {
+          loadUserPicks(session.user.id);
+        }, 500);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load picks when week changes
   useEffect(() => {
+    console.log('Week changed to:', selectedWeek);
     if (session?.user) {
+      console.log('Loading picks for user:', session.user.id);
       loadUserPicks(session.user.id);
+    } else {
+      console.log('No session, loading games only');
+      loadGamesFromDatabase();
     }
   }, [selectedWeek, session]);
 
@@ -272,28 +394,28 @@ export default function GamesScreen() {
         return 'LOCKED';
       }
         
-        const diffMinutes = Math.floor(diffMs / (1000 * 60));
-        const diffHours = Math.floor(diffMinutes / 60);
-        const diffDays = Math.floor(diffHours / 24);
-        
-        if (diffDays > 0) {
-          return `${diffDays}d ${diffHours % 24}h`;
-        }
-        if (diffHours > 0) {
-          return `${diffHours}h ${diffMinutes % 60}m`;
-        }
-        if (diffMinutes > 0) {
-          return `${diffMinutes}m`;
-        }
-        
-        return 'LOCKED';
-        
-      } catch (error) {
-        console.error('Error calculating time to lock:', error);
-        console.error('gameDate:', gameDate, 'gameTime:', gameTime);
-        return 'Soon';
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMinutes / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffDays > 0) {
+        return `${diffDays}d ${diffHours % 24}h`;
       }
-    };
+      if (diffHours > 0) {
+        return `${diffHours}h ${diffMinutes % 60}m`;
+      }
+      if (diffMinutes > 0) {
+        return `${diffMinutes}m`;
+      }
+      
+      return 'LOCKED';
+        
+    } catch (error) {
+      console.error('Error calculating time to lock:', error);
+      console.error('gameDate:', gameDate, 'gameTime:', gameTime);
+      return 'Soon';
+    }
+  };
 
   // Get lock time style based on urgency
   const getLockTimeStyle = (timeToLock: string) => {
@@ -314,7 +436,6 @@ export default function GamesScreen() {
     const timeToLock = getTimeToLock(gameDate, gameTime);
     return timeToLock !== 'LOCKED';
   };
-
 
   // Handle pick selection
   const handlePickSelection = (game: Game) => {
@@ -343,7 +464,7 @@ export default function GamesScreen() {
       console.log('2. Pick data received:', pickData);
       
       setShowPickModal(false);
-      setSelectedGame(null);
+      // Don't set selectedGame to null yet - we need it
       console.log('3. Modal closed successfully');
       
       // Use actual logged-in user ID
@@ -360,16 +481,17 @@ export default function GamesScreen() {
         setIsLoading(true);
         const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
         
-    const result = await savePick(
-        userId,
-        selectedGame.originalId,
-        pickData.pick,
-        weekNumber
-              );
+        const result = await savePick(
+          userId,
+          selectedGame.originalId,
+          pickData.pick,
+          weekNumber
+        );
 
         if (result.success) {
           console.log('6. Pick saved to Supabase successfully!');
           
+          // Update local picks map
           const newPicks = new Map(userPicks);
           newPicks.set(selectedGame.originalId, {
             pick: pickData.pick,
@@ -380,12 +502,16 @@ export default function GamesScreen() {
           });
           setUserPicks(newPicks);
           
-          // Reload games to show the updated pick
-          loadGamesFromDatabase();
+          // Immediately update UI for instant feedback
+          const updatedGames = games.map(game => 
+            game.originalId === selectedGame.originalId 
+              ? { ...game, selectedPick: pickData.pick, confidence: pickData.confidence, pickType: pickData.type }
+              : game
+          );
+          setGames(updatedGames);
           
-          console.log('7. Pick saved to local state and games reloaded');
-        }
-        else {
+          console.log('7. Pick saved and UI updated immediately');
+        } else {
           console.error('6. Failed to save:', result.error);
           alert('Failed to save pick. Check console.');
         }
@@ -393,6 +519,8 @@ export default function GamesScreen() {
         setIsLoading(false);
       }
       
+      // Now we can clear selectedGame
+      setSelectedGame(null);
       console.log('8. All operations completed');
       
     } catch (error) {
@@ -428,74 +556,6 @@ export default function GamesScreen() {
     const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
     return `${gameDate.toLocaleDateString('en-US', options)} ${time}`;
   };
-
-
-  // Helper function to extract spread value from string like "NYJ +3" -> 3
-    const getSpreadValue = (spreadString: string): number => {
-      const match = spreadString.match(/([+-]\d+\.?\d*)/);
-      return match ? parseFloat(match[1]) : 0;
-    };
-
-  // Development function to populate games
-
-const populateAllGames = async () => {
-  console.log('Starting clean database population...');
-  
-  if (__DEV__) {
-    try {
-      const allGames = [...NFL_WEEK_1_2025, ...NFL_WEEK_2_2025];
-      
-      const games = allGames.map(game => {
-        // Convert the game time to 24-hour format for database storage
-        const convertTo24Hour = (timeStr: string): string => {
-          const [time, period] = timeStr.split(' ');
-          let [hours, minutes] = time.split(':');
-          let hour24 = parseInt(hours);
-          
-          if (period === 'PM' && hour24 !== 12) {
-            hour24 += 12;
-          } else if (period === 'AM' && hour24 === 12) {
-            hour24 = 0;
-          }
-          
-          return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
-        };
-
-        // Create proper ISO datetime string
-        const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}`;
-        
-        return {
-          id: game.id,
-          week: game.week,
-          season: 2025,
-          home_team: game.homeTeamShort,
-          away_team: game.awayTeamShort,
-          home_spread: getSpreadValue(game.spread.home),
-          away_spread: getSpreadValue(game.spread.away),
-          league: 'NFL',
-          game_date: gameDateTime, // This preserves the actual game time
-          locked: false,
-        };
-      });
-
-      console.log('Sample game with preserved time:', games[0]);
-
-      const { data, error } = await supabase
-        .from('games')
-        .insert(games);
-
-      if (error) {
-        console.error('Population error:', error);
-        alert(`Error: ${error.message}`);
-      } else {
-        alert(`Success! Populated ${games.length} games with correct times`);
-      }
-    } catch (err) {
-      console.error('Population failed:', err);
-      alert('Population failed - check console');
-    }
-  }
-};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -709,7 +769,7 @@ const populateAllGames = async () => {
         
         {__DEV__ && (
           <TouchableOpacity 
-            onPress={populateAllGames}
+            onPress={populateCurrentWeekGames}
             style={{
               backgroundColor: '#FF6B35',
               padding: 16,
@@ -720,7 +780,7 @@ const populateAllGames = async () => {
             }}
           >
             <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: 'bold' }}>
-              DEV: Populate Games Database
+              DEV: Populate Current Week Games
             </Text>
           </TouchableOpacity>
         )}
@@ -1023,7 +1083,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Add these to your StyleSheet.create section:
   pickActionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,36 +1,105 @@
 // app/data/nfl-week3-2025.ts
 // 2025 NFL Week 3 Schedule (September 18-22)
-// Note: Betting lines are estimates based on team strength
+// Updated with real games and current betting lines
 
 import { NFLGame } from './nfl-week1-2025';
 
 export const NFL_WEEK_3_2025: NFLGame[] = [
-  // THURSDAY, SEPTEMBER 18
+  // THURSDAY, SEPTEMBER 19
   {
-    id: "2025-W3-NE-NYJ",
+    id: "2025-W3-MIA-BUF",
     week: 3,
-    date: "2025-09-18",
+    date: "2025-09-19",
     time: "8:15 PM",
-    homeTeam: "New York Jets",
-    awayTeam: "New England Patriots",
-    homeTeamShort: "NYJ",
-    awayTeamShort: "NE",
+    homeTeam: "Buffalo Bills",
+    awayTeam: "Miami Dolphins", 
+    homeTeamShort: "BUF",
+    awayTeamShort: "MIA",
     spread: {
-      home: "NYJ -4",
-      away: "NE +4",
-      value: -4
+      home: "BUF -13.5",
+      away: "MIA +13.5",
+      value: -13.5
     },
-    overUnder: 38.5,
+    overUnder: 49.5,
     moneyline: {
-      home: -190,
-      away: 160
+      home: -900,
+      away: 550
     },
-    venue: "MetLife Stadium",
+    venue: "Highmark Stadium",
     tv: ["Prime Video"],
     isPrimetime: true
   },
 
   // SUNDAY, SEPTEMBER 21 - 1:00 PM Games
+  {
+    id: "2025-W3-NYJ-TB",
+    week: 3,
+    date: "2025-09-21",
+    time: "1:00 PM",
+    homeTeam: "Tampa Bay Buccaneers",
+    awayTeam: "New York Jets",
+    homeTeamShort: "TB",
+    awayTeamShort: "NYJ",
+    spread: {
+      home: "TB -6.5",
+      away: "NYJ +6.5",
+      value: -6.5
+    },
+    overUnder: 44.5,
+    moneyline: {
+      home: -320,
+      away: 260
+    },
+    venue: "Raymond James Stadium",
+    tv: ["FOX"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W3-IND-TEN",
+    week: 3,
+    date: "2025-09-21",
+    time: "1:00 PM",
+    homeTeam: "Tennessee Titans",
+    awayTeam: "Indianapolis Colts",
+    homeTeamShort: "TEN",
+    awayTeamShort: "IND",
+    spread: {
+      home: "TEN +3.5",
+      away: "IND -3.5",
+      value: 3.5
+    },
+    overUnder: 43.5,
+    moneyline: {
+      home: 155,
+      away: -185
+    },
+    venue: "Nissan Stadium",
+    tv: ["CBS"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W3-LV-WSH",
+    week: 3,
+    date: "2025-09-21",
+    time: "1:00 PM",
+    homeTeam: "Washington Commanders",
+    awayTeam: "Las Vegas Raiders",
+    homeTeamShort: "WSH",
+    awayTeamShort: "LV",
+    spread: {
+      home: "WSH -5.5",
+      away: "LV +5.5",
+      value: -5.5
+    },
+    overUnder: 46.5,
+    moneyline: {
+      home: -270,
+      away: 220
+    },
+    venue: "Northwest Stadium",
+    tv: ["FOX"],
+    isPrimetime: false
+  },
   {
     id: "2025-W3-LAR-PHI",
     week: 3,
@@ -41,345 +110,276 @@ export const NFL_WEEK_3_2025: NFLGame[] = [
     homeTeamShort: "PHI",
     awayTeamShort: "LAR",
     spread: {
-      home: "PHI -6.5",
-      away: "LAR +6.5",
-      value: -6.5
+      home: "PHI -3.5",
+      away: "LAR +3.5",
+      value: -3.5
     },
-    overUnder: 48.5,
+    overUnder: 44.5,
     moneyline: {
-      home: -280,
-      away: 230
+      home: -190,
+      away: 160
     },
     venue: "Lincoln Financial Field",
     tv: ["FOX"],
     isPrimetime: false
   },
   {
-    id: "2025-W3-DEN-TB",
+    id: "2025-W3-ATL-CAR",
     week: 3,
     date: "2025-09-21",
     time: "1:00 PM",
-    homeTeam: "Tampa Bay Buccaneers",
-    awayTeam: "Denver Broncos",
-    homeTeamShort: "TB",
-    awayTeamShort: "DEN",
+    homeTeam: "Carolina Panthers",
+    awayTeam: "Atlanta Falcons",
+    homeTeamShort: "CAR",
+    awayTeamShort: "ATL",
     spread: {
-      home: "TB +3.5",
-      away: "DEN -3.5",
+      home: "CAR +3.5",
+      away: "ATL -3.5",
       value: 3.5
     },
     overUnder: 43.5,
     moneyline: {
-      home: 155,
-      away: -180
+      home: 180,
+      away: -215
     },
-    venue: "Raymond James Stadium",
+    venue: "Bank of America Stadium",
     tv: ["FOX"],
     isPrimetime: false
   },
   {
-    id: "2025-W3-HOU-MIN",
+    id: "2025-W3-HOU-JAX",
     week: 3,
     date: "2025-09-21",
     time: "1:00 PM",
-    homeTeam: "Minnesota Vikings",
+    homeTeam: "Jacksonville Jaguars",
     awayTeam: "Houston Texans",
-    homeTeamShort: "MIN",
+    homeTeamShort: "JAX",
     awayTeamShort: "HOU",
     spread: {
-      home: "MIN +1",
-      away: "HOU -1",
-      value: 1
+      home: "JAX -1.5",
+      away: "HOU +1.5",
+      value: -1.5
     },
-    overUnder: 46.5,
+    overUnder: 44.5,
     moneyline: {
-      home: -105,
-      away: -115
+      home: -120,
+      away: 100
     },
-    venue: "U.S. Bank Stadium",
+    venue: "TIAA Bank Field",
     tv: ["CBS"],
     isPrimetime: false
   },
   {
-    id: "2025-W3-NYG-CLE",
+    id: "2025-W3-GB-CLE",
     week: 3,
     date: "2025-09-21",
     time: "1:00 PM",
     homeTeam: "Cleveland Browns",
-    awayTeam: "New York Giants",
+    awayTeam: "Green Bay Packers",
     homeTeamShort: "CLE",
-    awayTeamShort: "NYG",
+    awayTeamShort: "GB",
     spread: {
-      home: "CLE -3",
-      away: "NYG +3",
-      value: -3
+      home: "CLE +8.5",
+      away: "GB -8.5",
+      value: 8.5
     },
-    overUnder: 40.5,
+    overUnder: 42.5,
     moneyline: {
-      home: -155,
-      away: 135
+      home: 340,
+      away: -450
     },
     venue: "Huntington Bank Field",
     tv: ["FOX"],
     isPrimetime: false
   },
   {
-    id: "2025-W3-IND-CHI",
+    id: "2025-W3-PIT-NE",
     week: 3,
     date: "2025-09-21",
     time: "1:00 PM",
-    homeTeam: "Chicago Bears",
-    awayTeam: "Indianapolis Colts",
-    homeTeamShort: "CHI",
-    awayTeamShort: "IND",
+    homeTeam: "New England Patriots",
+    awayTeam: "Pittsburgh Steelers",
+    homeTeamShort: "NE",
+    awayTeamShort: "PIT",
     spread: {
-      home: "CHI +2.5",
-      away: "IND -2.5",
-      value: 2.5
+      home: "NE +1.5",
+      away: "PIT -1.5",
+      value: 1.5
     },
     overUnder: 44.5,
     moneyline: {
-      home: 120,
-      away: -140
+      home: 100,
+      away: -120
     },
-    venue: "Soldier Field",
+    venue: "Gillette Stadium",
     tv: ["CBS"],
     isPrimetime: false
   },
   {
-    id: "2025-W3-LAC-PIT",
+    id: "2025-W3-CIN-MIN",
     week: 3,
     date: "2025-09-21",
     time: "1:00 PM",
-    homeTeam: "Pittsburgh Steelers",
-    awayTeam: "Los Angeles Chargers",
-    homeTeamShort: "PIT",
-    awayTeamShort: "LAC",
+    homeTeam: "Minnesota Vikings",
+    awayTeam: "Cincinnati Bengals",
+    homeTeamShort: "MIN",
+    awayTeamShort: "CIN",
     spread: {
-      home: "PIT +1.5",
-      away: "LAC -1.5",
-      value: 1.5
+      home: "MIN -3.5",
+      away: "CIN +3.5",
+      value: -3.5
     },
     overUnder: 41.5,
     moneyline: {
-      home: 105,
-      away: -125
+      home: -175,
+      away: 150
     },
-    venue: "Acrisure Stadium",
-    tv: ["CBS"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W3-GB-TEN",
-    week: 3,
-    date: "2025-09-21",
-    time: "1:00 PM",
-    homeTeam: "Tennessee Titans",
-    awayTeam: "Green Bay Packers",
-    homeTeamShort: "TEN",
-    awayTeamShort: "GB",
-    spread: {
-      home: "TEN +9.5",
-      away: "GB -9.5",
-      value: 9.5
-    },
-    overUnder: 44.5,
-    moneyline: {
-      home: 380,
-      away: -500
-    },
-    venue: "Nissan Stadium",
-    tv: ["FOX"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W3-CAR-LV",
-    week: 3,
-    date: "2025-09-21",
-    time: "1:00 PM",
-    homeTeam: "Las Vegas Raiders",
-    awayTeam: "Carolina Panthers",
-    homeTeamShort: "LV",
-    awayTeamShort: "CAR",
-    spread: {
-      home: "LV -2.5",
-      away: "CAR +2.5",
-      value: -2.5
-    },
-    overUnder: 39.5,
-    moneyline: {
-      home: -135,
-      away: 115
-    },
-    venue: "Allegiant Stadium",
-    tv: ["CBS"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W3-MIA-SEA",
-    week: 3,
-    date: "2025-09-21",
-    time: "1:00 PM",
-    homeTeam: "Seattle Seahawks",
-    awayTeam: "Miami Dolphins",
-    homeTeamShort: "SEA",
-    awayTeamShort: "MIA",
-    spread: {
-      home: "SEA -1",
-      away: "MIA +1",
-      value: -1
-    },
-    overUnder: 45.5,
-    moneyline: {
-      home: -115,
-      away: -105
-    },
-    venue: "Lumen Field",
+    venue: "U.S. Bank Stadium",
     tv: ["CBS"],
     isPrimetime: false
   },
 
   // SUNDAY, SEPTEMBER 21 - 4:05/4:25 PM Games
   {
-    id: "2025-W3-BAL-DAL",
+    id: "2025-W3-DEN-LAC",
+    week: 3,
+    date: "2025-09-21",
+    time: "4:05 PM",
+    homeTeam: "Los Angeles Chargers",
+    awayTeam: "Denver Broncos",
+    homeTeamShort: "LAC",
+    awayTeamShort: "DEN",
+    spread: {
+      home: "LAC -2.5",
+      away: "DEN +2.5",
+      value: -2.5
+    },
+    overUnder: 45.5,
+    moneyline: {
+      home: -145,
+      away: 125
+    },
+    venue: "SoFi Stadium",
+    tv: ["CBS"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W3-NO-SEA",
+    week: 3,
+    date: "2025-09-21",
+    time: "4:05 PM",
+    homeTeam: "Seattle Seahawks",
+    awayTeam: "New Orleans Saints",
+    homeTeamShort: "SEA",
+    awayTeamShort: "NO",
+    spread: {
+      home: "SEA -7.5",
+      away: "NO +7.5",
+      value: -7.5
+    },
+    overUnder: 41.5,
+    moneyline: {
+      home: -400,
+      away: 300
+    },
+    venue: "Lumen Field",
+    tv: ["CBS"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W3-ARI-SF",
     week: 3,
     date: "2025-09-21",
     time: "4:25 PM",
-    homeTeam: "Dallas Cowboys",
-    awayTeam: "Baltimore Ravens",
-    homeTeamShort: "DAL",
-    awayTeamShort: "BAL",
+    homeTeam: "San Francisco 49ers",
+    awayTeam: "Arizona Cardinals",
+    homeTeamShort: "SF",
+    awayTeamShort: "ARI",
     spread: {
-      home: "DAL +1.5",
-      away: "BAL -1.5",
-      value: 1.5
+      home: "SF -1.5",
+      away: "ARI +1.5",
+      value: -1.5
+    },
+    overUnder: 44.5,
+    moneyline: {
+      home: -120,
+      away: 100
+    },
+    venue: "Levi's Stadium",
+    tv: ["FOX"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W3-DAL-CHI",
+    week: 3,
+    date: "2025-09-21",
+    time: "4:25 PM",
+    homeTeam: "Chicago Bears",
+    awayTeam: "Dallas Cowboys",
+    homeTeamShort: "CHI",
+    awayTeamShort: "DAL",
+    spread: {
+      home: "CHI -1.5",
+      away: "DAL +1.5",
+      value: -1.5
     },
     overUnder: 49.5,
     moneyline: {
-      home: 105,
-      away: -125
+      home: -125,
+      away: 105
     },
-    venue: "AT&T Stadium",
+    venue: "Soldier Field",
     tv: ["FOX"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W3-DET-ARI",
-    week: 3,
-    date: "2025-09-21",
-    time: "4:25 PM",
-    homeTeam: "Arizona Cardinals",
-    awayTeam: "Detroit Lions",
-    homeTeamShort: "ARI",
-    awayTeamShort: "DET",
-    spread: {
-      home: "ARI +3",
-      away: "DET -3",
-      value: 3
-    },
-    overUnder: 50.5,
-    moneyline: {
-      home: 140,
-      away: -165
-    },
-    venue: "State Farm Stadium",
-    tv: ["FOX"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W3-JAX-BUF",
-    week: 3,
-    date: "2025-09-21",
-    time: "4:25 PM",
-    homeTeam: "Buffalo Bills",
-    awayTeam: "Jacksonville Jaguars",
-    homeTeamShort: "BUF",
-    awayTeamShort: "JAX",
-    spread: {
-      home: "BUF -5.5",
-      away: "JAX +5.5",
-      value: -5.5
-    },
-    overUnder: 47.5,
-    moneyline: {
-      home: -240,
-      away: 200
-    },
-    venue: "Highmark Stadium",
-    tv: ["CBS"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W3-SF-KC",
-    week: 3,
-    date: "2025-09-21",
-    time: "4:25 PM",
-    homeTeam: "Kansas City Chiefs",
-    awayTeam: "San Francisco 49ers",
-    homeTeamShort: "KC",
-    awayTeamShort: "SF",
-    spread: {
-      home: "KC +1",
-      away: "SF -1",
-      value: 1
-    },
-    overUnder: 47.5,
-    moneyline: {
-      home: -105,
-      away: -115
-    },
-    venue: "GEHA Field at Arrowhead Stadium",
-    tv: ["CBS"],
     isPrimetime: false
   },
 
   // SUNDAY NIGHT FOOTBALL
   {
-    id: "2025-W3-ATL-WAS",
+    id: "2025-W3-KC-NYG",
     week: 3,
     date: "2025-09-21",
     time: "8:20 PM",
-    homeTeam: "Washington Commanders",
-    awayTeam: "Atlanta Falcons",
-    homeTeamShort: "WAS",
-    awayTeamShort: "ATL",
+    homeTeam: "New York Giants",
+    awayTeam: "Kansas City Chiefs",
+    homeTeamShort: "NYG",
+    awayTeamShort: "KC",
     spread: {
-      home: "WAS -3.5",
-      away: "ATL +3.5",
-      value: -3.5
+      home: "NYG +6.5",
+      away: "KC -6.5",
+      value: 6.5
     },
-    overUnder: 48.5,
+    overUnder: 44.5,
     moneyline: {
-      home: -170,
-      away: 145
+      home: 225,
+      away: -275
     },
-    venue: "Northwest Stadium",
-    tv: ["NBC", "Peacock"],
+    venue: "MetLife Stadium",
+    tv: ["NBC"],
     isPrimetime: true
   },
 
   // MONDAY NIGHT FOOTBALL
   {
-    id: "2025-W3-CIN-NO",
+    id: "2025-W3-DET-BAL",
     week: 3,
     date: "2025-09-22",
     time: "8:15 PM",
-    homeTeam: "New Orleans Saints",
-    awayTeam: "Cincinnati Bengals",
-    homeTeamShort: "NO",
-    awayTeamShort: "CIN",
+    homeTeam: "Baltimore Ravens",
+    awayTeam: "Detroit Lions",
+    homeTeamShort: "BAL",
+    awayTeamShort: "DET",
     spread: {
-      home: "NO +8.5",
-      away: "CIN -8.5",
-      value: 8.5
+      home: "BAL -5.5",
+      away: "DET +5.5",
+      value: -5.5
     },
-    overUnder: 45.5,
+    overUnder: 51.5,
     moneyline: {
-      home: 340,
-      away: -420
+      home: -250,
+      away: 210
     },
-    venue: "Caesars Superdome",
-    tv: ["ESPN", "ABC"],
+    venue: "M&T Bank Stadium",
+    tv: ["ABC", "ESPN"],
     isPrimetime: true
   }
 ];

@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getGamesWithGroupPicks } from '../lib/database';
@@ -19,10 +19,6 @@ interface FriendPick {
 }
 
 export default function GroupPicksScreen() {
-  const searchParams = useLocalSearchParams();
-  const groups = (searchParams.groups as string)?.split(',') || ['Work Friends'];
-  
-  const [selectedGroup, setSelectedGroup] = useState(groups[0]);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [gamesData, setGamesData] = useState<any[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
@@ -31,33 +27,24 @@ export default function GroupPicksScreen() {
 
   useEffect(() => {
     loadGamesAndPicks();
-  }, [selectedWeek, selectedGroup]);
+  }, [selectedWeek]);
 
   const loadGamesAndPicks = async () => {
-  try {
-    // Get current user with debugging
-    console.log('=== GROUP PICKS AUTH DEBUG ===');
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    console.log('User from getUser():', user);
-    console.log('Auth error:', authError);
-    
-    if (!user) {
-      console.log('No authenticated user found, checking session...');
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Session:', session);
-      console.log('================================');
-      setLoading(false);
-      return;
-    }
+    try {
+      // Get current user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.log('No authenticated user found');
+        setLoading(false);
+        return;
+      }
 
-    console.log('Using authenticated user ID:', user.id);
-    console.log('================================');
-    setCurrentUserId(user.id);
+      setCurrentUserId(user.id);
 
-    // Load games with group picks from database
-    const gamesWithPicks = await getGamesWithGroupPicks(user.id, selectedWeek, 2025);
-    console.log('Games with picks loaded:', gamesWithPicks.length);
-    
+      // Load games with group picks from database
+      const gamesWithPicks = await getGamesWithGroupPicks(user.id, selectedWeek, 2025);
+      console.log('Games with picks loaded:', gamesWithPicks.length);
       
       // Transform database data to match original interface
       const transformedGames = gamesWithPicks.map(game => ({
@@ -193,7 +180,7 @@ export default function GroupPicksScreen() {
     }
   };
 
-  // Calculate consensus for a specific game (keep original logic)
+  // Calculate consensus for a specific game
   const calculateGameConsensus = (picks: FriendPick[]) => {
     if (!picks || picks.length === 0) return null;
 
@@ -241,8 +228,8 @@ export default function GroupPicksScreen() {
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Group Picks</Text>
-          <Text style={styles.headerSubtitle}>Week {selectedWeek} • {selectedGroup}</Text>
+          <Text style={styles.headerTitle}>Our Picks</Text>
+          <Text style={styles.headerSubtitle}>Week {selectedWeek}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -272,34 +259,6 @@ export default function GroupPicksScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-
-      {/* Group Selector if multiple groups */}
-      {groups.length > 1 && (
-        <ScrollView 
-          horizontal 
-          style={styles.groupSelector}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.groupSelectorContent}
-        >
-          {groups.map(group => (
-            <TouchableOpacity
-              key={group}
-              style={[
-                styles.groupChip,
-                selectedGroup === group && styles.groupChipActive
-              ]}
-              onPress={() => setSelectedGroup(group)}
-            >
-              <Text style={[
-                styles.groupChipText,
-                selectedGroup === group && styles.groupChipTextActive
-              ]}>
-                {group}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
 
       <ScrollView 
         style={styles.content}
@@ -415,7 +374,6 @@ export default function GroupPicksScreen() {
   );
 }
 
-// Keep ALL your original styles exactly as they were
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -487,315 +445,12 @@ const styles = StyleSheet.create({
   weekChipTextActive: {
     color: '#FFF',
   },
-  groupSelector: {
-    maxHeight: 50,
-    marginVertical: 12,
-  },
-  groupSelectorContent: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  groupChip: {
-    backgroundColor: '#2C2C2E',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  groupChipActive: {
-    backgroundColor: '#FF6B35',
-  },
-  groupChipText: {
-    color: '#8E8E93',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  groupChipTextActive: {
-    color: '#FFF',
-  },
   content: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
-  },
-  gameCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  gameTime: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  lockWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 149, 0, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  lockIcon: {
-    marginRight: 6,
-    fontSize: 14,
-  },
-  lockText: {
-    color: '#FF9500',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  consensusCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-  },
-  consensusTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  consensusMain: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  consensusLabel: {
-    color: '#8E8E93',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  consensusPick: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  consensusStrengthBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  consensusStrengthText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  consensusBarContainer: {
-    marginBottom: 8,
-  },
-  consensusBar: {
-    flexDirection: 'row',
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#2C2C2E',
-  },
-  consensusBarFill: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  awayBarFill: {
-    backgroundColor: '#FF6B35',
-  },
-  homeBarFill: {
-    backgroundColor: '#007AFF',
-  },
-  consensusBarText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  consensusLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  consensusTeamLabel: {
-    color: '#8E8E93',
-    fontSize: 14,
-  },
-  consensusExplainer: {
-    color: '#8E8E93',
-    fontSize: 12,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-  },
-  statNumber: {
-    color: '#FF6B35',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  sectionHeader: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  sectionSubtitle: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  pickCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    position: 'relative',
-  },
-  rankBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: '#FF6B35',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rankText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  pickHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    paddingRight: 40,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FF6B35',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  avatarText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  username: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  usernameYou: {
-    color: '#FF6B35',
-  },
-  userStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  winRate: {
-    color: '#34C759',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statDivider: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginHorizontal: 4,
-  },
-  totalPicks: {
-    color: '#8E8E93',
-    fontSize: 12,
-  },
-  pickInfo: {
-    alignItems: 'flex-end',
-  },
-  pickChoice: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  confidenceBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidenceText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  reasoningContainer: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  reasoning: {
-    color: '#FFF',
-    fontSize: 14,
-    lineHeight: 20,
-    fontStyle: 'italic',
-  },
-  pickFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  timestamp: {
-    color: '#8E8E93',
-    fontSize: 12,
-  },
-  weightedScore: {
-    color: '#FF6B35',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  makePickButton: {
-    backgroundColor: '#FF6B35',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  makePickButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   gameSection: {
     backgroundColor: '#1C1C1E',
@@ -814,6 +469,10 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  gameTime: {
+    color: '#8E8E93',
+    fontSize: 14,
   },
   gameHeaderRight: {
     alignItems: 'flex-end',
@@ -840,6 +499,12 @@ const styles = StyleSheet.create({
   miniBarFill: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  awayBarFill: {
+    backgroundColor: '#FF6B35',
+  },
+  homeBarFill: {
+    backgroundColor: '#007AFF',
   },
   miniBarText: {
     color: '#FFF',
