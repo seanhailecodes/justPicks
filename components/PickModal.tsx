@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface PickModalProps {
   visible: boolean;
@@ -9,58 +9,28 @@ interface PickModalProps {
     homeTeam: string;
     awayTeam: string;
     spread: { home: string; away: string };
-    gameDate?: Date;
-    time?: string;
+    time: string;
   };
   currentPick?: string;
   groups?: string[];
 }
 
-export default function PickModal({ visible, onClose, onSubmit, game, currentPick, groups = [] }: PickModalProps) {
+export default function PickModal({ visible, onClose, onSubmit, game, currentPick }: PickModalProps) {
   const [selectedPick, setSelectedPick] = useState(currentPick || '');
-  const [confidence, setConfidence] = useState('Medium');
-  const [reasoning, setReasoning] = useState('');
-  const [selectedGroups, setSelectedGroups] = useState<string[]>(groups);
-  const [pickType, setPickType] = useState(groups.length > 0 ? 'group' : 'solo');
+  const [pickType, setPickType] = useState('group'); // Default to group
   const [showHelp, setShowHelp] = useState(false);
 
-  // Reset state when modal opens with new data
-  useEffect(() => {
-    if (visible) {
-      setSelectedPick(currentPick || '');
-      setSelectedGroups(groups || []);
-      setPickType(groups && groups.length > 0 ? 'group' : 'solo');
-      setConfidence('Medium');
-      setReasoning('');
-    }
-  }, [visible, currentPick, groups]);
-
-  const confidenceLevels = [
-    { level: 'Very Low', value: 20, color: '#FF3B30' },
-    { level: 'Low', value: 40, color: '#FF9500' },
-    { level: 'Medium', value: 60, color: '#FFCC00' },
-    { level: 'High', value: 80, color: '#34C759' },
-    { level: 'Very High', value: 95, color: '#00C7BE' },
-  ];
-  const availableGroups = ['Work Friends', 'Family Picks', 'College Buddies'];
+  const SYNDICATE = 'The Syndicate'; // Hardcoded single group
 
   const handleSubmit = () => {
     onSubmit({
       pick: selectedPick,
-      confidence,
-      reasoning,
-      groups: pickType === 'group' ? selectedGroups : [],
+      confidence: 'Medium',
+      reasoning: '',
+      groups: pickType === 'group' ? [SYNDICATE] : [],
       type: pickType,
     });
     onClose();
-  };
-
-  const toggleGroup = (group: string) => {
-    if (selectedGroups.includes(group)) {
-      setSelectedGroups(selectedGroups.filter(g => g !== group));
-    } else {
-      setSelectedGroups([...selectedGroups, group]);
-    }
   };
 
   return (
@@ -71,7 +41,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <ScrollView style={styles.modalContent}>
+        <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Make Your Pick</Text>
             <TouchableOpacity onPress={onClose}>
@@ -83,7 +53,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
             <View style={styles.helpCard}>
               <Text style={styles.helpTitle}>How Picks Work:</Text>
               <Text style={styles.helpText}>• Solo picks are just for you to track</Text>
-              <Text style={styles.helpText}>• Group picks are shared for discussion</Text>
+              <Text style={styles.helpText}>• Group picks are shared with {SYNDICATE}</Text>
               <Text style={styles.helpText}>• All picks lock when the game starts</Text>
               <TouchableOpacity onPress={() => setShowHelp(false)}>
                 <Text style={styles.helpClose}>Got it!</Text>
@@ -93,19 +63,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
 
           <View style={styles.gameInfo}>
             <Text style={styles.gameTitle}>{game.awayTeam} @ {game.homeTeam}</Text>
-            <Text style={styles.gameTime}>
-              {game.gameDate 
-                ? game.gameDate.toLocaleString('en-US', { 
-                    weekday: 'short', 
-                    month: 'short', 
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true 
-                  })
-                : game.time || 'Time TBD'
-              }
-            </Text>
+            <Text style={styles.gameTime}>{game.time}</Text>
           </View>
 
           <View style={styles.pickSection}>
@@ -156,78 +114,11 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               >
                 <Text style={styles.shareIcon}>👥</Text>
                 <Text style={[styles.shareText, pickType === 'group' && styles.shareTextSelected]}>
-                  Share with groups
+                  Share with {SYNDICATE}
                 </Text>
-                <Text style={styles.shareSubtext}>Discuss with friends</Text>
+                <Text style={styles.shareSubtext}>Discuss with everyone</Text>
               </TouchableOpacity>
             </View>
-          </View>
-
-          {pickType === 'group' && (
-            <View style={styles.groupSection}>
-              <Text style={styles.sectionTitle}>Select Groups</Text>
-              {availableGroups.map(group => (
-                <TouchableOpacity
-                  key={group}
-                  style={styles.groupOption}
-                  onPress={() => toggleGroup(group)}
-                >
-                  <Text style={styles.checkbox}>
-                    {selectedGroups.includes(group) ? '☑️' : '⬜'}
-                  </Text>
-                  <Text style={styles.groupName}>{group}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.confidenceSection}>
-            <Text style={styles.sectionTitle}>Confidence Level</Text>
-            <View style={styles.confidenceOptions}>
-              {confidenceLevels.map(({ level, value, color }) => (
-                <TouchableOpacity
-                  key={level}
-                  style={[
-                    styles.confidenceButton,
-                    confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
-                  ]}
-                  onPress={() => setConfidence(level)}
-                >
-                  <Text style={[
-                    styles.confidenceText,
-                    confidence === level && styles.confidenceTextSelected
-                  ]}>
-                    {level}
-                  </Text>
-                  <Text style={[
-                    styles.confidenceValue,
-                    confidence === level && styles.confidenceTextSelected
-                  ]}>
-                    {value}%
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.reasoningSection}>
-            <Text style={styles.sectionTitle}>Share Your Reasoning</Text>
-            <Text style={styles.reasoningSubtitle}>
-              This will be visible to all friends in "Our Picks"
-            </Text>
-            <TextInput
-              style={styles.reasoningInput}
-              placeholder="Why do you think this pick will hit? Share injury reports, weather, trends, or gut feelings..."
-              placeholderTextColor="#666"
-              value={reasoning}
-              onChangeText={setReasoning}
-              multiline
-              numberOfLines={4}
-              maxLength={200}
-            />
-            <Text style={styles.characterCount}>
-              {reasoning.length}/200
-            </Text>
           </View>
 
           <TouchableOpacity
@@ -236,10 +127,10 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
             disabled={!selectedPick}
           >
             <Text style={styles.submitButtonText}>
-              {pickType === 'solo' ? 'Save Pick' : 'Share Pick'}
+              {pickType === 'solo' ? 'Save Pick' : `Share with ${SYNDICATE}`}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
       </View>
     </Modal>
   );
@@ -393,77 +284,6 @@ const styles = StyleSheet.create({
   },
   pickButtonTextSelected: {
     color: '#FFF',
-  },
-  groupSection: {
-    marginBottom: 20,
-  },
-  groupOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  checkbox: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  groupName: {
-    color: '#FFF',
-    fontSize: 16,
-  },
-  confidenceSection: {
-    marginBottom: 20,
-  },
-  confidenceOptions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  confidenceButton: {
-    flex: 1,
-    backgroundColor: '#2C2C2E',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  confidenceButtonSelected: {
-    // Background color set dynamically
-  },
-  confidenceText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  confidenceTextSelected: {
-    color: '#FFF',
-  },
-  confidenceValue: {
-    color: '#8E8E93',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  reasoningSection: {
-    marginBottom: 20,
-  },
-  reasoningSubtitle: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  reasoningInput: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 8,
-    padding: 12,
-    color: '#FFF',
-    fontSize: 14,
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  characterCount: {
-    color: '#8E8E93',
-    fontSize: 12,
-    textAlign: 'right',
-    marginTop: 4,
   },
   submitButton: {
     backgroundColor: '#FF6B35',

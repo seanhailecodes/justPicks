@@ -1,5 +1,8 @@
 import { NFL_WEEK_1_2025 } from '@/app/data/nfl-week1-2025';
 import { NFL_WEEK_2_2025 } from '@/app/data/nfl-week2-2025';
+import { NFL_WEEK_3_2025 } from '@/app/data/nfl-week3-2025';
+import { NFL_WEEK_4_2025 } from '@/app/data/nfl-week4-2025';
+import { NFL_WEEK_5_2025 } from '@/app/data/nfl-week5-2025';
 import PickModal from '@/components/PickModal';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
@@ -65,7 +68,7 @@ interface NFLGame {
 export default function GamesScreen() {
   const router = useRouter();
   const [selectedSport, setSelectedSport] = useState('Football');
-  const [selectedWeek, setSelectedWeek] = useState('Week 1');
+  const [selectedWeek, setSelectedWeek] = useState('Week 4');
   const [showPickModal, setShowPickModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -73,9 +76,16 @@ export default function GamesScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
+  const [currentWeekNumber, setCurrentWeekNumber] = useState(4);
 
   const sports = ['Football', 'Basketball', 'College', 'Other'];
-  const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+  
+  // Filter weeks to only show current and future
+  const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10'];
+  const visibleWeeks = allWeeks.filter(week => {
+    const weekNum = parseInt(week.replace('Week ', ''));
+    return weekNum >= currentWeekNumber - 1; // Show 1 week back, current, and future
+  });
 
   // Helper function to extract spread value from string like "NYJ +3" -> 3
   const getSpreadValue = (spreadString: string): number => {
@@ -83,58 +93,38 @@ export default function GamesScreen() {
     return match ? parseFloat(match[1]) : 0;
   };
 
-  // Development function to populate games for current week only
-  const populateCurrentWeekGames = async () => {
-    console.log('Starting current week database population...');
+  // Development function to populate games for selected week
+  const populateSelectedWeek = async () => {
+    console.log(`Populating ${selectedWeek}...`);
     
     if (__DEV__) {
       try {
-        // Get current week from database, with fallback to hardcoded logic
-        let currentWeek;
-        const { data: appState, error: weekError } = await supabase
-          .from('app_state')
-          .select('current_week')
-          .single();
-
-        if (weekError || !appState?.current_week) {
-          console.warn('Could not get current week from database, using fallback logic:', weekError);
-          currentWeek = getCurrentNFLWeek(); // Use the hardcoded fallback
-        } else {
-          currentWeek = appState.current_week;
-        }
-        console.log(`Database says current week is: ${currentWeek}`);
+        const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
         
-        // Select only the current week's games
-        let currentWeekGames = [];
-        if (currentWeek === 1) {
-          currentWeekGames = NFL_WEEK_1_2025;
-        } else if (currentWeek === 2) {
-          currentWeekGames = NFL_WEEK_2_2025;
-        }
-        // Add more weeks as needed
+        let weekGames = [];
+        if (weekNumber === 1) weekGames = NFL_WEEK_1_2025;
+        else if (weekNumber === 2) weekGames = NFL_WEEK_2_2025;
+        else if (weekNumber === 3) weekGames = NFL_WEEK_3_2025;
+        else if (weekNumber === 4) weekGames = NFL_WEEK_4_2025;
+        else if (weekNumber === 5) weekGames = NFL_WEEK_5_2025;
         
-        if (currentWeekGames.length === 0) {
-          alert(`No games found for week ${currentWeek}`);
+        if (weekGames.length === 0) {
+          alert(`No data file for week ${weekNumber}`);
           return;
         }
 
-        const games = currentWeekGames.map(game => {
-          // Convert the game time to 24-hour format for database storage
+        const games = weekGames.map(game => {
           const convertTo24Hour = (timeStr: string): string => {
             const [time, period] = timeStr.split(' ');
             let [hours, minutes] = time.split(':');
             let hour24 = parseInt(hours);
             
-            if (period === 'PM' && hour24 !== 12) {
-              hour24 += 12;
-            } else if (period === 'AM' && hour24 === 12) {
-              hour24 = 0;
-            }
+            if (period === 'PM' && hour24 !== 12) hour24 += 12;
+            else if (period === 'AM' && hour24 === 12) hour24 = 0;
             
             return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
           };
 
-          // Create proper ISO datetime string
           const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}`;
           
           return {
@@ -151,45 +141,25 @@ export default function GamesScreen() {
           };
         });
 
-        console.log(`Populating ${games.length} games for week ${currentWeek}`);
-        console.log('Sample game with preserved time:', games[0]);
+        console.log(`Populating ${games.length} games for ${selectedWeek}`);
 
-        // Use upsert to handle duplicates gracefully
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('games')
-          .upsert(games, { 
-            onConflict: 'id',
-            ignoreDuplicates: false 
-          });
+          .upsert(games, { onConflict: 'id', ignoreDuplicates: false });
 
         if (error) {
-          console.error('Population error:', error);
+          console.error('Error:', error);
           alert(`Error: ${error.message}`);
         } else {
-          alert(`Success! Populated ${games.length} games for week ${currentWeek}`);
+          alert(`Populated ${games.length} games for ${selectedWeek}`);
+          // Reload games after populating
+          loadGamesFromDatabase();
         }
       } catch (err) {
-        console.error('Population failed:', err);
-        alert('Population failed - check console');
+        console.error('Failed:', err);
+        alert('Failed - check console');
       }
     }
-  };
-
-  // Helper function to determine current NFL week
-  const getCurrentNFLWeek = (): number => {
-    // You'll need to implement this based on your app's logic
-    // For now, hardcode or use date logic
-    const currentDate = new Date();
-    
-    // Example logic - adjust based on your needs
-    if (currentDate >= new Date('2025-09-04') && currentDate < new Date('2025-09-11')) {
-      return 1;
-    } else if (currentDate >= new Date('2025-09-11') && currentDate < new Date('2025-09-18')) {
-      return 2;
-    }
-    // Add more weeks...
-    
-    return 1; // Default to week 1
   };
 
   // Load user picks from database
@@ -210,7 +180,6 @@ export default function GamesScreen() {
           });
         });
         setUserPicks(picksMap);
-        // Load games after picks are set
         loadGamesFromDatabase();
       }
     } catch (error) {
@@ -235,18 +204,21 @@ export default function GamesScreen() {
         return;
       }
 
+      if (!dbGames || dbGames.length === 0) {
+        console.log(`No games in database for week ${weekNumber}`);
+        setGames([]);
+        return;
+      }
+
       // Transform database games to Game interface
       const transformedGames: Game[] = (dbGames || []).map((dbGame, index) => ({
         id: index + 1,
         homeTeam: dbGame.home_team,
         awayTeam: dbGame.away_team,
         league: 'NFL',
-        gameDate: dbGame.game_date.split(' ')[0],
+        gameDate: dbGame.game_date.split('T')[0],
         gameTime: (() => {
           try {
-            console.log('Processing game_date:', dbGame.game_date);
-            
-            // Parse the ISO datetime from database
             const gameDate = new Date(dbGame.game_date);
             
             if (isNaN(gameDate.getTime())) {
@@ -254,7 +226,6 @@ export default function GamesScreen() {
               return "TBD";
             }
             
-            // Format to readable time in Eastern Time
             const timeString = gameDate.toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -262,7 +233,6 @@ export default function GamesScreen() {
               timeZone: 'America/New_York'
             });
             
-            console.log('Converted time:', timeString);
             return timeString;
             
           } catch (error) {
@@ -289,17 +259,30 @@ export default function GamesScreen() {
     }
   };
 
+  // Load current week from database
+  useEffect(() => {
+    const loadCurrentWeek = async () => {
+      const { data } = await supabase
+        .from('app_state')
+        .select('current_week')
+        .single();
+      
+      if (data?.current_week) {
+        setCurrentWeekNumber(data.current_week);
+        setSelectedWeek(`Week ${data.current_week}`);
+      }
+    };
+    
+    loadCurrentWeek();
+  }, []);
+
   // Authentication check
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('IMMEDIATE AUTH CHECK:', session);
       
       if (session) {
         setSession(session);
-        console.log('User is logged in:', session.user.phone);
-      } else {
-        console.log('No active session found');
       }
     };
     
@@ -317,7 +300,7 @@ export default function GamesScreen() {
 
   // Auth state listener
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         loadUserPicks(session.user.id);
@@ -327,7 +310,6 @@ export default function GamesScreen() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        // Add a small delay to ensure session is fully established
         setTimeout(() => {
           loadUserPicks(session.user.id);
         }, 500);
@@ -338,35 +320,18 @@ export default function GamesScreen() {
   }, []);
 
   useEffect(() => {
-    console.log('Week changed to:', selectedWeek);
     if (session?.user) {
-      console.log('Loading picks for user:', session.user.id);
       loadUserPicks(session.user.id);
     } else {
-      console.log('No session, loading games only');
       loadGamesFromDatabase();
     }
   }, [selectedWeek, session]);
 
-  // Load games when week changes (removed userPicks dependency)
-  useEffect(() => {
-    if (userPicks.size === 0) {
-      loadGamesFromDatabase();
-    }
-  }, [selectedWeek]);
-
   // Calculate time until game locks
   const getTimeToLock = (gameDate: string, gameTime: string): string => {
     try {
-      console.log('Calculating lock time for:', gameDate, gameTime);
-      
-      // Create a proper Date object by combining gameDate and parsed time
-      const gameDateObj = new Date(gameDate);
-      
-      // Parse the display time (e.g., "8:20 PM") back to hours/minutes
       const timeMatch = gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
       if (!timeMatch) {
-        console.warn('Could not parse time:', gameTime);
         return 'Soon';
       }
       
@@ -374,20 +339,16 @@ export default function GamesScreen() {
       let hour24 = parseInt(hours);
       const min = parseInt(minutes);
       
-      // Convert to 24-hour format
       if (period.toUpperCase() === 'PM' && hour24 !== 12) {
         hour24 += 12;
       } else if (period.toUpperCase() === 'AM' && hour24 === 12) {
         hour24 = 0;
       }
       
-      // Set the time on the game date (assuming Eastern Time)
-      gameDateObj.setHours(hour24, min, 0, 0);
-      
-      console.log('Game starts at:', gameDateObj);
-      console.log('Current time:', currentTime);
-      
-      // Calculate difference
+      // Parse date components and create date object in local time
+      const [year, month, day] = gameDate.split('-').map(Number);
+      const gameDateObj = new Date(year, month - 1, day, hour24, min, 0, 0);
+
       const diffMs = gameDateObj.getTime() - currentTime.getTime();
       
       if (diffMs <= 0) {
@@ -412,12 +373,10 @@ export default function GamesScreen() {
         
     } catch (error) {
       console.error('Error calculating time to lock:', error);
-      console.error('gameDate:', gameDate, 'gameTime:', gameTime);
       return 'Soon';
     }
   };
 
-  // Get lock time style based on urgency
   const getLockTimeStyle = (timeToLock: string) => {
     if (timeToLock === 'LOCKED') return styles.lockTimeLocked;
     if (timeToLock.includes('m') && !timeToLock.includes('h') && !timeToLock.includes('d')) {
@@ -431,13 +390,6 @@ export default function GamesScreen() {
     return styles.lockTimeNormal;
   };
 
-  // Add this helper function near the top with other helper functions
-  const canEditPick = (gameDate: string, gameTime: string): boolean => {
-    const timeToLock = getTimeToLock(gameDate, gameTime);
-    return timeToLock !== 'LOCKED';
-  };
-
-  // Handle pick selection
   const handlePickSelection = (game: Game) => {
     const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
     if (timeToLock === 'LOCKED') {
@@ -448,36 +400,21 @@ export default function GamesScreen() {
     setShowPickModal(true);
   };
 
-  // Handle view details navigation
   const handleViewDetails = (gameId: string | number) => {
-    console.log('=== NAVIGATION DEBUG ===');
-    console.log('Game ID being passed:', gameId);
-    console.log('Game ID type:', typeof gameId);
-    console.log('========================');
     router.push(`/game/${gameId}`);
   };
 
-  // Handle pick submission
   const handlePickSubmit = async (pickData: PickData) => {
     try {
-      console.log('1. Pick submitted - starting process');
-      console.log('2. Pick data received:', pickData);
-      
       setShowPickModal(false);
-      // Don't set selectedGame to null yet - we need it
-      console.log('3. Modal closed successfully');
       
-      // Use actual logged-in user ID
       if (!session?.user?.id) {
         alert('Please log in to make picks');
         return;
       }
       const userId = session.user.id;
-      console.log('4. Using actual user ID:', userId);
 
       if (selectedGame && selectedGame.originalId) {
-        console.log('5. Saving pick for game:', selectedGame.originalId);
-        
         setIsLoading(true);
         const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
         
@@ -489,9 +426,6 @@ export default function GamesScreen() {
         );
 
         if (result.success) {
-          console.log('6. Pick saved to Supabase successfully!');
-          
-          // Update local picks map
           const newPicks = new Map(userPicks);
           newPicks.set(selectedGame.originalId, {
             pick: pickData.pick,
@@ -502,26 +436,20 @@ export default function GamesScreen() {
           });
           setUserPicks(newPicks);
           
-          // Immediately update UI for instant feedback
           const updatedGames = games.map(game => 
             game.originalId === selectedGame.originalId 
               ? { ...game, selectedPick: pickData.pick, confidence: pickData.confidence, pickType: pickData.type }
               : game
           );
           setGames(updatedGames);
-          
-          console.log('7. Pick saved and UI updated immediately');
         } else {
-          console.error('6. Failed to save:', result.error);
           alert('Failed to save pick. Check console.');
         }
         
         setIsLoading(false);
       }
       
-      // Now we can clear selectedGame
       setSelectedGame(null);
-      console.log('8. All operations completed');
       
     } catch (error) {
       console.error('ERROR:', error);
@@ -530,7 +458,6 @@ export default function GamesScreen() {
     }
   };
 
-  // Get confidence color
   const getConfidenceColor = (confidence?: string | null) => {
     switch (confidence) {
       case 'High': return '#34C759';
@@ -540,19 +467,27 @@ export default function GamesScreen() {
     }
   };
 
-  // Format game date time
   const formatGameDateTime = (date: string, time: string): string => {
-    const gameDate = new Date(date);
+    // Parse as local date to avoid timezone shifts
+    const [year, month, day] = date.split('-').map(Number);
+    const gameDate = new Date(year, month - 1, day); // month is 0-indexed
+    
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    if (gameDate.toDateString() === today.toDateString()) {
+    const gameDateOnly = new Date(gameDate);
+    gameDateOnly.setHours(0, 0, 0, 0);
+    
+    if (gameDateOnly.getTime() === today.getTime()) {
       return `Today ${time}`;
     }
-    if (gameDate.toDateString() === tomorrow.toDateString()) {
+    if (gameDateOnly.getTime() === tomorrow.getTime()) {
       return `Tomorrow ${time}`;
     }
+    
     const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
     return `${gameDate.toLocaleDateString('en-US', options)} ${time}`;
   };
@@ -577,7 +512,7 @@ export default function GamesScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.weekFilterContent}
       >
-        {weeks.map(week => (
+        {visibleWeeks.map(week => (
           <TouchableOpacity
             key={week}
             style={[
@@ -632,127 +567,105 @@ export default function GamesScreen() {
             const isLocked = timeToLock === 'LOCKED';
             
             return (
-            <View key={game.id} style={[styles.gameCard, isLocked && styles.gameCardLocked]}>
-              <View style={styles.gameHeader}>
-                <View>
-                  <Text style={styles.gameTitle}>
-                    {game.awayTeam} @ {game.homeTeam}
-                  </Text>
-                  <Text style={styles.gameInfo}>
-                    {game.league} • {formatGameDateTime(game.gameDate, game.gameTime)}
-                  </Text>
-                </View>
-                <View style={styles.lockTimeContainer}>
-                  <Text style={[styles.lockTime, getLockTimeStyle(timeToLock)]}>
-                    {isLocked ? '🔒 ' : '🕐 '}{timeToLock}
-                  </Text>
-                  {!isLocked && timeToLock.includes('m') && !timeToLock.includes('h') && (
-                    <Text style={styles.lockTimeSubtext}>Hurry!</Text>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.pickOptions}>
-                <TouchableOpacity
-                  style={[
-                    styles.pickButton,
-                    game.selectedPick === 'away' && styles.pickButtonSelected,
-                    isLocked && styles.pickButtonLocked
-                  ]}
-                  onPress={() => !isLocked && handlePickSelection(game)}
-                  disabled={isLocked}
-                >
-                  <Text style={[
-                    styles.pickButtonText,
-                    game.selectedPick === 'away' && styles.pickButtonTextSelected,
-                    isLocked && styles.pickButtonTextLocked
-                  ]}>
-                    {game.spread.away}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.pickButton,
-                    game.selectedPick === 'home' && styles.pickButtonSelected,
-                    isLocked && styles.pickButtonLocked
-                  ]}
-                  onPress={() => !isLocked && handlePickSelection(game)}
-                  disabled={isLocked}
-                >
-                  <Text style={[
-                    styles.pickButtonText,
-                    game.selectedPick === 'home' && styles.pickButtonTextSelected,
-                    isLocked && styles.pickButtonTextLocked
-                  ]}>
-                    {game.spread.home}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {game.selectedPick && (
-                <View style={styles.pickStatus}>
-                  <View style={styles.pickStatusLeft}>
-                    <Text style={styles.pickTypeLabel}>
-                      {game.pickType === 'solo' ? '🎯 Solo Pick' : '👥 Group Pick'}
+              <View key={game.id} style={[styles.gameCard, isLocked && styles.gameCardLocked]}>
+                <View style={styles.gameHeader}>
+                  <View>
+                    <Text style={styles.gameTitle}>
+                      {game.awayTeam} @ {game.homeTeam}
                     </Text>
-                    {game.confidence && (
-                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.confidence) }]}>
-                        <Text style={styles.confidenceText}>{game.confidence}</Text>
-                      </View>
+                    <Text style={styles.gameInfo}>
+                      {game.league} • {formatGameDateTime(game.gameDate, game.gameTime)}
+                    </Text>
+                  </View>
+                  <View style={styles.lockTimeContainer}>
+                    <Text style={[styles.lockTime, getLockTimeStyle(timeToLock)]}>
+                      {isLocked ? '🔒 ' : '🕐 '}{timeToLock}
+                    </Text>
+                    {!isLocked && timeToLock.includes('m') && !timeToLock.includes('h') && (
+                      <Text style={styles.lockTimeSubtext}>Hurry!</Text>
                     )}
                   </View>
-                  
-                  {game.groups && game.groups.length > 0 ? (
-                    <Text style={styles.groupsText}>
-                      Shared with: {game.groups.join(', ')}
-                    </Text>
-                  ) : (
-                    <Text style={styles.soloText}>Personal tracking only</Text>
-                  )}
+                </View>
 
-                  {/* Enhanced pick status and edit functionality */}
-                  <View style={styles.pickActionRow}>
-                    {canEditPick(game.gameDate, game.gameTime) ? (
-                      <TouchableOpacity 
-                        style={styles.editPickButton}
-                        onPress={() => handlePickSelection(game)}
-                      >
-                        <Text style={styles.editPickText}>✏️ Edit Pick</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={styles.pickLockedText}>
-                        🔒 Pick locked - Game started
+                <View style={styles.pickOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.pickButton,
+                      game.selectedPick === 'away' && styles.pickButtonSelected,
+                      isLocked && styles.pickButtonLocked
+                    ]}
+                    onPress={() => !isLocked && handlePickSelection(game)}
+                    disabled={isLocked}
+                  >
+                    <Text style={[
+                      styles.pickButtonText,
+                      game.selectedPick === 'away' && styles.pickButtonTextSelected,
+                      isLocked && styles.pickButtonTextLocked
+                    ]}>
+                      {game.spread.away}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.pickButton,
+                      game.selectedPick === 'home' && styles.pickButtonSelected,
+                      isLocked && styles.pickButtonLocked
+                    ]}
+                    onPress={() => !isLocked && handlePickSelection(game)}
+                    disabled={isLocked}
+                  >
+                    <Text style={[
+                      styles.pickButtonText,
+                      game.selectedPick === 'home' && styles.pickButtonTextSelected,
+                      isLocked && styles.pickButtonTextLocked
+                    ]}>
+                      {game.spread.home}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {game.selectedPick && !isLocked && (
+                  <View style={styles.pickStatus}>
+                    <View style={styles.pickStatusLeft}>
+                      <Text style={styles.pickTypeLabel}>
+                        {game.pickType === 'solo' ? '🎯 Solo Pick' : '👥 Shared with The Syndicate'}
                       </Text>
-                    )}
+                      {game.confidence && (
+                        <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.confidence) }]}>
+                          <Text style={styles.confidenceText}>{game.confidence}</Text>
+                        </View>
+                      )}
+                    </View>
                     
-                    <Text style={styles.pickConfirmText}>
-                      Your pick: {game.selectedPick === 'home' ? game.spread.home : game.spread.away}
-                    </Text>
+                    {game.pickType === 'solo' ? (
+                      <Text style={styles.soloText}>Personal tracking only</Text>
+                    ) : (
+                      <Text style={styles.groupsText}>Everyone can see your pick</Text>
+                    )}
                   </View>
-                </View>
-              )}
+                )}
 
-              {game.selectedPick && game.pickType === 'group' && !isLocked && (
-                <TouchableOpacity 
-                  style={styles.viewDetailsButton}
-                  onPress={() => handleViewDetails(game.originalId)}
-                >
-                  <Text style={styles.viewDetailsText}>See Group Picks →</Text>
-                </TouchableOpacity>
-              )}
+                {game.selectedPick && game.pickType === 'group' && !isLocked && (
+                  <TouchableOpacity 
+                    style={styles.viewDetailsButton}
+                    onPress={() => handleViewDetails(game.originalId)}
+                  >
+                    <Text style={styles.viewDetailsText}>See Everyone's Picks →</Text>
+                  </TouchableOpacity>
+                )}
 
-              {!game.selectedPick && !isLocked && (
-                <Text style={styles.noPickText}>Tap to make your pick</Text>
-              )}
+                {!game.selectedPick && !isLocked && (
+                  <Text style={styles.noPickText}>Tap to make your pick</Text>
+                )}
 
-              {isLocked && !game.selectedPick && (
-                <Text style={styles.lockedText}>
-                  No pick made - game has started
-                </Text>
-              )}
-            </View>
-          );
-        })
+                {isLocked && !game.selectedPick && (
+                  <Text style={styles.lockedText}>
+                    No pick made - game has started
+                  </Text>
+                )}
+              </View>
+            );
+          })
         ) : (
           <View style={styles.noGamesCard}>
             <Text style={styles.noGamesText}>No {selectedSport} games scheduled for {selectedWeek}</Text>
@@ -760,16 +673,16 @@ export default function GamesScreen() {
           </View>
         )}
 
-          <View style={styles.helpBanner}>
-            <Text style={styles.helpTitle}>💡 How Lock Times Work</Text>
-            <Text style={styles.helpText}>
-              Picks lock when the game starts. Make your picks early to discuss with friends!
-            </Text>
-          </View>
+        <View style={styles.helpBanner}>
+          <Text style={styles.helpTitle}>💡 How Lock Times Work</Text>
+          <Text style={styles.helpText}>
+            Picks lock when the game starts. Make your picks early to discuss with friends!
+          </Text>
+        </View>
         
         {__DEV__ && (
           <TouchableOpacity 
-            onPress={populateCurrentWeekGames}
+            onPress={populateSelectedWeek}
             style={{
               backgroundColor: '#FF6B35',
               padding: 16,
@@ -780,7 +693,7 @@ export default function GamesScreen() {
             }}
           >
             <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: 'bold' }}>
-              DEV: Populate Current Week Games
+              DEV: Populate {selectedWeek} Games
             </Text>
           </TouchableOpacity>
         )}
@@ -1082,35 +995,5 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 14,
     textAlign: 'center',
-  },
-  pickActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  editPickButton: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  editPickText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pickLockedText: {
-    color: '#FF3B30',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pickConfirmText: {
-    color: '#8E8E93',
-    fontSize: 12,
-    fontStyle: 'italic',
   },
 });

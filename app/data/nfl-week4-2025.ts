@@ -1,61 +1,108 @@
 // app/data/nfl-week4-2025.ts
-// 2025 NFL Week 4 Schedule (September 25-29)
-// Based on real schedule with estimated betting lines
+// 2025 NFL Week 4 Schedule with REAL ESPN betting lines
+// Source: ESPN Betting - Week 4 2025
 
 import { NFLGame } from './nfl-week1-2025';
 
 export const NFL_WEEK_4_2025: NFLGame[] = [
-  // THURSDAY, SEPTEMBER 25
+  // THURSDAY NIGHT FOOTBALL
   {
     id: "2025-W4-SEA-ARI",
     week: 4,
-    date: "2025-09-25",
+    date: "2025-09-26",
     time: "8:15 PM",
     homeTeam: "Arizona Cardinals",
     awayTeam: "Seattle Seahawks",
     homeTeamShort: "ARI",
     awayTeamShort: "SEA",
     spread: {
-      home: "ARI +3",
-      away: "SEA -3",
-      value: 3
+      home: "ARI -1.5",
+      away: "SEA +1.5",
+      value: 1.5
     },
-    overUnder: 47.5,
+    overUnder: 43.5,
     moneyline: {
-      home: 135,
-      away: -155
+      home: -115,
+      away: -105
     },
     venue: "State Farm Stadium",
     tv: ["Prime Video"],
     isPrimetime: true
   },
 
-  // SUNDAY, SEPTEMBER 28 - London Game
+  // SUNDAY, SEPTEMBER 28 - 9:30 AM (London Game)
   {
-    id: "2025-W4-MIA-PIT",
+    id: "2025-W4-MIN-PIT",
     week: 4,
     date: "2025-09-28",
     time: "9:30 AM",
     homeTeam: "Pittsburgh Steelers",
-    awayTeam: "Miami Dolphins",
+    awayTeam: "Minnesota Vikings",
     homeTeamShort: "PIT",
-    awayTeamShort: "MIA",
+    awayTeamShort: "MIN",
     spread: {
-      home: "PIT -1.5",
-      away: "MIA +1.5",
-      value: -1.5
+      home: "PIT +2.5",
+      away: "MIN -2.5",
+      value: 2.5
     },
-    overUnder: 43.5,
+    overUnder: 40.5,
     moneyline: {
-      home: -120,
-      away: 100
+      home: 130,
+      away: -150
     },
-    venue: "Croke Park",
+    venue: "Tottenham Hotspur Stadium, London",
     tv: ["NFL Network", "NFL+"],
-    isPrimetime: false
+    isPrimetime: false,
+    isNeutralSite: true
   },
 
   // SUNDAY, SEPTEMBER 28 - 1:00 PM Games
+  {
+    id: "2025-W4-NO-BUF",
+    week: 4,
+    date: "2025-09-28",
+    time: "1:00 PM",
+    homeTeam: "Buffalo Bills",
+    awayTeam: "New Orleans Saints",
+    homeTeamShort: "BUF",
+    awayTeamShort: "NO",
+    spread: {
+      home: "BUF -15.5",
+      away: "NO +15.5",
+      value: 15.5
+    },
+    overUnder: 47.5,
+    moneyline: {
+      home: -1800,
+      away: 900
+    },
+    venue: "Highmark Stadium",
+    tv: ["CBS"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W4-LAC-NYG",
+    week: 4,
+    date: "2025-09-28",
+    time: "1:00 PM",
+    homeTeam: "New York Giants",
+    awayTeam: "Los Angeles Chargers",
+    homeTeamShort: "NYG",
+    awayTeamShort: "LAC",
+    spread: {
+      home: "NYG +6.5",
+      away: "LAC -6.5",
+      value: 6.5
+    },
+    overUnder: 44.5,
+    moneyline: {
+      home: 230,
+      away: -280
+    },
+    venue: "MetLife Stadium",
+    tv: ["CBS"],
+    isPrimetime: false
+  },
   {
     id: "2025-W4-WSH-ATL",
     week: 4,
@@ -70,36 +117,36 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
       away: "WSH -2.5",
       value: 2.5
     },
-    overUnder: 46.5,
+    overUnder: 44.5,
     moneyline: {
-      home: 120,
-      away: -140
+      home: 125,
+      away: -145
     },
     venue: "Mercedes-Benz Stadium",
     tv: ["CBS"],
     isPrimetime: false
   },
   {
-    id: "2025-W4-NO-BUF",
+    id: "2025-W4-PHI-TB",
     week: 4,
     date: "2025-09-28",
     time: "1:00 PM",
-    homeTeam: "Buffalo Bills",
-    awayTeam: "New Orleans Saints",
-    homeTeamShort: "BUF",
-    awayTeamShort: "NO",
+    homeTeam: "Tampa Bay Buccaneers",
+    awayTeam: "Philadelphia Eagles",
+    homeTeamShort: "TB",
+    awayTeamShort: "PHI",
     spread: {
-      home: "BUF -6.5",
-      away: "NO +6.5",
-      value: -6.5
+      home: "TB +3.5",
+      away: "PHI -3.5",
+      value: 3.5
     },
-    overUnder: 48.5,
+    overUnder: 44.5,
     moneyline: {
-      home: -280,
-      away: 230
+      home: 145,
+      away: -170
     },
-    venue: "Highmark Stadium",
-    tv: ["CBS"],
+    venue: "Raymond James Stadium",
+    tv: ["FOX"],
     isPrimetime: false
   },
   {
@@ -112,14 +159,14 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "DET",
     awayTeamShort: "CLE",
     spread: {
-      home: "DET -7.5",
-      away: "CLE +7.5",
-      value: -7.5
+      home: "DET -8.5",
+      away: "CLE +8.5",
+      value: 8.5
     },
-    overUnder: 46.5,
+    overUnder: 45.5,
     moneyline: {
-      home: -350,
-      away: 280
+      home: -500,
+      away: 360
     },
     venue: "Ford Field",
     tv: ["FOX"],
@@ -135,62 +182,16 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "NE",
     awayTeamShort: "CAR",
     spread: {
-      home: "NE -3.5",
-      away: "CAR +3.5",
-      value: -3.5
+      home: "NE -5.5",
+      away: "CAR +5.5",
+      value: 5.5
     },
-    overUnder: 39.5,
+    overUnder: 43.5,
     moneyline: {
-      home: -175,
-      away: 155
+      home: -230,
+      away: 195
     },
     venue: "Gillette Stadium",
-    tv: ["FOX"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W4-LAC-NYG",
-    week: 4,
-    date: "2025-09-28",
-    time: "1:00 PM",
-    homeTeam: "New York Giants",
-    awayTeam: "Los Angeles Chargers",
-    homeTeamShort: "NYG",
-    awayTeamShort: "LAC",
-    spread: {
-      home: "NYG +4.5",
-      away: "LAC -4.5",
-      value: 4.5
-    },
-    overUnder: 42.5,
-    moneyline: {
-      home: 180,
-      away: -220
-    },
-    venue: "MetLife Stadium",
-    tv: ["CBS"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W4-PHI-TB",
-    week: 4,
-    date: "2025-09-28",
-    time: "1:00 PM",
-    homeTeam: "Tampa Bay Buccaneers",
-    awayTeam: "Philadelphia Eagles",
-    homeTeamShort: "TB",
-    awayTeamShort: "PHI",
-    spread: {
-      home: "TB +3",
-      away: "PHI -3",
-      value: 3
-    },
-    overUnder: 50.5,
-    moneyline: {
-      home: 140,
-      away: -165
-    },
-    venue: "Raymond James Stadium",
     tv: ["FOX"],
     isPrimetime: false
   },
@@ -204,44 +205,21 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "HOU",
     awayTeamShort: "TEN",
     spread: {
-      home: "HOU -8.5",
-      away: "TEN +8.5",
-      value: -8.5
+      home: "HOU -6.5",
+      away: "TEN +6.5",
+      value: 6.5
     },
-    overUnder: 42.5,
+    overUnder: 39.5,
     moneyline: {
-      home: -400,
-      away: 320
+      home: -360,
+      away: 280
     },
     venue: "NRG Stadium",
     tv: ["CBS"],
     isPrimetime: false
   },
 
-  // SUNDAY, SEPTEMBER 28 - 4:05/4:25 PM Games
-  {
-    id: "2025-W4-IND-LAR",
-    week: 4,
-    date: "2025-09-28",
-    time: "4:05 PM",
-    homeTeam: "Los Angeles Rams",
-    awayTeam: "Indianapolis Colts",
-    homeTeamShort: "LAR",
-    awayTeamShort: "IND",
-    spread: {
-      home: "LAR -2.5",
-      away: "IND +2.5",
-      value: -2.5
-    },
-    overUnder: 45.5,
-    moneyline: {
-      home: -135,
-      away: 115
-    },
-    venue: "SoFi Stadium",
-    tv: ["FOX"],
-    isPrimetime: false
-  },
+  // SUNDAY, SEPTEMBER 28 - 4:05 PM Games
   {
     id: "2025-W4-JAX-SF",
     week: 4,
@@ -252,17 +230,65 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "SF",
     awayTeamShort: "JAX",
     spread: {
-      home: "SF -6",
-      away: "JAX +6",
-      value: -6
+      home: "SF -3.5",
+      away: "JAX +3.5",
+      value: 3.5
     },
-    overUnder: 47.5,
+    overUnder: 46.5,
     moneyline: {
-      home: -270,
-      away: 220
+      home: -175,
+      away: 150
     },
     venue: "Levi's Stadium",
     tv: ["FOX"],
+    isPrimetime: false
+  },
+  {
+    id: "2025-W4-IND-LAR",
+    week: 4,
+    date: "2025-09-28",
+    time: "4:05 PM",
+    homeTeam: "Los Angeles Rams",
+    awayTeam: "Indianapolis Colts",
+    homeTeamShort: "LAR",
+    awayTeamShort: "IND",
+    spread: {
+      home: "LAR -3.5",
+      away: "IND +3.5",
+      value: 3.5
+    },
+    overUnder: 48.5,
+    moneyline: {
+      home: -190,
+      away: 160
+    },
+    venue: "SoFi Stadium",
+    tv: ["FOX"],
+    isPrimetime: false
+  },
+
+  // SUNDAY, SEPTEMBER 28 - 4:25 PM Games
+  {
+    id: "2025-W4-CHI-LV",
+    week: 4,
+    date: "2025-09-28",
+    time: "4:25 PM",
+    homeTeam: "Las Vegas Raiders",
+    awayTeam: "Chicago Bears",
+    homeTeamShort: "LV",
+    awayTeamShort: "CHI",
+    spread: {
+      home: "LV -1.5",
+      away: "CHI +1.5",
+      value: 1.5
+    },
+    overUnder: 47.5,
+    moneyline: {
+      home: -115,
+      away: -105
+    },
+    venue: "Allegiant Stadium",
+    tv: ["CBS"],
     isPrimetime: false
   },
   {
@@ -275,39 +301,16 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "KC",
     awayTeamShort: "BAL",
     spread: {
-      home: "KC -1.5",
-      away: "BAL +1.5",
-      value: -1.5
+      home: "KC +2.5",
+      away: "BAL -2.5",
+      value: 2.5
     },
-    overUnder: 52.5,
+    overUnder: 48.5,
     moneyline: {
-      home: -120,
-      away: 100
+      home: 130,
+      away: -150
     },
     venue: "GEHA Field at Arrowhead Stadium",
-    tv: ["CBS"],
-    isPrimetime: false
-  },
-  {
-    id: "2025-W4-CHI-LV",
-    week: 4,
-    date: "2025-09-28",
-    time: "4:25 PM",
-    homeTeam: "Las Vegas Raiders",
-    awayTeam: "Chicago Bears",
-    homeTeamShort: "LV",
-    awayTeamShort: "CHI",
-    spread: {
-      home: "LV +1",
-      away: "CHI -1",
-      value: 1
-    },
-    overUnder: 44.5,
-    moneyline: {
-      home: -105,
-      away: -115
-    },
-    venue: "Allegiant Stadium",
     tv: ["CBS"],
     isPrimetime: false
   },
@@ -323,21 +326,21 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "DAL",
     awayTeamShort: "GB",
     spread: {
-      home: "DAL +1.5",
-      away: "GB -1.5",
-      value: 1.5
+      home: "DAL +6.5",
+      away: "GB -6.5",
+      value: 6.5
     },
-    overUnder: 49.5,
+    overUnder: 47.5,
     moneyline: {
-      home: 105,
-      away: -125
+      home: 225,
+      away: -275
     },
     venue: "AT&T Stadium",
     tv: ["NBC"],
     isPrimetime: true
   },
 
-  // MONDAY NIGHT FOOTBALL - Doubleheader
+  // MONDAY NIGHT FOOTBALL - Doubleheader (September 29)
   {
     id: "2025-W4-NYJ-MIA",
     week: 4,
@@ -348,14 +351,14 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "MIA",
     awayTeamShort: "NYJ",
     spread: {
-      home: "MIA +2.5",
-      away: "NYJ -2.5",
+      home: "MIA -2.5",
+      away: "NYJ +2.5",
       value: 2.5
     },
-    overUnder: 44.5,
+    overUnder: 45.5,
     moneyline: {
-      home: 125,
-      away: -145
+      home: -140,
+      away: 120
     },
     venue: "Hard Rock Stadium",
     tv: ["ESPN"],
@@ -371,20 +374,19 @@ export const NFL_WEEK_4_2025: NFLGame[] = [
     homeTeamShort: "DEN",
     awayTeamShort: "CIN",
     spread: {
-      home: "DEN +3",
-      away: "CIN -3",
-      value: 3
+      home: "DEN -7.5",
+      away: "CIN +7.5",
+      value: 7.5
     },
-    overUnder: 46.5,
+    overUnder: 44.5,
     moneyline: {
-      home: 140,
-      away: -165
+      home: -380,
+      away: 290
     },
     venue: "Empower Field at Mile High",
-    tv: ["ESPN"],
+    tv: ["ABC"],
     isPrimetime: true
   }
 ];
 
-// Teams on bye week 4: Arizona, Detroit, Jacksonville, L.A. Rams, Las Vegas, Seattle
-// Note: Some teams listed as bye may actually be playing - this is based on available schedule info
+// Teams on bye Week 4: None listed for this week
