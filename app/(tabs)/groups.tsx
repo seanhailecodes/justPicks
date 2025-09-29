@@ -67,7 +67,7 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Our Picks</Text>
+        <Text style={styles.title}>Synidcate Picks</Text>
         <TouchableOpacity onPress={handleAddFriend}>
           <Text style={styles.addButton}>+ Add Friends</Text>
         </TouchableOpacity>
@@ -82,7 +82,7 @@ export default function GroupsScreen() {
         <View style={styles.groupCard}>
           <View style={styles.groupHeader}>
             <View>
-              <Text style={styles.groupTitle}>Our Picks</Text>
+              <Text style={styles.groupTitle}>Syndicate Picks</Text>
               <Text style={styles.groupSubtitle}>All your friends in one place</Text>
             </View>
             <Text style={styles.memberCount}>{groupStats.totalFriends} friends</Text>
@@ -161,7 +161,7 @@ export default function GroupsScreen() {
 
         {/* Info Card */}
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>🎯 About Our Picks</Text>
+          <Text style={styles.infoTitle}>🎯 About Syndicate Picks</Text>
           <Text style={styles.infoText}>
             This is your default group with all your friends. Make picks on games and see how you stack up against everyone!
           </Text>
