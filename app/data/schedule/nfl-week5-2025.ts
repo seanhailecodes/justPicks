@@ -52,11 +52,11 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
     isPrimetime: true
   },
 
-  // Sunday Games - October 6, 2025
+  // Sunday Games - October 5, 2025
   {
     id: "nfl_2025_w5_min_cle",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "9:30 AM",
     homeTeam: "Cleveland Browns",
     awayTeam: "Minnesota Vikings",
@@ -81,7 +81,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_lv_ind",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "1:00 PM",
     homeTeam: "Indianapolis Colts",
     awayTeam: "Las Vegas Raiders",
@@ -105,7 +105,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_dal_nyj",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "1:00 PM",
     homeTeam: "New York Jets",
     awayTeam: "Dallas Cowboys",
@@ -129,7 +129,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_den_phi",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "1:00 PM",
     homeTeam: "Philadelphia Eagles",
     awayTeam: "Denver Broncos",
@@ -153,7 +153,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_mia_car",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "1:00 PM",
     homeTeam: "Carolina Panthers",
     awayTeam: "Miami Dolphins",
@@ -177,7 +177,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_hou_bal",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "1:00 PM",
     homeTeam: "Baltimore Ravens",
     awayTeam: "Houston Texans",
@@ -201,7 +201,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_nyg_no",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "1:00 PM",
     homeTeam: "New Orleans Saints",
     awayTeam: "New York Giants",
@@ -225,7 +225,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_ten_ari",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "4:05 PM",
     homeTeam: "Arizona Cardinals",
     awayTeam: "Tennessee Titans",
@@ -249,7 +249,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_tb_sea",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "4:05 PM",
     homeTeam: "Seattle Seahawks",
     awayTeam: "Tampa Bay Buccaneers",
@@ -273,7 +273,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_was_lac",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "4:25 PM",
     homeTeam: "Los Angeles Chargers",
     awayTeam: "Washington Commanders",
@@ -297,7 +297,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_cin_det",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "4:25 PM",
     homeTeam: "Detroit Lions",
     awayTeam: "Cincinnati Bengals",
@@ -321,7 +321,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_ne_buf",
     week: 5,
-    date: "2025-10-06",
+    date: "2025-10-05",
     time: "8:20 PM",
     homeTeam: "Buffalo Bills",
     awayTeam: "New England Patriots",
@@ -345,7 +345,7 @@ export const NFL_WEEK_5_2025: NFLGame[] = [
   {
     id: "nfl_2025_w5_kc_jax",
     week: 5,
-    date: "2025-10-07",
+    date: "2025-10-06",
     time: "8:15 PM",
     homeTeam: "Jacksonville Jaguars",
     awayTeam: "Kansas City Chiefs",
