@@ -1,14 +1,13 @@
-import { NFL_WEEK_1_2025 } from '@/app/data/nfl-week1-2025';
-import { NFL_WEEK_2_2025 } from '@/app/data/nfl-week2-2025';
-import { NFL_WEEK_3_2025 } from '@/app/data/nfl-week3-2025';
-import { NFL_WEEK_4_2025 } from '@/app/data/nfl-week4-2025';
-import { NFL_WEEK_5_2025 } from '@/app/data/nfl-week5-2025';
+import { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025 } from '@/app/data/nfl-2025-schedule';
 import PickModal from '@/components/PickModal';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getUserPicks, savePick, supabase } from '../lib/supabase';
+import { setGameResultManual } from '../data/resolution/gameResolution';
+import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
+import { WEEK_1_SCORES_2025, WEEK_2_SCORES_2025, WEEK_3_SCORES_2025, WEEK_4_SCORES_2025, WEEK_5_SCORES_2025 } from '@/app/data/resolution/week1-scores-2025';
 
 // Type definitions
 interface GameSpread {
@@ -79,7 +78,20 @@ export default function GamesScreen() {
   const [currentWeekNumber, setCurrentWeekNumber] = useState(4);
 
   const sports = ['Football', 'Basketball', 'College', 'Other'];
-  
+
+  // Replace your existing testResolution function with this:
+  const testResolution = async () => {
+    console.log('Testing Week 1 resolution...');
+    try {
+      const result = await resolveWeekFromScores(WEEK_1_SCORES_2025);
+      console.log('Resolution result:', result);
+      alert(`Week 1 resolved: ${result.gamesResolved} games processed`);
+    } catch (error) {
+      console.error('Test failed:', error);
+      alert('Test failed - check console');
+    }
+  };
+
   // Filter weeks to only show current and future
   const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10'];
   const visibleWeeks = allWeeks.filter(week => {
@@ -697,6 +709,21 @@ export default function GamesScreen() {
             </Text>
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity 
+          onPress={testResolution}
+          style={{
+            backgroundColor: '#34C759',
+            padding: 16,
+            margin: 16,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: 'bold' }}>
+            TEST: Resolve {selectedWeek} Game
+          </Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
       {selectedGame && showPickModal && (

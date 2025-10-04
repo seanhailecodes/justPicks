@@ -1,17 +1,22 @@
 // app/data/nfl-2025-schedule.ts
 // Master file combining all NFL weeks
 
-import { NFL_WEEK_1_2025, NFLGame } from './nfl-week1-2025';
-import { NFL_WEEK_2_2025 } from './nfl-week2-2025';
-import { NFL_WEEK_3_2025 } from './nfl-week3-2025';
-import { NFL_WEEK_4_2025 } from './nfl-week4-2025';
+import { NFL_WEEK_1_2025, NFLGame } from './schedule/nfl-week1-2025';
+import { NFL_WEEK_2_2025 } from './schedule/nfl-week2-2025';
+import { NFL_WEEK_3_2025 } from './schedule/nfl-week3-2025';
+import { NFL_WEEK_4_2025 } from './schedule/nfl-week4-2025';
+import { NFL_WEEK_5_2025 } from './schedule/nfl-week5-2025';
+
+// Re-export individual weeks for direct import
+export { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025 };
 
 // Combine all weeks
 export const NFL_2025_SCHEDULE: NFLGame[] = [
   ...NFL_WEEK_1_2025,
   ...NFL_WEEK_2_2025,
   ...NFL_WEEK_3_2025,
-  ...NFL_WEEK_4_2025
+  ...NFL_WEEK_4_2025,
+  ...NFL_WEEK_5_2025
 ];
 
 // Helper functions
@@ -48,4 +53,5 @@ export const WEEK_INFO = [
   { week: 2, label: 'Week 2', startDate: '2025-09-11', endDate: '2025-09-15' },
   { week: 3, label: 'Week 3', startDate: '2025-09-18', endDate: '2025-09-22' },
   { week: 4, label: 'Week 4', startDate: '2025-09-25', endDate: '2025-09-29' },
+  { week: 5, label: 'Week 5', startDate: '2025-10-02', endDate: '2025-10-07' },   
 ];
