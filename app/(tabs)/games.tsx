@@ -1,13 +1,12 @@
 import { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025 } from '@/app/data/nfl-2025-schedule';
+import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
+import { WEEK_1_SCORES_2025 } from '@/app/data/resolution/week1-scores-2025';
 import PickModal from '@/components/PickModal';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getUserPicks, savePick, supabase } from '../lib/supabase';
-import { setGameResultManual } from '../data/resolution/gameResolution';
-import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
-import { WEEK_1_SCORES_2025, WEEK_2_SCORES_2025, WEEK_3_SCORES_2025, WEEK_4_SCORES_2025, WEEK_5_SCORES_2025 } from '@/app/data/resolution/week1-scores-2025';
 
 // Type definitions
 interface GameSpread {
@@ -710,6 +709,8 @@ export default function GamesScreen() {
           </TouchableOpacity>
         )}
 
+        {__DEV__ && (
+               
         <TouchableOpacity 
           onPress={testResolution}
           style={{
@@ -720,12 +721,12 @@ export default function GamesScreen() {
           }}
         >
           <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: 'bold' }}>
-            TEST: Resolve {selectedWeek} Game
+           Dev: Resolve {selectedWeek} Game
           </Text>
         </TouchableOpacity>
-
+      )}
+      
       </ScrollView>
-
       {selectedGame && showPickModal && (
         <PickModal
           visible={showPickModal}
