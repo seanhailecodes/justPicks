@@ -1,4 +1,4 @@
-import { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025 } from '@/app/data/nfl-2025-schedule';
+import { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025, NFL_WEEK_6_2025 } from '@/app/data/nfl-2025-schedule';
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import { WEEK_1_SCORES_2025 } from '@/app/data/resolution/week1-scores-2025';
 import PickModal from '@/components/PickModal';
@@ -118,6 +118,7 @@ export default function GamesScreen() {
         else if (weekNumber === 3) weekGames = NFL_WEEK_3_2025;
         else if (weekNumber === 4) weekGames = NFL_WEEK_4_2025;
         else if (weekNumber === 5) weekGames = NFL_WEEK_5_2025;
+        else if (weekNumber === 6) weekGames = NFL_WEEK_6_2025;
         
         if (weekGames.length === 0) {
           alert(`No data file for week ${weekNumber}`);
@@ -136,7 +137,7 @@ export default function GamesScreen() {
             return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
           };
 
-          const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}`;
+          const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}-04:00`;
           
           return {
             id: game.id,
@@ -175,28 +176,44 @@ export default function GamesScreen() {
 
   // Load user picks from database
   const loadUserPicks = async (userId: string) => {
-    try {
-      const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-      const result = await getUserPicks(userId, weekNumber);
-        
-      if (result.success && result.data) {
-        const picksMap = new Map();
-        result.data.forEach(pick => {
-          picksMap.set(pick.game_id, {
-            pick: pick.team_picked,
-            pickType: pick.pick_type,
-            confidence: pick.confidence,
-            groups: [],
-            reasoning: pick.reasoning,
-          });
+  try {
+    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+    const result = await getUserPicks(userId, weekNumber);
+    
+    // Always create picks map, even if empty
+    const picksMap = new Map();
+    
+    if (result.success && result.data) {
+      result.data.forEach(pick => {
+        picksMap.set(pick.game_id, {
+          pick: pick.team_picked,
+          pickType: pick.pick_type,
+          confidence: pick.confidence,
+          groups: [],
+          reasoning: pick.reasoning,
         });
-        setUserPicks(picksMap);
-        loadGamesFromDatabase();
-      }
-    } catch (error) {
-      console.error('Error loading picks:', error);
+      });
+    }
+    
+    setUserPicks(picksMap);
+    // Always load games, regardless of whether picks exist
+    loadGamesFromDatabase();
+    
+  } catch (error) {
+    console.error('Error loading picks:', error);
+    // Still load games even if picks fail
+    loadGamesFromDatabase();
+  }
+};
+
+  /// Refresh user picks from database
+  const refreshUserPicks = async () => {
+    if (session?.user) {
+      console.log('Refreshing user picks for user:', session.user.id);
+      await loadUserPicks(session.user.id);
     }
   };
+
 
   // Load games from database
   const loadGamesFromDatabase = async () => {
@@ -220,6 +237,15 @@ export default function GamesScreen() {
         setGames([]);
         return;
       }
+
+      console.log('=== DEBUGGING DATES ===');
+        dbGames.forEach(game => {
+          console.log(`${game.away_team} @ ${game.home_team}`);
+          console.log(`Raw DB date: ${game.game_date}`);
+          console.log(`Split date: ${game.game_date.split('T')[0]}`);
+          console.log('---');
+        });
+        console.log('=== END DEBUG ===');
 
       // Transform database games to Game interface
       const transformedGames: Game[] = (dbGames || []).map((dbGame, index) => ({
@@ -416,58 +442,51 @@ export default function GamesScreen() {
   };
 
   const handlePickSubmit = async (pickData: PickData) => {
-    try {
-      setShowPickModal(false);
-      
-      if (!session?.user?.id) {
-        alert('Please log in to make picks');
-        return;
-      }
-      const userId = session.user.id;
-
-      if (selectedGame && selectedGame.originalId) {
-        setIsLoading(true);
-        const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-        
-        const result = await savePick(
-          userId,
-          selectedGame.originalId,
-          pickData.pick,
-          weekNumber
-        );
-
-        if (result.success) {
-          const newPicks = new Map(userPicks);
-          newPicks.set(selectedGame.originalId, {
-            pick: pickData.pick,
-            pickType: pickData.type,
-            confidence: pickData.confidence,
-            groups: pickData.groups || [],
-            reasoning: pickData.reasoning || '',
-          });
-          setUserPicks(newPicks);
-          
-          const updatedGames = games.map(game => 
-            game.originalId === selectedGame.originalId 
-              ? { ...game, selectedPick: pickData.pick, confidence: pickData.confidence, pickType: pickData.type }
-              : game
-          );
-          setGames(updatedGames);
-        } else {
-          alert('Failed to save pick. Check console.');
-        }
-        
-        setIsLoading(false);
-      }
-      
-      setSelectedGame(null);
-      
-    } catch (error) {
-      console.error('ERROR:', error);
-      setIsLoading(false);
-      alert('Error saving pick');
+  try {
+    console.log('1. Pick submitted - starting process');
+    setShowPickModal(false);
+    
+    if (!session?.user?.id) {
+      alert('Please log in to make picks');
+      return;
     }
-  };
+
+    if (selectedGame && selectedGame.originalId) {
+      setIsLoading(true);
+      const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+      
+      const result = await savePick(session.user.id, {
+        game_id: selectedGame.originalId,
+        pick: pickData.pick as string,
+        team_picked: pickData.pick,
+        confidence: pickData.confidence as 'Low' | 'Medium' | 'High',
+        reasoning: pickData.reasoning || '',
+        pick_type: pickData.type,
+        groups: pickData.groups,
+        spread_value: 0,
+        week: weekNumber,
+      });
+
+      if (result.success) {
+        console.log('Pick saved successfully!');
+        // Force refresh picks from database instead of manual state updates
+        await refreshUserPicks();
+      } else {
+        console.error('Failed to save pick:', result.error);
+        alert('Failed to save pick');
+      }
+      
+      setIsLoading(false);
+    }
+    
+    setSelectedGame(null);
+    
+  } catch (error) {
+    console.error('ERROR:', error);
+    setIsLoading(false);
+    alert('Error saving pick');
+  }
+};
 
   const getConfidenceColor = (confidence?: string | null) => {
     switch (confidence) {
