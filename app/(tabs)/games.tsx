@@ -1,6 +1,9 @@
 import { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025, NFL_WEEK_6_2025 } from '@/app/data/nfl-2025-schedule';
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import { WEEK_1_SCORES_2025 } from '@/app/data/resolution/week1-scores-2025';
+import { WEEK_2_SCORES_2025 } from '@/app/data/resolution/week2-scores-2025';
+import { WEEK_5_SCORES_2025 } from '@/app/data/resolution/week5-scores-2025';
+// import { WEEK_6_SCORES_2025 } from '@/app/data/resolution/week6-scores-2025';
 import PickModal from '@/components/PickModal';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
@@ -80,11 +83,22 @@ export default function GamesScreen() {
 
   // Replace your existing testResolution function with this:
   const testResolution = async () => {
-    console.log('Testing Week 1 resolution...');
+    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+    console.log(`Testing Week ${weekNumber} resolution...`);
+    
     try {
-      const result = await resolveWeekFromScores(WEEK_1_SCORES_2025);
+      let scores;
+      if (weekNumber === 1) scores = WEEK_1_SCORES_2025;
+      else if (weekNumber === 5) scores = WEEK_5_SCORES_2025;
+      // Add other weeks as needed
+      else {
+        alert(`No scores available for Week ${weekNumber}`);
+        return;
+      }
+      
+      const result = await resolveWeekFromScores(scores);
       console.log('Resolution result:', result);
-      alert(`Week 1 resolved: ${result.gamesResolved} games processed`);
+      alert(`Week ${weekNumber} resolved: ${result.gamesResolved} games processed`);
     } catch (error) {
       console.error('Test failed:', error);
       alert('Test failed - check console');
@@ -482,10 +496,16 @@ export default function GamesScreen() {
     setSelectedGame(null);
     
   } catch (error) {
-    console.error('ERROR:', error);
-    setIsLoading(false);
-    alert('Error saving pick');
-  }
+      console.error('=== PICK SAVE ERROR ===');
+      console.error('Error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Selected game:', selectedGame);
+      console.error('Original ID:', selectedGame?.originalId);
+      console.error('User ID:', session?.user?.id);
+      console.error('========================');
+      setIsLoading(false);
+      alert('Error saving pick');
+    }
 };
 
   const getConfidenceColor = (confidence?: string | null) => {

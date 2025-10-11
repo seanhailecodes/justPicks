@@ -4,38 +4,35 @@ export interface GameScore {
   gameId: string;
   homeScore: number;
   awayScore: number;
-  status: 'final' | 'cancelled';
+  coveredBy: 'home' | 'away' | 'push';
   notes?: string;
+}
+
+interface Pick {
+  id: string;
+  game_id: string;
+  team_picked: 'home' | 'away';
+  confidence: string;
+  spread_value?: number; 
 }
 
 interface GameResult {
   homeScore: number;
   awayScore: number;
+  coveredBy: 'home' | 'away' | 'push'; 
   status: 'final' | 'cancelled';
 }
 
 function resolvePickResult(pick: Pick, gameResult: GameResult): 'win' | 'loss' | 'push' {
   if (gameResult.status === 'cancelled') return 'push';
   
-  const { homeScore, awayScore } = gameResult;
-  const actualSpread = homeScore - awayScore; // Positive means home won by X
+  // If the game was a push, everyone gets a push regardless of their pick
+  if (gameResult.coveredBy === 'push') return 'push';
   
-  if (pick.team_picked === 'home') {
-    // User picked home team
-    const coverMargin = actualSpread - pick.spread_value;
-    if (coverMargin > 0) return 'win';
-    if (coverMargin < 0) return 'loss';
-    return 'push'; // Exactly hit the spread
-  } else {
-    // User picked away team  
-    const coverMargin = (-actualSpread) - pick.spread_value;
-    if (coverMargin > 0) return 'win';
-    if (coverMargin < 0) return 'loss';
-    return 'push';
-  }
-
+  // Otherwise check if user's pick matches who covered
+  return pick.team_picked === gameResult.coveredBy ? 'win' : 'loss';
 }
-  
+
 export async function setGameResultManual(
   gameId: string, 
   homeScore: number, 
@@ -66,10 +63,33 @@ export async function resolveWeekFromScores(weekScores: GameScore[]) {
   let resolved = 0;
   
   for (const score of weekScores) {
+    // Step 1: Update the game with final scores
     const result = await setGameResultManual(score.gameId, score.homeScore, score.awayScore);
     if (result.success) resolved++;
+    
+    // Step 2: Resolve all picks for this game (THIS IS MISSING!)
+    const { data: picks } = await supabase
+      .from('picks')
+      .select('*')
+      .eq('game_id', score.gameId);
+    
+    if (picks) {
+      for (const pick of picks) {
+        const pickResult = resolvePickResult(pick, {
+            homeScore: score.homeScore,
+            awayScore: score.awayScore,
+            coveredBy: score.coveredBy, // ADD THIS LINE
+            status: score.status
+        });
+        
+        // Update the pick with the result
+        await supabase
+          .from('picks')
+          .update({ status: pickResult })
+          .eq('id', pick.id);
+      }
+    }
   }
   
   return { success: true, gamesResolved: resolved };
 }
-

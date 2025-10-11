@@ -207,35 +207,41 @@ export const getUserPickHistory = async (userId: string) => {
   );
 };
 
-export const savePick = async (
-  userId: string, 
-  gameId: string, 
-  pickedTeam: string, 
-  weekNumber: number
-) => {
+export const savePick = async (userId: string, pickData: any) => {
+  console.log('savePick called with:', { userId, pickData }); // 👈 Debug log
+  
   // First, check if a pick already exists for this user and game
   const { data: existingPick, error: checkError } = await supabase
     .from('picks')
     .select('id')
     .eq('user_id', userId)
-    .eq('game_id', gameId)
+    .eq('game_id', pickData.game_id)
     .single();
 
   if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means no rows found
-    throw checkError;
+    return { success: false, error: checkError };
   }
 
   let result;
+  
+  const pickPayload = {
+    pick: pickData.pick,  // 👈 Use pickData.pick directly
+    team_picked: pickData.team_picked || pickData.pick,  // 👈 Fallback to pick if team_picked not provided
+    confidence: pickData.confidence || 'Medium',
+    reasoning: pickData.reasoning || '',
+    pick_type: pickData.pick_type || 'solo',
+    week: pickData.week,
+    season: 2025,
+  };
+  
+  console.log('Pick payload:', pickPayload); // 👈 Debug log
 
   if (existingPick) {
     // Update existing pick
     result = await supabase
       .from('picks')
       .update({ 
-        pick: pickedTeam,
-        team_picked: pickedTeam,
-        week: weekNumber,
-        season: 2025,
+        ...pickPayload,
         updated_at: new Date().toISOString()
       })
       .eq('id', existingPick.id)
@@ -247,13 +253,8 @@ export const savePick = async (
       .from('picks')
       .insert({ 
         user_id: userId, 
-        game_id: gameId, 
-        pick: pickedTeam,
-        team_picked: pickedTeam,
-        week: weekNumber,
-        season: 2025,
-        pick_type: 'solo',
-        confidence: 'Medium',
+        game_id: pickData.game_id,
+        ...pickPayload,
         correct: null,
         created_at: new Date().toISOString()
       })
@@ -261,8 +262,11 @@ export const savePick = async (
       .single();
   }
 
+  console.log('Supabase result:', result); // 👈 Debug log
+
   if (result.error) {
-    throw result.error;
+    console.error('Supabase error details:', result.error); // 👈 Debug log
+    return { success: false, error: result.error };
   }
   
   return { success: true, data: result.data };
