@@ -1,15 +1,14 @@
-import { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025, NFL_WEEK_6_2025 } from '@/app/data/nfl-2025-schedule';
+import { getWeekSchedule, hasScheduleForWeek } from '@/app/data/nfl-2025-schedule';
+import { getWeekScores, hasScoresForWeek } from '@/app/data/resolution/allScores';
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
-import { WEEK_1_SCORES_2025 } from '@/app/data/resolution/week1-scores-2025';
-import { WEEK_2_SCORES_2025 } from '@/app/data/resolution/week2-scores-2025';
-import { WEEK_5_SCORES_2025 } from '@/app/data/resolution/week5-scores-2025';
-// import { WEEK_6_SCORES_2025 } from '@/app/data/resolution/week6-scores-2025';
 import PickModal from '@/components/PickModal';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getUserPicks, savePick, supabase } from '../lib/supabase';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { getUserPicks, savePick, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
+
 
 // Type definitions
 interface GameSpread {
@@ -81,29 +80,81 @@ export default function GamesScreen() {
 
   const sports = ['Football', 'Basketball', 'College', 'Other'];
 
-  // Replace your existing testResolution function with this:
-  const testResolution = async () => {
+  // Replace your testResolution function with this:
+  const autoResolveWeek = async () => {
     const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-    console.log(`Testing Week ${weekNumber} resolution...`);
+    
+    // Check if scores exist
+    if (!hasScoresForWeek(weekNumber)) {
+      alert(`❌ No scores file found for Week ${weekNumber}.\n\nPlease create app/data/resolution/week${weekNumber}-scores-2025.ts first.`);
+      return;
+    }
+    
+    const scores = getWeekScores(weekNumber);
+    
+    if (!scores || scores.length === 0) {
+      alert(`❌ Week ${weekNumber} scores are empty.`);
+      return;
+    }
+    
+    console.log(`Resolving ${scores.length} games for Week ${weekNumber}...`);
     
     try {
-      let scores;
-      if (weekNumber === 1) scores = WEEK_1_SCORES_2025;
-      else if (weekNumber === 5) scores = WEEK_5_SCORES_2025;
-      // Add other weeks as needed
-      else {
-        alert(`No scores available for Week ${weekNumber}`);
+      const result = await resolveWeekFromScores(scores);
+      
+      if (result.success) {
+        alert(`✅ Successfully resolved ${result.gamesResolved} games for Week ${weekNumber}!`);
+        loadGamesFromDatabase();
+      } else {
+        alert(`❌ Error resolving games. Check console for details.`);
+      }
+    } catch (error) {
+      console.error('Resolution error:', error);
+      alert(`❌ Error: ${error.message}`);
+    }
+  };
+
+    // Automate for the following week
+    const advanceToNextWeek = async () => {
+      const currentWeek = await getCurrentWeek();
+      const nextWeek = currentWeek + 1;
+      
+      // Check if next week schedule exists
+      if (!hasScheduleForWeek(nextWeek)) {
+        Alert.alert(
+          '⚠️ Cannot Advance',
+          `Schedule file for Week ${nextWeek} doesn't exist yet.`,
+          [{ text: 'OK' }]
+        );
         return;
       }
       
-      const result = await resolveWeekFromScores(scores);
-      console.log('Resolution result:', result);
-      alert(`Week ${weekNumber} resolved: ${result.gamesResolved} games processed`);
-    } catch (error) {
-      console.error('Test failed:', error);
-      alert('Test failed - check console');
-    }
-  };
+      // Show confirmation dialog
+      Alert.alert(
+        '🔄 Advance Week?',
+        `Advance from Week ${currentWeek} to Week ${nextWeek}?\n\nThis will:\n• Update the current week in the database\n• Show Week ${nextWeek} by default for all users`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Advance',
+            onPress: async () => {
+              const result = await updateCurrentWeek(nextWeek);
+              
+              if (result.success) {
+                Alert.alert('✅ Success', `Advanced to Week ${nextWeek}!`);
+                setCurrentWeekNumber(nextWeek);
+                setSelectedWeek(`Week ${nextWeek}`);
+              } else {
+                Alert.alert('❌ Error', result.error || 'Failed to update week');
+              }
+            }
+          }
+        ]
+      );
+    };
 
   // Filter weeks to only show current and future
   const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10'];
@@ -118,73 +169,34 @@ export default function GamesScreen() {
     return match ? parseFloat(match[1]) : 0;
   };
 
-  // Development function to populate games for selected week
-  const populateSelectedWeek = async () => {
-    console.log(`Populating ${selectedWeek}...`);
+  // Development function to populate games automatically for selected week
+  const autoPopulateWeek = async () => {
+    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
     
-    if (__DEV__) {
-      try {
-        const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-        
-        let weekGames = [];
-        if (weekNumber === 1) weekGames = NFL_WEEK_1_2025;
-        else if (weekNumber === 2) weekGames = NFL_WEEK_2_2025;
-        else if (weekNumber === 3) weekGames = NFL_WEEK_3_2025;
-        else if (weekNumber === 4) weekGames = NFL_WEEK_4_2025;
-        else if (weekNumber === 5) weekGames = NFL_WEEK_5_2025;
-        else if (weekNumber === 6) weekGames = NFL_WEEK_6_2025;
-        
-        if (weekGames.length === 0) {
-          alert(`No data file for week ${weekNumber}`);
-          return;
-        }
+    // Check if schedule exists
+    if (!hasScheduleForWeek(weekNumber)) {
+      alert(`❌ No schedule file found for Week ${weekNumber}.\n\nPlease create app/data/schedule/nfl-week${weekNumber}-2025.ts first.`);
+      return;
+    }
+    
+    // Get the schedule
+    const schedule = getWeekSchedule(weekNumber);
+    
+    if (schedule.length === 0) {
+      alert(`❌ Week ${weekNumber} schedule is empty.`);
+      return;
+    }
 
-        const games = weekGames.map(game => {
-          const convertTo24Hour = (timeStr: string): string => {
-            const [time, period] = timeStr.split(' ');
-            let [hours, minutes] = time.split(':');
-            let hour24 = parseInt(hours);
-            
-            if (period === 'PM' && hour24 !== 12) hour24 += 12;
-            else if (period === 'AM' && hour24 === 12) hour24 = 0;
-            
-            return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
-          };
-
-          const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}-04:00`;
-          
-          return {
-            id: game.id,
-            week: game.week,
-            season: 2025,
-            home_team: game.homeTeamShort,
-            away_team: game.awayTeamShort,
-            home_spread: getSpreadValue(game.spread.home),
-            away_spread: getSpreadValue(game.spread.away),
-            league: 'NFL',
-            game_date: gameDateTime,
-            locked: false,
-          };
-        });
-
-        console.log(`Populating ${games.length} games for ${selectedWeek}`);
-
-        const { error } = await supabase
-          .from('games')
-          .upsert(games, { onConflict: 'id', ignoreDuplicates: false });
-
-        if (error) {
-          console.error('Error:', error);
-          alert(`Error: ${error.message}`);
-        } else {
-          alert(`Populated ${games.length} games for ${selectedWeek}`);
-          // Reload games after populating
-          loadGamesFromDatabase();
-        }
-      } catch (err) {
-        console.error('Failed:', err);
-        alert('Failed - check console');
-      }
+    console.log(`Populating ${schedule.length} games for Week ${weekNumber}...`);
+    
+    // Populate the games
+    const result = await populateWeekGames(weekNumber, schedule);
+    
+    if (result.success) {
+      alert(`✅ Successfully populated ${result.count} games for Week ${weekNumber}!`);
+      loadGamesFromDatabase();
+    } else {
+      alert(`❌ Error: ${result.error}`);
     }
   };
 
@@ -315,15 +327,9 @@ export default function GamesScreen() {
   // Load current week from database
   useEffect(() => {
     const loadCurrentWeek = async () => {
-      const { data } = await supabase
-        .from('app_state')
-        .select('current_week')
-        .single();
-      
-      if (data?.current_week) {
-        setCurrentWeekNumber(data.current_week);
-        setSelectedWeek(`Week ${data.current_week}`);
-      }
+      const weekNum = await getCurrentWeek();
+      setCurrentWeekNumber(weekNum);
+      setSelectedWeek(`Week ${weekNum}`);
     };
     
     loadCurrentWeek();
@@ -733,39 +739,35 @@ export default function GamesScreen() {
         </View>
         
         {__DEV__ && (
-          <TouchableOpacity 
-            onPress={populateSelectedWeek}
-            style={{
-              backgroundColor: '#FF6B35',
-              padding: 16,
-              margin: 16,
-              borderRadius: 8,
-              borderWidth: 2,
-              borderColor: '#FFF',
-            }}
-          >
-            <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: 'bold' }}>
-              DEV: Populate {selectedWeek} Games
-            </Text>
-          </TouchableOpacity>
-        )}
+          <>
+            <TouchableOpacity 
+              onPress={autoPopulateWeek}
+              style={styles.devButton}
+            >
+              <Text style={styles.devButtonText}>
+                📥 Populate {selectedWeek} Games
+              </Text>
+            </TouchableOpacity>
 
-        {__DEV__ && (
-               
-        <TouchableOpacity 
-          onPress={testResolution}
-          style={{
-            backgroundColor: '#34C759',
-            padding: 16,
-            margin: 16,
-            borderRadius: 8,
-          }}
-        >
-          <Text style={{ color: '#FFF', textAlign: 'center', fontWeight: 'bold' }}>
-           Dev: Resolve {selectedWeek} Game
-          </Text>
-        </TouchableOpacity>
-      )}
+            <TouchableOpacity 
+              onPress={autoResolveWeek}
+              style={[styles.devButton, { backgroundColor: '#007AFF' }]}
+            >
+              <Text style={styles.devButtonText}>
+                ✅ Resolve {selectedWeek} Games
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={advanceToNextWeek}
+              style={[styles.devButton, { backgroundColor: '#34C759' }]}
+            >
+              <Text style={styles.devButtonText}>
+                ⏭️ Advance to Next Week
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       
       </ScrollView>
       {selectedGame && showPickModal && (
@@ -1065,4 +1067,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  devButton: {
+    backgroundColor: '#FF6B35',
+    padding: 16,
+    margin: 16,
+    marginTop: 8,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  devButtonText: {
+    color: '#FFF',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
 });

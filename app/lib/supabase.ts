@@ -1,24 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 import storage from './storage';
-
-//  Conditional storage based on platform
-// const createStorage = () => {
-//   if (Platform.OS === 'web') {
-//     // Use localStorage for web
-//     return {
-//       getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
-//       setItem: (key: string, value: string) => Promise.resolve(localStorage.setItem(key, value)),
-//       removeItem: (key: string) => Promise.resolve(localStorage.removeItem(key)),
-//     };
-//   } else {
-//     // Use AsyncStorage for mobile
-//     const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-//     return AsyncStorage;
-//   }
-// };
 
 const supabaseUrl = 'https://oyedfzsqqqdfrmhbcbwb.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95ZWRmenNxcXFkZnJtaGJjYndiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODMwMDksImV4cCI6MjA3MjE1OTAwOX0.zlQAXksbwfK6y-pIQVgju9e1DG-Kj8Gmbpvvs9TPU5g';
@@ -31,6 +14,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// ========== AUTH FUNCTIONS ==========
 
 export const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -83,6 +68,85 @@ export const getCurrentUser = async () => {
   return { success: true, data: user };
 };
 
+// ========== WEEK MANAGEMENT FUNCTIONS ==========
+
+export const getCurrentWeek = async () => {
+  const { data, error } = await supabase
+    .from('app_state')
+    .select('current_week')
+    .single();
+  
+  if (error) {
+    console.error('Error getting current week:', error);
+    return 1; // Default to week 1
+  }
+  
+  return data?.current_week || 1;
+};
+
+export const updateCurrentWeek = async (weekNumber: number) => {
+  const { error } = await supabase
+    .from('app_state')
+    .update({ 
+      current_week: weekNumber,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', 1);
+  
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  
+  return { success: true };
+};
+
+export const populateWeekGames = async (weekNumber: number, games: any[]) => {
+  const getSpreadValue = (spreadString: string): number => {
+    const match = spreadString.match(/([+-]\d+\.?\d*)/);
+    return match ? parseFloat(match[1]) : 0;
+  };
+
+  const convertTo24Hour = (timeStr: string): string => {
+    const [time, period] = timeStr.split(' ');
+    let [hours, minutes] = time.split(':');
+    let hour24 = parseInt(hours);
+    
+    if (period === 'PM' && hour24 !== 12) hour24 += 12;
+    else if (period === 'AM' && hour24 === 12) hour24 = 0;
+    
+    return `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
+  };
+
+  const gamesToInsert = games.map(game => {
+    const gameDateTime = `${game.date}T${convertTo24Hour(game.time)}-04:00`;
+    
+    return {
+      id: game.id,
+      week: game.week,
+      season: 2025,
+      home_team: game.homeTeamShort,
+      away_team: game.awayTeamShort,
+      home_spread: getSpreadValue(game.spread.home),
+      away_spread: getSpreadValue(game.spread.away),
+      league: 'NFL',
+      game_date: gameDateTime,
+      locked: false,
+    };
+  });
+
+  const { error } = await supabase
+    .from('games')
+    .upsert(gamesToInsert, { onConflict: 'id', ignoreDuplicates: false });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, count: gamesToInsert.length };
+};
+
+// ========== GAMES FUNCTIONS ==========
+
 export const getGames = async (weekNumber?: number) => {
   let query = supabase
     .from('games')
@@ -101,6 +165,8 @@ export const getGames = async (weekNumber?: number) => {
   
   return data;
 };
+
+// ========== PICKS FUNCTIONS ==========
 
 export const getUserPicks = async (userId: string, weekNumber?: number) => {
   // First get the picks
@@ -208,8 +274,6 @@ export const getUserPickHistory = async (userId: string) => {
 };
 
 export const savePick = async (userId: string, pickData: any) => {
-  console.log('savePick called with:', { userId, pickData }); // 👈 Debug log
-  
   // First, check if a pick already exists for this user and game
   const { data: existingPick, error: checkError } = await supabase
     .from('picks')
@@ -225,16 +289,14 @@ export const savePick = async (userId: string, pickData: any) => {
   let result;
   
   const pickPayload = {
-    pick: pickData.pick,  // 👈 Use pickData.pick directly
-    team_picked: pickData.team_picked || pickData.pick,  // 👈 Fallback to pick if team_picked not provided
+    pick: pickData.pick,
+    team_picked: pickData.team_picked || pickData.pick,
     confidence: pickData.confidence || 'Medium',
     reasoning: pickData.reasoning || '',
     pick_type: pickData.pick_type || 'solo',
     week: pickData.week,
     season: 2025,
   };
-  
-  console.log('Pick payload:', pickPayload); // 👈 Debug log
 
   if (existingPick) {
     // Update existing pick
@@ -262,10 +324,7 @@ export const savePick = async (userId: string, pickData: any) => {
       .single();
   }
 
-  console.log('Supabase result:', result); // 👈 Debug log
-
   if (result.error) {
-    console.error('Supabase error details:', result.error); // 👈 Debug log
     return { success: false, error: result.error };
   }
   
@@ -285,6 +344,8 @@ export const deletePick = async (userId: string, gameId: string) => {
   
   return { success: true };
 };
+
+// ========== GROUPS FUNCTIONS ==========
 
 export const getGroups = async () => {
   const { data, error } = await supabase
@@ -441,6 +502,8 @@ export const getGroupPicks = async (groupId: string, weekNumber?: number) => {
   
   return picks;
 };
+
+// ========== USER STATS & PROFILE ==========
 
 export const getUserStats = async (userId: string) => {
   try {
