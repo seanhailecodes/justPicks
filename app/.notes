@@ -1,0 +1,19 @@
+-- Update the password for your existing user
+UPDATE auth.users 
+SET encrypted_password = crypt('Newman33!', gen_salt('bf')),
+    email_confirmed_at = NOW(),
+    updated_at = NOW()
+WHERE id = '64a6ef63-2b66-4e03-9152-b766ec0926aa';
+
+
+--update the folllowing week
+
+When Week n comes:
+
+✏️ Create nfl-weekn-2025.ts
+➕ Add 2 lines to nfl-2025-schedule.ts (import + registry entry)
+📥 Click "Populate Week n Games"
+✏️ After games finish, create weekn(-1)-scores-2025.ts
+➕ Add 2 lines to allScores.ts (import + registry entry)
+✅ Click "Resolve Week n Games"
+⏭️ Click "Advance to Next (n+1) Week"
