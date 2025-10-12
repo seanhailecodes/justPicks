@@ -190,35 +190,35 @@ export default function GamesScreen() {
 
   // Load user picks from database
   const loadUserPicks = async (userId: string) => {
-  try {
-    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-    const result = await getUserPicks(userId, weekNumber);
-    
-    // Always create picks map, even if empty
-    const picksMap = new Map();
-    
-    if (result.success && result.data) {
-      result.data.forEach(pick => {
-        picksMap.set(pick.game_id, {
-          pick: pick.team_picked,
-          pickType: pick.pick_type,
-          confidence: pick.confidence,
-          groups: [],
-          reasoning: pick.reasoning,
+    try {
+      const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+      const result = await getUserPicks(userId, weekNumber);
+      
+      // Always create picks map, even if empty
+      const picksMap = new Map();
+      
+      if (result.success && result.data) {
+        result.data.forEach(pick => {
+          picksMap.set(pick.game_id, {
+            pick: pick.team_picked,
+            pickType: pick.pick_type,
+            confidence: pick.confidence,
+            groups: [],
+            reasoning: pick.reasoning,
+          });
         });
-      });
+      }
+      
+      setUserPicks(picksMap);
+     // Pass the picksMap directly instead of relying on state
+      await loadGamesFromDatabase(picksMap);
+      
+    } 
+      catch (error) {
+      console.error('Error loading picks:', error);
+      await loadGamesFromDatabase(new Map());
     }
-    
-    setUserPicks(picksMap);
-    // Always load games, regardless of whether picks exist
-    loadGamesFromDatabase();
-    
-  } catch (error) {
-    console.error('Error loading picks:', error);
-    // Still load games even if picks fail
-    loadGamesFromDatabase();
-  }
-};
+  };
 
   /// Refresh user picks from database
   const refreshUserPicks = async () => {
@@ -230,7 +230,7 @@ export default function GamesScreen() {
 
 
   // Load games from database
-  const loadGamesFromDatabase = async () => {
+  const loadGamesFromDatabase = async (picksToUse?: Map<string, any>) => {
     try {
       console.log('Loading games from database for week:', selectedWeek);
       const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
@@ -251,6 +251,8 @@ export default function GamesScreen() {
         setGames([]);
         return;
       }
+
+      const picks = picksToUse || userPicks;
 
       console.log('=== DEBUGGING DATES ===');
         dbGames.forEach(game => {
@@ -295,11 +297,11 @@ export default function GamesScreen() {
           home: `${dbGame.home_team} ${dbGame.home_spread > 0 ? '+' : ''}${dbGame.home_spread}`,
           away: `${dbGame.away_team} ${dbGame.away_spread > 0 ? '+' : ''}${dbGame.away_spread}`,
         },
-        selectedPick: userPicks.get(dbGame.id)?.pick || null,
-        pickType: userPicks.get(dbGame.id)?.pickType || null,
-        confidence: userPicks.get(dbGame.id)?.confidence || null,
-        groups: userPicks.get(dbGame.id)?.groups || [],
-        reasoning: userPicks.get(dbGame.id)?.reasoning || '',
+        selectedPick: picks.get(dbGame.id)?.pick || null,
+        pickType: picks.get(dbGame.id)?.pickType || null,
+        confidence: picks.get(dbGame.id)?.confidence || null,
+        groups: picks.get(dbGame.id)?.groups || [],
+        reasoning: picks.get(dbGame.id)?.reasoning || '',
         originalId: dbGame.id,
       }));
 
