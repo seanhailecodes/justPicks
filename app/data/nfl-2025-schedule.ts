@@ -7,7 +7,7 @@ import { NFL_WEEK_3_2025 } from './schedule/nfl-week3-2025';
 import { NFL_WEEK_4_2025 } from './schedule/nfl-week4-2025';
 import { NFL_WEEK_5_2025 } from './schedule/nfl-week5-2025';
 import { NFL_WEEK_6_2025 } from './schedule/nfl-week6-2025';
-// import { NFL_WEEK_7_2025 } from './schedule/nfl-week7-2025';
+import { NFL_WEEK_7_2025 } from './schedule/nfl-week7-2025';
 // import { NFL_WEEK_8_2025 } from './schedule/nfl-week8-2025';
 // import { NFL_WEEK_9_2025 } from './schedule/nfl-week9-2025';
 // import { NFL_WEEK_10_2025 } from './schedule/nfl-week10-2025';
@@ -32,7 +32,7 @@ export const ALL_WEEKS_REGISTRY: Record<number, NFLGame[]> = {
   4: NFL_WEEK_4_2025,
   5: NFL_WEEK_5_2025,
   6: NFL_WEEK_6_2025,
-  // 7: NFL_WEEK_7_2025,
+  7: NFL_WEEK_7_2025,
   // 8: NFL_WEEK_8_2025,
   // 9: NFL_WEEK_9_2025,
   // 10: NFL_WEEK_10_2025,
@@ -57,7 +57,7 @@ export const NFL_2025_SCHEDULE: NFLGame[] = [
   ...NFL_WEEK_4_2025,
   ...NFL_WEEK_5_2025,
   ...NFL_WEEK_6_2025,
-  // ...NFL_WEEK_7_2025,
+  ...NFL_WEEK_7_2025,
   // ...NFL_WEEK_8_2025,
   // ...NFL_WEEK_9_2025,
   // ...NFL_WEEK_10_2025,
@@ -120,5 +120,6 @@ export const WEEK_INFO = [
   { week: 3, label: 'Week 3', startDate: '2025-09-18', endDate: '2025-09-22' },
   { week: 4, label: 'Week 4', startDate: '2025-09-25', endDate: '2025-09-29' },
   { week: 5, label: 'Week 5', startDate: '2025-10-02', endDate: '2025-10-07' },   
-  { week: 6, label: 'Week 6', startDate: '2025-10-09', endDate: '2025-10-16' },   
+  { week: 6, label: 'Week 6', startDate: '2025-10-09', endDate: '2025-10-16' },  
+  { week: 7, label: 'Week 7', startDate: '2025-10-16', endDate: '2025-10-23' }, 
 ];
