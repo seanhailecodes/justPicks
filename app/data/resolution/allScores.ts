@@ -7,6 +7,7 @@ import { WEEK_2_SCORES_2025 } from './week2-scores-2025';
 import { WEEK_5_SCORES_2025 } from './week5-scores-2025';
 import { WEEK_6_SCORES_2025 } from './week6-scores-2025';
 import { WEEK_7_SCORES_2025 } from './week7-scores-2025';
+import { WEEK_8_SCORES_2025 } from './week8-scores-2025';
 // Uncomment when files are created:
 // import { WEEK_3_SCORES_2025 } from './week3-scores-2025';
 // import { WEEK_4_SCORES_2025 } from './week4-scores-2025';
@@ -18,6 +19,7 @@ export const ALL_SCORES_REGISTRY: Record<number, GameScore[]> = {
   5: WEEK_5_SCORES_2025,
   6: WEEK_6_SCORES_2025,
   7: WEEK_7_SCORES_2025,
+  8: WEEK_8_SCORES_2025,
   // Uncomment as you add scores:
   // 3: WEEK_3_SCORES_2025,
   // 4: WEEK_4_SCORES_2025,

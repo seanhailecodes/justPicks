@@ -12,16 +12,15 @@ export default function AuthCallback() {
       try {
         // For development, we need to handle the URL manually
         // The magic link will open in browser, so we need a different approach
-        
-        // Check if we have token in params (for web callback)
-        if (params.token_hash && params.type === 'magiclink') {
+        // Check if we have token in params (for email confirmation or magic link)
+        if (params.token_hash && params.type) {
           const { error } = await supabase.auth.verifyOtp({
             token_hash: params.token_hash as string,
-            type: 'magiclink',
+            type: params.type as any, // 'signup', 'magiclink', 'recovery', etc.
           });
 
           if (error) {
-            console.error('Error verifying OTP:', error);
+            console.error('Error verifying token:', error);
             router.replace('/(auth)/login');
             return;
           }
