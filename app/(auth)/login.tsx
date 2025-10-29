@@ -32,48 +32,47 @@ export default function LoginScreen() {
   }, []);
 
     const handleAuth = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
-    }
+      if (!email.trim() || !password.trim()) {
+        Alert.alert('Error', 'Please enter both email and password');
+        return;
+      }
 
-    setLoading(true);
+      setLoading(true);
 
-    if (isSignUp) {
-      // Sign up new user
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-      });
+      if (isSignUp) {
+        // Sign up - requires email verification
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password,
+          options: {
+            emailRedirectTo: 'justpicks://auth/callback',  // ← THE KEY LINE
+          }
+        });
 
-      if (error) {
-        Alert.alert('Error', error.message);
+        if (error) {
+          Alert.alert('Error', error.message);
+        } else {
+          // Don't try to auto-login, just tell them to check email
+          Alert.alert(
+            'Check your email!', 
+            'We sent you a verification link. Click it to activate your account.',
+            [{ text: 'OK', onPress: () => setIsSignUp(false) }]
+          );
+        }
       } else {
-        // Auto sign in after signup
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        // Sign in existing user
+        const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password: password,
         });
-        
-        if (signInError) {
-          Alert.alert('Account created!', 'Please check your email to verify your account before logging in.');
+
+        if (error) {
+          Alert.alert('Error', error.message);
         }
-        // If successful, the onAuthStateChange listener will handle navigation
       }
-    } else {
-      // Sign in existing user
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
-      });
 
-      if (error) {
-        Alert.alert('Error', error.message);
-      }
-    }
-
-    setLoading(false);
-  };
+      setLoading(false);
+    };
 
     const handlePasswordReset = async () => {
   if (!email.trim()) {
