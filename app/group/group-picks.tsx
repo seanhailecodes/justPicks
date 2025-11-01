@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getGamesWithGroupPicks } from '../lib/database';
 import { supabase } from '../lib/supabase';
@@ -19,11 +19,41 @@ interface FriendPick {
 }
 
 export default function GroupPicksScreen() {
-  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [currentWeekNumber, setCurrentWeekNumber] = useState(1); // Temporary until DB loads
+  const [selectedWeek, setSelectedWeek] = useState(1); // Will be overridden by DB
   const [gamesData, setGamesData] = useState<any[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const weekScrollViewRef = useRef<ScrollView>(null);
+
+  // Load current week from database on mount
+  useEffect(() => {
+    const loadCurrentWeek = async () => {
+      const { data } = await supabase
+        .from('app_state')
+        .select('current_week')
+        .single();
+      
+      if (data?.current_week) {
+        setCurrentWeekNumber(data.current_week);
+        setSelectedWeek(data.current_week);
+        
+        // Scroll to current week after a short delay
+        setTimeout(() => {
+          if (weekScrollViewRef.current && data.current_week > 4) {
+            // Scroll to show the current week (approximately 90px per week chip)
+            weekScrollViewRef.current.scrollTo({ 
+              x: (data.current_week - 2) * 90, 
+              animated: true 
+            });
+          }
+        }, 100);
+      }
+    };
+    
+    loadCurrentWeek();
+  }, []);
 
   useEffect(() => {
     loadGamesAndPicks();
@@ -236,12 +266,14 @@ export default function GroupPicksScreen() {
 
       {/* Week Selector */}
       <ScrollView 
+        ref={weekScrollViewRef}
         horizontal 
         style={styles.weekSelector}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.weekSelectorContent}
+        scrollEnabled={true}
       >
-        {[1, 2, 3, 4, 5, 6, 7, 8].map((weekNum) => (
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((weekNum) => (
           <TouchableOpacity
             key={weekNum}
             style={[
@@ -425,7 +457,7 @@ const styles = StyleSheet.create({
   },
   weekSelectorContent: {
     paddingHorizontal: 16,
-    gap: 8,
+    paddingRight: 32, // Extra padding at the end
   },
   weekChip: {
     backgroundColor: '#1C1C1E',
