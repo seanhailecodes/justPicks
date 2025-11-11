@@ -11,13 +11,16 @@ interface PickModalProps {
     spread: { home: string; away: string };
     gameDate?: Date;
     time?: string;
+    overUnder?: number;
   };
   currentPick?: string;
+  currentOverUnderPick?: string;
   groups?: string[];
 }
 
-export default function PickModal({ visible, onClose, onSubmit, game, currentPick, groups = [] }: PickModalProps) {
+export default function PickModal({ visible, onClose, onSubmit, game, currentPick, currentOverUnderPick, groups = [] }: PickModalProps) {
   const [selectedPick, setSelectedPick] = useState(currentPick || '');
+  const [selectedOverUnder, setSelectedOverUnder] = useState(currentOverUnderPick || '');
   const [confidence, setConfidence] = useState('Medium');
   const [reasoning, setReasoning] = useState('');
   const [pickType, setPickType] = useState('group'); // Default to group (Syndicate)
@@ -29,11 +32,12 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
   useEffect(() => {
     if (visible) {
       setSelectedPick(currentPick || '');
+      setSelectedOverUnder(currentOverUnderPick || '');
       setPickType('group'); // Always default to sharing with Syndicate
       setConfidence('Medium');
       setReasoning('');
     }
-  }, [visible, currentPick, groups]);
+  }, [visible, currentPick, currentOverUnderPick, groups]);
 
   const confidenceLevels = [
     { level: 'Very Low', value: 20, color: '#FF3B30' },
@@ -46,6 +50,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
   const handleSubmit = () => {
     onSubmit({
       pick: selectedPick,
+      overUnderPick: selectedOverUnder,
       confidence,
       reasoning,
       groups: pickType === 'group' ? [SYNDICATE] : [],
@@ -62,156 +67,177 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <ScrollView style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Make Your Pick</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          {showHelp && (
-            <View style={styles.helpCard}>
-              <Text style={styles.helpTitle}>How Picks Work:</Text>
-              <Text style={styles.helpText}>• Solo picks are just for you to track</Text>
-              <Text style={styles.helpText}>• Syndicate picks are shared with everyone</Text>
-              <Text style={styles.helpText}>• All picks lock when the game starts</Text>
-              <TouchableOpacity onPress={() => setShowHelp(false)}>
-                <Text style={styles.helpClose}>Got it!</Text>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollViewContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Make Your Pick</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Text style={styles.closeButton}>✕</Text>
               </TouchableOpacity>
             </View>
-          )}
 
-          <View style={styles.gameInfo}>
-            <Text style={styles.gameTitle}>{game.awayTeam} @ {game.homeTeam}</Text>
-            <Text style={styles.gameTime}>
-              {game.gameDate 
-                ? game.gameDate.toLocaleString('en-US', { 
-                    weekday: 'short', 
-                    month: 'short', 
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true 
-                  })
-                : game.time || 'Time TBD'
-              }
-            </Text>
-          </View>
+            {showHelp && (
+              <View style={styles.helpCard}>
+                <Text style={styles.helpTitle}>How Picks Work:</Text>
+                <Text style={styles.helpText}>• Solo picks are just for you to track</Text>
+                <Text style={styles.helpText}>• {SYNDICATE} picks are shared for discussion</Text>
+                <Text style={styles.helpText}>• All picks lock when the game starts</Text>
+                <TouchableOpacity onPress={() => setShowHelp(false)}>
+                  <Text style={styles.helpClose}>Got it!</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-          <View style={styles.pickSection}>
-            <Text style={styles.sectionTitle}>Who wins against the spread?</Text>
-            <View style={styles.pickOptions}>
-              <TouchableOpacity
-                style={[styles.pickButton, selectedPick === 'away' && styles.pickButtonSelected]}
-                onPress={() => setSelectedPick('away')}
-              >
-                <Text style={[styles.pickButtonText, selectedPick === 'away' && styles.pickButtonTextSelected]}>
-                  {game.spread.away}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.pickButton, selectedPick === 'home' && styles.pickButtonSelected]}
-                onPress={() => setSelectedPick('home')}
-              >
-                <Text style={[styles.pickButtonText, selectedPick === 'home' && styles.pickButtonTextSelected]}>
-                  {game.spread.home}
-                </Text>
-              </TouchableOpacity>
+            <View style={styles.gameInfo}>
+              <Text style={styles.gameTitle}>{game.awayTeam} @ {game.homeTeam}</Text>
+              <Text style={styles.gameTime}>{game.time}</Text>
             </View>
-          </View>
 
-          <View style={styles.shareSection}>
-            <View style={styles.shareSectionHeader}>
-              <Text style={styles.sectionTitle}>How do you want to track this?</Text>
-              <TouchableOpacity onPress={() => setShowHelp(true)}>
-                <Text style={styles.helpLink}>What's the difference?</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.shareOptions}>
-              <TouchableOpacity
-                style={[styles.shareButton, pickType === 'solo' && styles.shareButtonSelected]}
-                onPress={() => setPickType('solo')}
-              >
-                <Text style={styles.shareIcon}>🎯</Text>
-                <Text style={[styles.shareText, pickType === 'solo' && styles.shareTextSelected]}>
-                  Just for me
-                </Text>
-                <Text style={styles.shareSubtext}>Private tracking</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.shareButton, pickType === 'group' && styles.shareButtonSelected]}
-                onPress={() => setPickType('group')}
-              >
-                <Text style={styles.shareIcon}>👥</Text>
-                <Text style={[styles.shareText, pickType === 'group' && styles.shareTextSelected]}>
-                  Share with {SYNDICATE}
-                </Text>
-                <Text style={styles.shareSubtext}>Discuss with everyone</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.confidenceSection}>
-            <Text style={styles.sectionTitle}>Confidence Level</Text>
-            <View style={styles.confidenceOptions}>
-              {confidenceLevels.map(({ level, value, color }) => (
+            {/* SPREAD PICK SECTION */}
+            <View style={styles.pickSection}>
+              <Text style={styles.sectionTitle}>Who wins against the spread?</Text>
+              <View style={styles.pickOptions}>
                 <TouchableOpacity
-                  key={level}
-                  style={[
-                    styles.confidenceButton,
-                    confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
-                  ]}
-                  onPress={() => setConfidence(level)}
+                  style={[styles.pickButton, selectedPick === 'away' && styles.pickButtonSelected]}
+                  onPress={() => setSelectedPick('away')}
                 >
-                  <Text style={[
-                    styles.confidenceText,
-                    confidence === level && styles.confidenceTextSelected
-                  ]}>
-                    {level}
-                  </Text>
-                  <Text style={[
-                    styles.confidenceValue,
-                    confidence === level && styles.confidenceTextSelected
-                  ]}>
-                    {value}%
+                  <Text style={[styles.pickButtonText, selectedPick === 'away' && styles.pickButtonTextSelected]}>
+                    {game.spread.away}
                   </Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity
+                  style={[styles.pickButton, selectedPick === 'home' && styles.pickButtonSelected]}
+                  onPress={() => setSelectedPick('home')}
+                >
+                  <Text style={[styles.pickButtonText, selectedPick === 'home' && styles.pickButtonTextSelected]}>
+                    {game.spread.home}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          <View style={styles.reasoningSection}>
-            <Text style={styles.sectionTitle}>Share Your Reasoning</Text>
-            <Text style={styles.reasoningSubtitle}>
-              This will be visible to all friends in "Syndicate Picks"
-            </Text>
-            <TextInput
-              style={styles.reasoningInput}
-              placeholder="Why do you think this pick will hit? Share injury reports, weather, trends, or gut feelings..."
-              placeholderTextColor="#666"
-              value={reasoning}
-              onChangeText={setReasoning}
-              multiline
-              numberOfLines={4}
-              maxLength={200}
-            />
-            <Text style={styles.characterCount}>
-              {reasoning.length}/200
-            </Text>
-          </View>
+            {/* OVER/UNDER PICK SECTION - NEW */}
+            {game.overUnder && (
+              <View style={styles.pickSection}>
+                <Text style={styles.sectionTitle}>Over/Under Total: {game.overUnder}</Text>
+                <View style={styles.pickOptions}>
+                  <TouchableOpacity
+                    style={[styles.pickButton, selectedOverUnder === 'over' && styles.pickButtonSelected]}
+                    onPress={() => setSelectedOverUnder('over')}
+                  >
+                    <Text style={[styles.pickButtonText, selectedOverUnder === 'over' && styles.pickButtonTextSelected]}>
+                      OVER {game.overUnder}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.pickButton, selectedOverUnder === 'under' && styles.pickButtonSelected]}
+                    onPress={() => setSelectedOverUnder('under')}
+                  >
+                    <Text style={[styles.pickButtonText, selectedOverUnder === 'under' && styles.pickButtonTextSelected]}>
+                      UNDER {game.overUnder}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
-          <TouchableOpacity
-            style={[styles.submitButton, !selectedPick && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={!selectedPick}
-          >
-            <Text style={styles.submitButtonText}>
-              {pickType === 'solo' ? 'Save Pick' : `Share with ${SYNDICATE}`}
-            </Text>
-          </TouchableOpacity>
+            {/* SHARE TYPE SECTION */}
+            <View style={styles.shareSection}>
+              <View style={styles.shareSectionHeader}>
+                <Text style={styles.sectionTitle}>How do you want to track this?</Text>
+                <TouchableOpacity onPress={() => setShowHelp(true)}>
+                  <Text style={styles.helpLink}>What's the difference?</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.shareOptions}>
+                <TouchableOpacity
+                  style={[styles.shareButton, pickType === 'solo' && styles.shareButtonSelected]}
+                  onPress={() => setPickType('solo')}
+                >
+                  <Text style={styles.shareIcon}>🎯</Text>
+                  <Text style={[styles.shareText, pickType === 'solo' && styles.shareTextSelected]}>
+                    Just for me
+                  </Text>
+                  <Text style={styles.shareSubtext}>Private tracking</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.shareButton, pickType === 'group' && styles.shareButtonSelected]}
+                  onPress={() => setPickType('group')}
+                >
+                  <Text style={styles.shareIcon}>👥</Text>
+                  <Text style={[styles.shareText, pickType === 'group' && styles.shareTextSelected]}>
+                    Share with {SYNDICATE}
+                  </Text>
+                  <Text style={styles.shareSubtext}>Discuss with everyone</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* CONFIDENCE LEVEL SECTION */}
+            <View style={styles.confidenceSection}>
+              <Text style={styles.sectionTitle}>Confidence Level</Text>
+              <View style={styles.confidenceOptions}>
+                {confidenceLevels.map(({ level, value, color }) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.confidenceButton,
+                      confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
+                    ]}
+                    onPress={() => setConfidence(level)}
+                  >
+                    <Text style={[
+                      styles.confidenceText,
+                      confidence === level && styles.confidenceTextSelected
+                    ]}>
+                      {level}
+                    </Text>
+                    <Text style={[
+                      styles.confidenceValue,
+                      confidence === level && styles.confidenceTextSelected
+                    ]}>
+                      {value}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* REASONING SECTION */}
+            <View style={styles.reasoningSection}>
+              <Text style={styles.sectionTitle}>Share Your Reasoning</Text>
+              <Text style={styles.reasoningSubtitle}>
+                This will be visible to all friends in "{SYNDICATE}"
+              </Text>
+              <TextInput
+                style={styles.reasoningInput}
+                placeholder="Why do you think this pick will hit? (optional)"
+                placeholderTextColor="#8E8E93"
+                value={reasoning}
+                onChangeText={setReasoning}
+                multiline
+                maxLength={300}
+              />
+              <Text style={styles.characterCount}>{reasoning.length}/300</Text>
+            </View>
+
+            {/* SUBMIT BUTTON */}
+            <TouchableOpacity
+              style={[styles.submitButton, (!selectedPick && !selectedOverUnder) && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={!selectedPick && !selectedOverUnder}
+            >
+              <Text style={styles.submitButtonText}>
+                {pickType === 'solo' ? 'Save Pick' : 'Share Pick'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -224,12 +250,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
+  scrollView: {
+    maxHeight: '90%',
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+  },
   modalContent: {
     backgroundColor: '#1C1C1E',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
-    maxHeight: '90%',
+    paddingBottom: 40,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -383,7 +415,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confidenceButtonSelected: {
-    // Background color set dynamically
+    // Background color set dynamically in the component
   },
   confidenceText: {
     color: '#FFF',

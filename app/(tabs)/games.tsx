@@ -24,7 +24,9 @@ interface Game {
   gameDate: string;
   gameTime: string;
   spread: GameSpread;
+  overUnder?: number;
   selectedPick?: 'home' | 'away' | null;
+  selectedOverUnderPick?: 'over' | 'under' | null;
   pickType?: 'solo' | 'group' | null;
   confidence?: 'Low' | 'Medium' | 'High' | null;
   groups?: string[];
@@ -157,7 +159,7 @@ export default function GamesScreen() {
     };
 
   // Filter weeks to only show current and future
-  const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10'];
+  const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12', 'Week 13', 'Week 14', 'Week 15', 'Week 16', 'Week 17', 'Week 18' ];
   const visibleWeeks = allWeeks.filter(week => {
     const weekNum = parseInt(week.replace('Week ', ''));
     return weekNum >= currentWeekNumber - 1; // Show 1 week back, current, and future
@@ -217,6 +219,7 @@ export default function GamesScreen() {
             confidence: pick.confidence,
             groups: [],
             reasoning: pick.reasoning,
+            overUnderPick: pick.over_under_pick,
           });
         });
       }
@@ -309,7 +312,9 @@ export default function GamesScreen() {
           home: `${dbGame.home_team} ${dbGame.home_spread > 0 ? '+' : ''}${dbGame.home_spread}`,
           away: `${dbGame.away_team} ${dbGame.away_spread > 0 ? '+' : ''}${dbGame.away_spread}`,
         },
+        overUnder: dbGame.over_under || undefined, 
         selectedPick: picks.get(dbGame.id)?.pick || null,
+        selectedOverUnderPick: picks.get(dbGame.id)?.overUnderPick || null,
         pickType: picks.get(dbGame.id)?.pickType || null,
         confidence: picks.get(dbGame.id)?.confidence || null,
         groups: picks.get(dbGame.id)?.groups || [],
@@ -487,6 +492,7 @@ export default function GamesScreen() {
         groups: pickData.groups,
         spread_value: 0,
         week: weekNumber,
+        overUnderPick: pickData.overUnderPick,
       });
 
       if (result.success) {
@@ -783,6 +789,7 @@ export default function GamesScreen() {
             awayTeam: selectedGame.awayTeam,
             spread: selectedGame.spread,
             time: formatGameDateTime(selectedGame.gameDate, selectedGame.gameTime),
+            overUnder: selectedGame.overUnder, 
           }}
           currentPick={selectedGame.selectedPick || undefined}
           groups={selectedGame.groups || []}
