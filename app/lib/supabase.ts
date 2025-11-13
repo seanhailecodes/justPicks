@@ -128,11 +128,14 @@ export const populateWeekGames = async (weekNumber: number, games: any[]) => {
       away_team: game.awayTeamShort,
       home_spread: getSpreadValue(game.spread.home),
       away_spread: getSpreadValue(game.spread.away),
+      over_under: game.overUnder || null,
       league: 'NFL',
       game_date: gameDateTime,
       locked: false,
     };
   });
+
+  console.log('First game being inserted:', JSON.stringify(gamesToInsert[0], null, 2));
 
   const { error } = await supabase
     .from('games')
