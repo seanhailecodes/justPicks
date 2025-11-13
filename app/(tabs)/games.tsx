@@ -792,6 +792,8 @@ export default function GamesScreen() {
             overUnder: selectedGame.overUnder, 
           }}
           currentPick={selectedGame.selectedPick || undefined}
+          currentOverUnderPick={selectedGame.selectedOverUnderPick || undefined}
+
           groups={selectedGame.groups || []}
         />
       )}
