@@ -4,8 +4,8 @@ import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import PickModal from '@/components/PickModal';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserPicks, savePick, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
 
@@ -80,6 +80,7 @@ export default function GamesScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [currentWeekNumber, setCurrentWeekNumber] = useState(4);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const sports = ['Football', 'Basketball', 'College', 'Other'];
 
@@ -395,6 +396,24 @@ export default function GamesScreen() {
     }
   }, [selectedWeek, session]);
 
+  // Pulse animation for Very High confidence
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
   // Calculate time until game locks
   const getTimeToLock = (gameDate: string, gameTime: string): string => {
     try {
@@ -709,35 +728,71 @@ export default function GamesScreen() {
                         {game.selectedPick === 'home' ? game.spread.home : game.spread.away}
                       </Text>
                       {game.confidence && (
-                        <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.confidence) }]}>
-                          <Text style={styles.confidenceText}>{game.confidence}</Text>
-                        </View>
+                        game.confidence === 'Very High' ? (
+                          <Animated.View 
+                            style={[
+                              styles.confidenceBadge, 
+                              { 
+                                backgroundColor: getConfidenceColor(game.confidence),
+                                transform: [{ scale: pulseAnim }],
+                                shadowColor: '#00C7BE',
+                                shadowOffset: { width: 0, height: 0 },
+                                shadowOpacity: 0.8,
+                                shadowRadius: 10,
+                              }
+                            ]}
+                          >
+                            <Text style={styles.confidenceText}>✨ {game.confidence}</Text>
+                          </Animated.View>
+                        ) : (
+                          <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.confidence) }]}>
+                            <Text style={styles.confidenceText}>{game.confidence}</Text>
+                          </View>
+                        )
                       )}
                     </View>
                   )}
-                  
-                  {/* Show Over/Under Pick */}
-                  {game.selectedOverUnderPick && game.overUnder && (
-                    <View style={styles.pickDetailRow}>
-                      <Text style={styles.pickDetailLabel}>Total:</Text>
-                      <Text style={styles.pickDetailValue}>
-                        {game.selectedOverUnderPick === 'over' ? '⬆️' : '⬇️'} {game.selectedOverUnderPick.toUpperCase()} {game.overUnder}
-                      </Text>
-                      {game.overUnderConfidence && (
-                        <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.overUnderConfidence) }]}>
-                          <Text style={styles.confidenceText}>{game.overUnderConfidence}</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                  
-                  {game.pickType === 'solo' ? (
-                    <Text style={styles.soloText}>Personal tracking only</Text>
-                  ) : (
-                    <Text style={styles.groupsText}>Everyone can see your pick</Text>
-                  )}
-                </View>
-              )}
+    
+    {/* Show Over/Under Pick */}
+    {game.selectedOverUnderPick && game.overUnder && (
+      <View style={styles.pickDetailRow}>
+        <Text style={styles.pickDetailLabel}>Total:</Text>
+        <Text style={styles.pickDetailValue}>
+          {game.selectedOverUnderPick === 'over' ? '⬆️' : '⬇️'} {game.selectedOverUnderPick.toUpperCase()} {game.overUnder}
+        </Text>
+        {game.overUnderConfidence && (
+          game.overUnderConfidence === 'Very High' ? (
+            <Animated.View 
+              style={[
+                styles.confidenceBadge, 
+                { 
+                  backgroundColor: getConfidenceColor(game.overUnderConfidence),
+                  transform: [{ scale: pulseAnim }],
+                  shadowColor: '#00C7BE',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                }
+              ]}
+            >
+              <Text style={styles.confidenceText}>✨ {game.overUnderConfidence}</Text>
+            </Animated.View>
+          ) : (
+            <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.overUnderConfidence) }]}>
+              <Text style={styles.confidenceText}>{game.overUnderConfidence}</Text>
+            </View>
+          )
+        )}
+      </View>
+    )}
+    
+    {game.pickType === 'solo' ? (
+      <Text style={styles.soloText}>Personal tracking only</Text>
+    ) : (
+      <Text style={styles.groupsText}>Everyone can see your pick</Text>
+    )}
+  </View>
+)}
 
                 {game.selectedPick && game.pickType === 'group' && !isLocked && (
                   <TouchableOpacity 

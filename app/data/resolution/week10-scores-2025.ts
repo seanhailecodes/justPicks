@@ -16,7 +16,7 @@ export const WEEK_10_SCORES_2025: GameScore[] = [
     homeScore: 10,
     awayScore: 7,
     status: 'final',
-    notes: 'Broncos ugly win extends streak to 7'
+    notes: 'Broncos ugly win extends streak to 7',
   },
 
   // Sunday International - November 9, 2025
