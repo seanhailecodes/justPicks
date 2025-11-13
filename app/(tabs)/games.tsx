@@ -27,6 +27,7 @@ interface Game {
   overUnder?: number;
   selectedPick?: 'home' | 'away' | null;
   selectedOverUnderPick?: 'over' | 'under' | null;
+  overUnderConfidence?: string | null;
   pickType?: 'solo' | 'group' | null;
   confidence?: 'Low' | 'Medium' | 'High' | null;
   groups?: string[];
@@ -220,6 +221,7 @@ export default function GamesScreen() {
             groups: [],
             reasoning: pick.reasoning,
             overUnderPick: pick.over_under_pick,
+            overUnderConfidence: pick.over_under_confidence,
           });
         });
       }
@@ -318,6 +320,7 @@ export default function GamesScreen() {
         selectedOverUnderPick: picks.get(dbGame.id)?.overUnderPick || null,
         pickType: picks.get(dbGame.id)?.pickType || null,
         confidence: picks.get(dbGame.id)?.confidence || null,
+        overUnderConfidence: picks.get(dbGame.id)?.overUnderConfidence || null,
         groups: picks.get(dbGame.id)?.groups || [],
         reasoning: picks.get(dbGame.id)?.reasoning || '',
         originalId: dbGame.id,
@@ -690,11 +693,20 @@ export default function GamesScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {game.selectedPick && !isLocked && (
-                  <View style={styles.pickStatus}>
-                    <View style={styles.pickStatusLeft}>
-                      <Text style={styles.pickTypeLabel}>
-                        {game.pickType === 'solo' ? '🎯 Solo Pick' : '👥 Shared with The Syndicate'}
+               {(game.selectedPick || game.selectedOverUnderPick) && !isLocked && (
+                <View style={styles.pickStatus}>
+                  <View style={styles.pickStatusLeft}>
+                    <Text style={styles.pickTypeLabel}>
+                      {game.pickType === 'solo' ? '🎯 Solo Pick' : '👥 Shared with The Syndicate'}
+                    </Text>
+                  </View>
+                  
+                  {/* Show Spread Pick */}
+                  {game.selectedPick && (
+                    <View style={styles.pickDetailRow}>
+                      <Text style={styles.pickDetailLabel}>Spread:</Text>
+                      <Text style={styles.pickDetailValue}>
+                        {game.selectedPick === 'home' ? game.spread.home : game.spread.away}
                       </Text>
                       {game.confidence && (
                         <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.confidence) }]}>
@@ -702,14 +714,30 @@ export default function GamesScreen() {
                         </View>
                       )}
                     </View>
-                    
-                    {game.pickType === 'solo' ? (
-                      <Text style={styles.soloText}>Personal tracking only</Text>
-                    ) : (
-                      <Text style={styles.groupsText}>Everyone can see your pick</Text>
-                    )}
-                  </View>
-                )}
+                  )}
+                  
+                  {/* Show Over/Under Pick */}
+                  {game.selectedOverUnderPick && game.overUnder && (
+                    <View style={styles.pickDetailRow}>
+                      <Text style={styles.pickDetailLabel}>Total:</Text>
+                      <Text style={styles.pickDetailValue}>
+                        {game.selectedOverUnderPick === 'over' ? '⬆️' : '⬇️'} {game.selectedOverUnderPick.toUpperCase()} {game.overUnder}
+                      </Text>
+                      {game.overUnderConfidence && (
+                        <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.overUnderConfidence) }]}>
+                          <Text style={styles.confidenceText}>{game.overUnderConfidence}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  
+                  {game.pickType === 'solo' ? (
+                    <Text style={styles.soloText}>Personal tracking only</Text>
+                  ) : (
+                    <Text style={styles.groupsText}>Everyone can see your pick</Text>
+                  )}
+                </View>
+              )}
 
                 {game.selectedPick && game.pickType === 'group' && !isLocked && (
                   <TouchableOpacity 
@@ -1092,6 +1120,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  pickDetailRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginTop: 8,
+  gap: 8,
+  },
+  pickDetailLabel: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 60,
+  },
+  pickDetailValue: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
   },
 
 });
