@@ -494,6 +494,7 @@ export default function GamesScreen() {
         spread_value: 0,
         week: weekNumber,
         overUnderPick: pickData.overUnderPick,
+        overUnderConfidence: pickData.overUnderConfidence, 
       });
 
       if (result.success) {

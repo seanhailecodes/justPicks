@@ -276,79 +276,6 @@ export const getUserPickHistory = async (userId: string) => {
   );
 };
 
-// export const savePick = async (userId: string, pickData: any) => {
-//   // First, check if a pick already exists for this user and game
-//   const { data: existingPick, error: checkError } = await supabase
-//     .from('picks')
-//     .select('id')
-//     .eq('user_id', userId)
-//     .eq('game_id', pickData.game_id)
-//     .single();
-
-//   if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means no rows found
-//     return { success: false, error: checkError };
-//   }
-
-//   let result;
-  
-//   const pickPayload = {
-//     pick: pickData.pick,
-//     team_picked: pickData.team_picked || pickData.pick,
-//     confidence: pickData.confidence || 'Medium',
-//     reasoning: pickData.reasoning || '',
-//     pick_type: pickData.pick_type || 'solo',
-//     week: pickData.week,
-//     season: 2025,
-//   };
-
-//   if (existingPick) {
-//     // Update existing pick
-//     result = await supabase
-//       .from('picks')
-//       .update({ 
-//         ...pickPayload,
-//         updated_at: new Date().toISOString()
-//       })
-//       .eq('id', existingPick.id)
-//       .select()
-//       .single();
-//   } else {
-//     // Insert new pick
-//     result = await supabase
-//       .from('picks')
-//       .insert({ 
-//         user_id: userId, 
-//         game_id: pickData.game_id,
-//         ...pickPayload,
-//         correct: null,
-//         created_at: new Date().toISOString()
-//       })
-//       .select()
-//       .single();
-//   }
-
-//   if (result.error) {
-//     return { success: false, error: result.error };
-//   }
-  
-//   return { success: true, data: result.data };
-// };
-
-// export const deletePick = async (userId: string, gameId: string) => {
-//   const { error } = await supabase
-//     .from('picks')
-//     .delete()
-//     .eq('user_id', userId)
-//     .eq('game_id', gameId);
-  
-//   if (error) {
-//     throw error;
-//   }
-  
-//   return { success: true };
-// };
-
-// Updated savePick function for app/lib/supabase.ts
 // Replace your existing savePick function with this:
 
 export const savePick = async (userId: string, pickData: any) => {
@@ -368,56 +295,57 @@ export const savePick = async (userId: string, pickData: any) => {
 
   let result;
   
-  const pickPayload = {
-    pick: pickData.pick,  // 👈 Use pickData.pick directly
-    team_picked: pickData.team_picked || pickData.pick,  // 👈 Fallback to pick if team_picked not provided
-    confidence: pickData.confidence || 'Medium',
-    reasoning: pickData.reasoning || '',
-    pick_type: pickData.pick_type || 'solo',
-    week: pickData.week,
-    season: 2025,
-    // ⭐ NEW: Add over/under pick support
-    over_under_pick: pickData.overUnderPick || null,
+    const pickPayload = {
+      pick: pickData.pick,  // 👈 Use pickData.pick directly
+      team_picked: pickData.team_picked || pickData.pick,  // 👈 Fallback to pick if team_picked not provided
+      confidence: pickData.confidence || 'Medium',
+      reasoning: pickData.reasoning || '',
+      pick_type: pickData.pick_type || 'solo',
+      week: pickData.week,
+      season: 2025,
+      // ⭐ NEW: Add over/under pick support
+      over_under_pick: pickData.overUnderPick || null,
+      over_under_confidence: pickData.overUnderConfidence || null,
+    };
+    
+    console.log('Pick payload:', pickPayload); // 👈 Debug log
+
+    if (existingPick) {
+      // Update existing pick
+      result = await supabase
+        .from('picks')
+        .update({ 
+          ...pickPayload,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingPick.id)
+        .select()
+        .single();
+    } else {
+      // Insert new pick
+      result = await supabase
+        .from('picks')
+        .insert({ 
+          user_id: userId, 
+          game_id: pickData.game_id,
+          ...pickPayload,
+          correct: null,
+          over_under_correct: null,  // ⭐ NEW: Initialize over/under correctness
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+    }
+
+    console.log('Supabase result:', result); // 👈 Debug log
+
+    if (result.error) {
+      console.error('Supabase error details:', result.error); // 👈 Debug log
+      return { success: false, error: result.error };
+    }
+    
+    return { success: true, data: result.data };
   };
-  
-  console.log('Pick payload:', pickPayload); // 👈 Debug log
-
-  if (existingPick) {
-    // Update existing pick
-    result = await supabase
-      .from('picks')
-      .update({ 
-        ...pickPayload,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', existingPick.id)
-      .select()
-      .single();
-  } else {
-    // Insert new pick
-    result = await supabase
-      .from('picks')
-      .insert({ 
-        user_id: userId, 
-        game_id: pickData.game_id,
-        ...pickPayload,
-        correct: null,
-        over_under_correct: null,  // ⭐ NEW: Initialize over/under correctness
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-  }
-
-  console.log('Supabase result:', result); // 👈 Debug log
-
-  if (result.error) {
-    console.error('Supabase error details:', result.error); // 👈 Debug log
-    return { success: false, error: result.error };
-  }
-  
-  return { success: true, data: result.data };
-};
 // ========== GROUPS FUNCTIONS ==========
 
 export const getGroups = async () => {
