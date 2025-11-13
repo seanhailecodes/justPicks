@@ -5,6 +5,7 @@ export interface GameScore {
   homeScore: number;
   awayScore: number;
   coveredBy: 'home' | 'away' | 'push';
+  overUnderLine?: number; 
   notes?: string;
 }
 
@@ -58,6 +59,22 @@ export async function setGameResultManual(
   return { success: true, gameUpdated: true };
 }
 
+function resolveOverUnderResult(
+  overUnderPick: 'over' | 'under',
+  totalPoints: number,
+  overUnderLine: number
+): 'win' | 'loss' | 'push' {
+  // If total equals the line exactly, it's a push
+  if (totalPoints === overUnderLine) return 'push';
+  
+  // Check if the pick was correct
+  if (overUnderPick === 'over') {
+    return totalPoints > overUnderLine ? 'win' : 'loss';
+  } else {
+    return totalPoints < overUnderLine ? 'win' : 'loss';
+  }
+}
+
 export async function resolveWeekFromScores(weekScores: GameScore[]) {
   console.log(`Starting resolution for ${weekScores.length} games...`);
   let resolved = 0;
@@ -67,7 +84,18 @@ export async function resolveWeekFromScores(weekScores: GameScore[]) {
     const result = await setGameResultManual(score.gameId, score.homeScore, score.awayScore);
     if (result.success) resolved++;
     
-    // Step 2: Resolve all picks for this game (THIS IS MISSING!)
+    // Step 2: Get the game details (including over_under line)
+    const { data: game } = await supabase
+      .from('games')
+      .select('over_under')
+      .eq('id', score.gameId)
+      .single();
+    
+    // Calculate total points for over/under
+    const totalPoints = score.homeScore + score.awayScore;
+    const overUnderLine = game?.over_under || score.overUnderLine;
+    
+    // Step 3: Resolve all picks for this game
     const { data: picks } = await supabase
       .from('picks')
       .select('*')
@@ -75,17 +103,32 @@ export async function resolveWeekFromScores(weekScores: GameScore[]) {
     
     if (picks) {
       for (const pick of picks) {
-        const pickResult = resolvePickResult(pick, {
-            homeScore: score.homeScore,
-            awayScore: score.awayScore,
-            coveredBy: score.coveredBy, // ADD THIS LINE
-            status: score.status
+        // Resolve spread pick
+        const spreadResult = resolvePickResult(pick, {
+          homeScore: score.homeScore,
+          awayScore: score.awayScore,
+          coveredBy: score.coveredBy,
+          status: 'final'
         });
         
-        // Update the pick with the result
+        // Resolve over/under pick (if they made one)
+        let overUnderCorrect = null;
+        if (pick.over_under_pick && overUnderLine) {
+          const overUnderResult = resolveOverUnderResult(
+            pick.over_under_pick,
+            totalPoints,
+            overUnderLine
+          );
+          overUnderCorrect = overUnderResult === 'win' ? true : overUnderResult === 'loss' ? false : null;
+        }
+        
+        // Update the pick with both results
         await supabase
           .from('picks')
-          .update({ status: pickResult })
+          .update({ 
+            correct: spreadResult === 'win' ? true : spreadResult === 'loss' ? false : null,
+            over_under_correct: overUnderCorrect
+          })
           .eq('id', pick.id);
       }
     }
