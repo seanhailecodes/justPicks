@@ -22,6 +22,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
   const [selectedPick, setSelectedPick] = useState(currentPick || '');
   const [selectedOverUnder, setSelectedOverUnder] = useState(currentOverUnderPick || '');
   const [confidence, setConfidence] = useState('Medium');
+  const [overUnderConfidence, setOverUnderConfidence] = useState('Medium');
   const [reasoning, setReasoning] = useState('');
   const [pickType, setPickType] = useState('group'); // Default to group (Syndicate)
   const [showHelp, setShowHelp] = useState(false);
@@ -35,6 +36,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
       setSelectedOverUnder(currentOverUnderPick || '');
       setPickType('group'); // Always default to sharing with Syndicate
       setConfidence('Medium');
+      setOverUnderConfidence('Medium');
       setReasoning('');
     }
   }, [visible, currentPick, currentOverUnderPick, groups]);
@@ -52,6 +54,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
       pick: selectedPick,
       overUnderPick: selectedOverUnder,
       confidence,
+      overUnderConfidence, 
       reasoning,
       groups: pickType === 'group' ? [SYNDICATE] : [],
       type: pickType,
@@ -179,28 +182,61 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               </View>
             </View>
 
-            {/* CONFIDENCE LEVEL SECTION */}
+     {/* SPREAD CONFIDENCE LEVEL - Only show if spread pick is selected */}
+        {selectedPick && (
+          <View style={styles.confidenceSection}>
+            <Text style={styles.sectionTitle}>Spread Pick Confidence</Text>
+            <View style={styles.confidenceOptions}>
+              {confidenceLevels.map(({ level, value, color }) => (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.confidenceButton,
+                    confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
+                  ]}
+                  onPress={() => setConfidence(level)}
+                >
+                  <Text style={[
+                    styles.confidenceText,
+                    confidence === level && styles.confidenceTextSelected
+                  ]}>
+                    {level}
+                  </Text>
+                  <Text style={[
+                    styles.confidenceValue,
+                    confidence === level && styles.confidenceTextSelected
+                  ]}>
+                    {value}%
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+          {/* OVER/UNDER CONFIDENCE LEVEL - Only show if over/under pick is selected */}
+          {selectedOverUnder && (
             <View style={styles.confidenceSection}>
-              <Text style={styles.sectionTitle}>Confidence Level</Text>
+              <Text style={styles.sectionTitle}>Over/Under Confidence</Text>
               <View style={styles.confidenceOptions}>
                 {confidenceLevels.map(({ level, value, color }) => (
                   <TouchableOpacity
                     key={level}
                     style={[
                       styles.confidenceButton,
-                      confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
+                      overUnderConfidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
                     ]}
-                    onPress={() => setConfidence(level)}
+                    onPress={() => setOverUnderConfidence(level)}
                   >
                     <Text style={[
                       styles.confidenceText,
-                      confidence === level && styles.confidenceTextSelected
+                      overUnderConfidence === level && styles.confidenceTextSelected
                     ]}>
                       {level}
                     </Text>
                     <Text style={[
                       styles.confidenceValue,
-                      confidence === level && styles.confidenceTextSelected
+                      overUnderConfidence === level && styles.confidenceTextSelected
                     ]}>
                       {value}%
                     </Text>
@@ -208,6 +244,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
                 ))}
               </View>
             </View>
+          )}
 
             {/* REASONING SECTION */}
             <View style={styles.reasoningSection}>
