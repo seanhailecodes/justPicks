@@ -254,7 +254,8 @@ export default function GamesScreen() {
         .from('games')
         .select('*')
         .eq('week', weekNumber)
-        .eq('season', 2025);
+        .eq('season', 2025)
+        .order('game_date', { ascending: true }); 
 
       if (error) {
         console.error('Error loading games:', error);
