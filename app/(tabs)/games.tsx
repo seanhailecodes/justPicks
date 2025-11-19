@@ -850,6 +850,39 @@ export default function GamesScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity 
+              onPress={async () => {
+                Alert.alert(
+                  '🔄 Resolve All Past Weeks?',
+                  'This will re-resolve all weeks with corrected spread calculations. This may take a minute.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Resolve All',
+                      onPress: async () => {
+                        try {
+                          const { resolveAllPastWeeks } = await import('../data/resolution/resolveAllWeeks');
+                          const result = await resolveAllPastWeeks();
+                          if (result.success) {
+                            Alert.alert('✅ Success', `Resolved ${result.totalGamesResolved} games across ${result.weeksProcessed} weeks!`);
+                            loadGamesFromDatabase();
+                          }
+                        } catch (error) {
+                          Alert.alert('❌ Error', error.message);
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}
+              style={[styles.devButton, { backgroundColor: '#FF9500' }]}
+            >
+              <Text style={styles.devButtonText}>
+                🔄 Resolve ALL Past Weeks
+              </Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity 
               onPress={advanceToNextWeek}
               style={[styles.devButton, { backgroundColor: '#34C759' }]}
             >
