@@ -51,7 +51,7 @@ export default function GroupsScreen() {
   };
 
   const handleViewPicks = () => {
-    router.push('/group/group-picks?groups=Work Friends,Family Picks');
+    router.push('/group/group-picks?groupId=163b5d2c-fb32-4b34-8ed0-4d39fa9a3a9b&groupName=The%20Syndicate');
   };
 
   if (loading) {
