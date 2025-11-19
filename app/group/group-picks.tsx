@@ -1,8 +1,8 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getGamesWithGroupPicks } from '../lib/database';
 import { supabase } from '../lib/supabase';
+import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 
 interface FriendPick {
   id: string;
@@ -16,11 +16,23 @@ interface FriendPick {
   winRate: number;
   totalPicks: number;
   weightedScore?: number;
+  // Add O/U fields
+  overUnderPick?: 'over' | 'under';
+  overUnderConfidence?: string;
 }
 
 export default function GroupPicksScreen() {
-  const [currentWeekNumber, setCurrentWeekNumber] = useState(1); // Temporary until DB loads
-  const [selectedWeek, setSelectedWeek] = useState(1); // Will be overridden by DB
+  // Get groupId and groupName from route params
+  const params = useLocalSearchParams();
+  const groupId = params.groupId as string || '';
+  const groupName = params.groupName as string || 'Group';
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'picks' | 'ratings'>('picks');
+
+  // Existing state
+  const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [gamesData, setGamesData] = useState<any[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
   const [loading, setLoading] = useState(true);
@@ -36,13 +48,13 @@ export default function GroupPicksScreen() {
         .single();
       
       if (data?.current_week) {
+        console.log('Setting week to:', data.current_week);
         setCurrentWeekNumber(data.current_week);
         setSelectedWeek(data.current_week);
         
         // Scroll to current week after a short delay
         setTimeout(() => {
           if (weekScrollViewRef.current && data.current_week > 4) {
-            // Scroll to show the current week (approximately 90px per week chip)
             weekScrollViewRef.current.scrollTo({ 
               x: (data.current_week - 2) * 90, 
               animated: true 
@@ -55,11 +67,15 @@ export default function GroupPicksScreen() {
     loadCurrentWeek();
   }, []);
 
+  // Only load when selectedWeek is set
   useEffect(() => {
-    loadGamesAndPicks();
+    if (selectedWeek !== null) {
+      loadGamesAndPicks();
+    }
   }, [selectedWeek]);
 
   const loadGamesAndPicks = async () => {
+    console.log('Loading games for week:', selectedWeek);
     try {
       // Get current user
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -72,31 +88,87 @@ export default function GroupPicksScreen() {
 
       setCurrentUserId(user.id);
 
-      // Load games with group picks from database
-      const gamesWithPicks = await getGamesWithGroupPicks(user.id, selectedWeek, 2025);
-      console.log('Games with picks loaded:', gamesWithPicks.length);
-      
-      // Transform database data to match original interface
-      const transformedGames = gamesWithPicks.map(game => ({
+      // First get games
+      const { data: games, error: gamesError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('week', selectedWeek)
+        .eq('season', 2025)
+        .order('game_date', { ascending: true });
+
+      if (gamesError) {
+        console.error('Error fetching games:', gamesError);
+        setLoading(false);
+        return;
+      }
+
+      if (!games || games.length === 0) {
+        console.log('No games found for week', selectedWeek);
+        setGamesData([]);
+        setFriendPicksByGame({});
+        setLoading(false);
+        return;
+      }
+
+      // Transform games data
+      const transformedGames = games.map(game => ({
         id: game.id,
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         homeTeamShort: game.home_team,
         awayTeamShort: game.away_team,
         spread: { home: game.home_spread, away: game.away_spread },
+        overUnder: game.over_under_line,
         time: formatGameTime(game.game_date),
         date: formatGameDate(game.game_date),
         timeToLock: getTimeToLock(game.game_date),
         locked: game.locked
       }));
 
+      console.log('Game O/U lines:', transformedGames.map(g => ({ id: g.id, ou: g.overUnder })));
+
       setGamesData(transformedGames);
 
-      // Transform picks to match original FriendPick interface
+      // Get all picks for these games - WITHOUT the profile join first
+      const gameIds = games.map(g => g.id);
+      console.log('Fetching picks for game IDs:', gameIds);
+      
+      const { data: picks, error: picksError } = await supabase
+        .from('picks')
+        .select('*')
+        .in('game_id', gameIds)
+        .order('created_at', { ascending: false });
+
+      if (picksError) {
+        console.error('Error fetching picks:', picksError);
+      }
+
+      console.log('Picks fetched:', picks?.length || 0);
+
+      // If we have picks, get the usernames separately
+      let pickWithUsernames = picks || [];
+      if (picks && picks.length > 0) {
+        const userIds = [...new Set(picks.map(p => p.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', userIds);
+
+        const usernameMap = new Map(profiles?.map(p => [p.id, p.username]) || []);
+        
+        pickWithUsernames = picks.map(pick => ({
+          ...pick,
+          username: usernameMap.get(pick.user_id) || 'Unknown'
+        }));
+      }
+
+      // Transform picks to match FriendPick interface
       const allPicksByGame: Record<string, FriendPick[]> = {};
       
-      gamesWithPicks.forEach(game => {
-        const transformedPicks: FriendPick[] = game.picks.map(pick => ({
+      gameIds.forEach(gameId => {
+        const gamePicks = pickWithUsernames.filter(p => p.game_id === gameId);
+        
+        const transformedPicks: FriendPick[] = gamePicks.map(pick => ({
           id: pick.id,
           username: pick.username,
           pick: pick.pick as 'home' | 'away',
@@ -105,17 +177,18 @@ export default function GroupPicksScreen() {
           confidenceColor: getConfidenceColor(pick.confidence),
           reasoning: pick.reasoning,
           timestamp: formatTimeAgo(pick.created_at),
-          winRate: pick.winRate,
-          totalPicks: pick.totalPicks,
-          weightedScore: pick.weightedScore
+          winRate: 0, // Would need to calculate
+          totalPicks: 0, // Would need to calculate
+          weightedScore: 0, // Would need to calculate
+          overUnderPick: pick.over_under_pick,
+          overUnderConfidence: pick.over_under_confidence
         }));
 
-        // Sort by weighted score
-        transformedPicks.sort((a, b) => (b.weightedScore || 0) - (a.weightedScore || 0));
-        allPicksByGame[game.id] = transformedPicks;
+        allPicksByGame[gameId] = transformedPicks;
       });
       
       setFriendPicksByGame(allPicksByGame);
+      console.log('Picks organized by game:', Object.keys(allPicksByGame).length, 'games have picks');
     } catch (error) {
       console.error('Error loading group picks data:', error);
     } finally {
@@ -123,7 +196,7 @@ export default function GroupPicksScreen() {
     }
   };
 
-  // Helper functions to format data
+  // Helper functions
   const formatGameTime = (dateStr: string): string => {
     try {
       const gameDate = new Date(dateStr);
@@ -210,7 +283,7 @@ export default function GroupPicksScreen() {
     }
   };
 
-  // Calculate consensus for a specific game
+  // Calculate consensus for spread picks
   const calculateGameConsensus = (picks: FriendPick[]) => {
     if (!picks || picks.length === 0) return null;
 
@@ -218,28 +291,65 @@ export default function GroupPicksScreen() {
     let awayScore = 0;
 
     picks.forEach(pick => {
-      const weight = pick.weightedScore || 0;
       if (pick.pick === 'home') {
-        homeScore += weight;
+        homeScore++;
       } else {
-        awayScore += weight;
+        awayScore++;
       }
     });
 
-    const totalScore = homeScore + awayScore;
-    if (totalScore === 0) return null;
+    const totalPicks = homeScore + awayScore;
+    if (totalPicks === 0) return null;
     
-    const homePercentage = Math.round((homeScore / totalScore) * 100);
+    const homePercentage = Math.round((homeScore / totalPicks) * 100);
     const awayPercentage = 100 - homePercentage;
 
     return {
       homePercentage,
       awayPercentage,
       recommendation: homePercentage > 50 ? 'home' : 'away',
-      homePicks: picks.filter(p => p.pick === 'home').length,
-      awayPicks: picks.filter(p => p.pick === 'away').length,
+      homePicks: homeScore,
+      awayPicks: awayScore,
     };
   };
+
+  // Calculate consensus for O/U picks
+  const calculateOUConsensus = (picks: FriendPick[]) => {
+    const ouPicks = picks.filter(p => p.overUnderPick);
+    if (ouPicks.length === 0) return null;
+
+    let overCount = 0;
+    let underCount = 0;
+
+    ouPicks.forEach(pick => {
+      if (pick.overUnderPick === 'over') {
+        overCount++;
+      } else {
+        underCount++;
+      }
+    });
+
+    const totalPicks = overCount + underCount;
+    if (totalPicks === 0) return null;
+    
+    const overPercentage = Math.round((overCount / totalPicks) * 100);
+    const underPercentage = 100 - overPercentage;
+
+    return {
+      overPercentage,
+      underPercentage,
+      recommendation: overPercentage > 50 ? 'over' : 'under',
+      overPicks: overCount,
+      underPicks: underCount,
+    };
+  };
+
+  // Debug logging for ratings tab
+  useEffect(() => {
+    if (activeTab === 'ratings') {
+      console.log('Ratings tab active - groupId:', groupId, 'currentUserId:', currentUserId);
+    }
+  }, [activeTab, groupId, currentUserId]);
 
   if (loading) {
     return (
@@ -251,8 +361,32 @@ export default function GroupPicksScreen() {
     );
   }
 
+  const renderRatingsTab = () => {
+    if (!groupId || !currentUserId) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            {!groupId && 'Missing group ID. '}
+            {!currentUserId && 'Not authenticated. '}
+            Please try navigating to this screen from the groups list.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <GroupRatingsLeaderboard
+        mode="group"
+        userId={currentUserId}
+        groupId={groupId}
+        groupName={groupName}
+      />
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>‹</Text>
@@ -264,144 +398,239 @@ export default function GroupPicksScreen() {
         <View style={styles.headerRight} />
       </View>
 
-      {/* Week Selector */}
-      <ScrollView 
-        ref={weekScrollViewRef}
-        horizontal 
-        style={styles.weekSelector}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.weekSelectorContent}
-        scrollEnabled={true}
-      >
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((weekNum) => (
-          <TouchableOpacity
-            key={weekNum}
-            style={[
-              styles.weekChip,
-              selectedWeek === weekNum && styles.weekChipActive
-            ]}
-            onPress={() => setSelectedWeek(weekNum)}
+      {/* TAB BAR */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'picks' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('picks')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'picks' && styles.tabButtonTextActive]}>
+            This Week's Picks
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'ratings' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('ratings')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'ratings' && styles.tabButtonTextActive]}>
+            Group Ratings
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* PICKS TAB CONTENT */}
+      {activeTab === 'picks' && (
+        <>
+          {/* Week Selector */}
+          <ScrollView 
+            ref={weekScrollViewRef}
+            horizontal 
+            style={styles.weekSelector}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.weekSelectorContent}
+            scrollEnabled={true}
           >
-            <Text style={[
-              styles.weekChipText,
-              selectedWeek === weekNum && styles.weekChipTextActive
-            ]}>
-              Week {weekNum}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <ScrollView 
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Loop through all games for the week */}
-        {gamesData.map(game => {
-          const gamePicks = friendPicksByGame[game.id] || [];
-          const consensus = calculateGameConsensus(gamePicks);
-          
-          return (
-            <View key={game.id} style={styles.gameSection}>
-              {/* Game Header */}
-              <TouchableOpacity 
-                style={styles.gameHeader}
-                onPress={() => router.push(`/game/${game.id}`)}
+            {Array.from({ length: 18 }, (_, i) => i + 1).map((weekNum) => (
+              <TouchableOpacity
+                key={weekNum}
+                style={[
+                  styles.weekChip,
+                  selectedWeek === weekNum && styles.weekChipActive
+                ]}
+                onPress={() => setSelectedWeek(weekNum)}
               >
-                <View>
-                  <Text style={styles.gameTitle}>
-                    {game.awayTeamShort} @ {game.homeTeamShort}
-                  </Text>
-                  <Text style={styles.gameTime}>{game.date} • {game.time}</Text>
-                </View>
-                <View style={styles.gameHeaderRight}>
-                  <Text style={styles.lockTime}>⏰ {game.timeToLock}</Text>
-                  {consensus && (
-                    <Text style={styles.consensusSummary}>
-                      {consensus.homePicks}-{consensus.awayPicks}
-                    </Text>
-                  )}
-                </View>
+                <Text style={[
+                  styles.weekChipText,
+                  selectedWeek === weekNum && styles.weekChipTextActive
+                ]}>
+                  Week {weekNum}
+                </Text>
               </TouchableOpacity>
+            ))}
+          </ScrollView>
 
-              {/* Mini Consensus Bar */}
-              {consensus && (
-                <View style={styles.miniConsensusBar}>
-                  <View 
-                    style={[
-                      styles.miniBarFill,
-                      styles.awayBarFill,
-                      { flex: consensus.awayPercentage }
-                    ]}
-                  >
-                    <Text style={styles.miniBarText}>{game.spread.away}</Text>
-                  </View>
-                  <View 
-                    style={[
-                      styles.miniBarFill,
-                      styles.homeBarFill,
-                      { flex: consensus.homePercentage }
-                    ]}
-                  >
-                    <Text style={styles.miniBarText}>{game.spread.home}</Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Top Picks for this game */}
-              <View style={styles.picksContainer}>
-                {gamePicks.length > 0 ? (
-                  gamePicks.slice(0, 3).map((pick, index) => (
-                    <View key={pick.id} style={styles.miniPickCard}>
-                      <View style={styles.miniPickHeader}>
-                        <Text style={[
-                          styles.miniUsername,
-                          pick.username === 'You' && styles.miniUsernameYou
-                        ]}>
-                          {pick.username}
-                        </Text>
-                        <View style={styles.miniPickInfo}>
-                          <Text style={styles.miniPickChoice}>
-                            {pick.pick === 'home' ? game.spread.home : game.spread.away}
-                          </Text>
-                          <View style={[styles.miniConfidenceDot, { backgroundColor: pick.confidenceColor }]} />
-                        </View>
-                      </View>
-                      {pick.reasoning && (
-                        <Text style={styles.miniReasoning} numberOfLines={1}>
-                          "{pick.reasoning}"
-                        </Text>
-                      )}
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.noPicksText}>No picks yet for this game</Text>
-                )}
-                
-                {gamePicks.length > 3 && (
+          {/* Games List */}
+          <ScrollView 
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Loop through all games for the week */}
+            {gamesData.map(game => {
+              const gamePicks = friendPicksByGame[game.id] || [];
+              const spreadConsensus = calculateGameConsensus(gamePicks);
+              const ouConsensus = calculateOUConsensus(gamePicks);
+              
+              return (
+                <View key={game.id} style={styles.gameSection}>
+                  {/* Game Header */}
                   <TouchableOpacity 
-                    style={styles.viewMoreButton}
+                    style={styles.gameHeader}
                     onPress={() => router.push(`/game/${game.id}`)}
                   >
-                    <Text style={styles.viewMoreText}>
-                      View all {gamePicks.length} picks →
-                    </Text>
+                    <View>
+                      <Text style={styles.gameTitle}>
+                        {game.awayTeamShort} @ {game.homeTeamShort}
+                      </Text>
+                      <Text style={styles.gameTime}>{game.date} • {game.time}</Text>
+                    </View>
+                    <View style={styles.gameHeaderRight}>
+                      <Text style={styles.lockTime}>⏰ {game.timeToLock}</Text>
+                    </View>
                   </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          );
-        })}
 
-        {/* Summary Stats */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Week {selectedWeek} Summary</Text>
-          <Text style={styles.summaryText}>
-            {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
-          </Text>
-        </View>
-      </ScrollView>
+                  {/* Spread Section */}
+                  <View style={styles.pickSection}>
+                    <Text style={styles.pickTypeLabel}>SPREAD</Text>
+                    
+                    {/* Spread Consensus Bar */}
+                    {spreadConsensus && (
+                      <>
+                        <View style={styles.consensusBar}>
+                          <View 
+                            style={[
+                              styles.barFill,
+                              styles.awayBarFill,
+                              { flex: spreadConsensus.awayPercentage || 1 }
+                            ]}
+                          >
+                            <Text style={styles.barText}>
+                              {game.awayTeamShort} {game.spread.away}
+                            </Text>
+                          </View>
+                          <View 
+                            style={[
+                              styles.barFill,
+                              styles.homeBarFill,
+                              { flex: spreadConsensus.homePercentage || 1 }
+                            ]}
+                          >
+                            <Text style={styles.barText}>
+                              {game.homeTeamShort} {game.spread.home}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.consensusText}>
+                          {spreadConsensus.awayPicks} - {spreadConsensus.homePicks}
+                        </Text>
+                      </>
+                    )}
+                    
+                    {!spreadConsensus && (
+                      <Text style={styles.noPicksText}>No spread picks yet</Text>
+                    )}
+                  </View>
+
+                  {/* O/U Section */}
+                  {game.overUnder && (
+                    <View style={styles.pickSection}>
+                      <Text style={styles.pickTypeLabel}>OVER/UNDER {game.overUnder}</Text>
+                      
+                      {/* O/U Consensus Bar */}
+                      {ouConsensus && (
+                        <>
+                          <View style={styles.consensusBar}>
+                            <View 
+                              style={[
+                                styles.barFill,
+                                styles.overBarFill,
+                                { flex: ouConsensus.overPercentage || 1 }
+                              ]}
+                            >
+                              <Text style={styles.barText}>
+                                OVER {game.overUnder}
+                              </Text>
+                            </View>
+                            <View 
+                              style={[
+                                styles.barFill,
+                                styles.underBarFill,
+                                { flex: ouConsensus.underPercentage || 1 }
+                              ]}
+                            >
+                              <Text style={styles.barText}>
+                                UNDER {game.overUnder}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={styles.consensusText}>
+                            {ouConsensus.overPicks} over - {ouConsensus.underPicks} under
+                          </Text>
+                        </>
+                      )}
+                      
+                      {!ouConsensus && (
+                        <Text style={styles.noPicksText}>No O/U picks yet</Text>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Top Picks Details */}
+                  <View style={styles.picksContainer}>
+                    {gamePicks.length > 0 ? (
+                      gamePicks.slice(0, 3).map((pick) => (
+                        <View key={pick.id} style={styles.miniPickCard}>
+                          <View style={styles.miniPickHeader}>
+                            <Text style={[
+                              styles.miniUsername,
+                              pick.username === currentUserId && styles.miniUsernameYou
+                            ]}>
+                              {pick.username}
+                            </Text>
+                          </View>
+                          <View style={styles.miniPickDetails}>
+                            {/* Spread pick */}
+                            <View style={styles.pickDetail}>
+                              <Text style={styles.miniPickChoice}>
+                                {pick.pick === 'home' ? game.homeTeamShort : game.awayTeamShort} {pick.pick === 'home' ? game.spread.home : game.spread.away}
+                              </Text>
+                              <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.confidence) }]} />
+                            </View>
+                            {/* O/U pick if exists */}
+                            {pick.overUnderPick && (
+                              <View style={styles.pickDetail}>
+                                <Text style={styles.miniPickChoice}>
+                                  {pick.overUnderPick.toUpperCase()} {game.overUnder}
+                                </Text>
+                                <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.overUnderConfidence || '') }]} />
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.noPicksText}>No picks yet for this game</Text>
+                    )}
+                    
+                    {gamePicks.length > 3 && (
+                      <TouchableOpacity 
+                        style={styles.viewMoreButton}
+                        onPress={() => router.push(`/game/${game.id}`)}
+                      >
+                        <Text style={styles.viewMoreText}>
+                          View all {gamePicks.length} picks →
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* Summary Stats */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Week {selectedWeek} Summary</Text>
+              <Text style={styles.summaryText}>
+                {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
+              </Text>
+            </View>
+          </ScrollView>
+        </>
+      )}
+
+      {/* RATINGS TAB CONTENT */}
+      {activeTab === 'ratings' && renderRatingsTab()}
     </SafeAreaView>
   );
 }
@@ -451,13 +680,37 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 48,
   },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#1C1C1E',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    borderBottomColor: '#FF6B35',
+  },
+  tabButtonText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabButtonTextActive: {
+    color: '#FF6B35',
+  },
   weekSelector: {
     maxHeight: 40,
     marginVertical: 8,
   },
   weekSelectorContent: {
     paddingHorizontal: 16,
-    paddingRight: 32, // Extra padding at the end
+    paddingRight: 32,
   },
   weekChip: {
     backgroundColor: '#1C1C1E',
@@ -514,21 +767,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginBottom: 4,
   },
-  consensusSummary: {
-    color: '#FF6B35',
-    fontSize: 16,
-    fontWeight: 'bold',
+  pickSection: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
-  miniConsensusBar: {
+  pickTypeLabel: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  consensusBar: {
     flexDirection: 'row',
-    height: 24,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
+    height: 32,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#2C2C2E',
+    marginBottom: 6,
   },
-  miniBarFill: {
+  barFill: {
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -538,21 +797,32 @@ const styles = StyleSheet.create({
   homeBarFill: {
     backgroundColor: '#007AFF',
   },
-  miniBarText: {
+  overBarFill: {
+    backgroundColor: '#34C759',
+  },
+  underBarFill: {
+    backgroundColor: '#FF3B30',
+  },
+  barText: {
     color: '#FFF',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
+  },
+  consensusText: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'center',
   },
   picksContainer: {
     padding: 12,
   },
   miniPickCard: {
     marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2C2C2E',
   },
   miniPickHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 4,
   },
   miniUsername: {
@@ -564,25 +834,23 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     fontWeight: 'bold',
   },
-  miniPickInfo: {
+  miniPickDetails: {
+    gap: 4,
+  },
+  pickDetail: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   miniPickChoice: {
     color: '#FFF',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
   },
   miniConfidenceDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-  },
-  miniReasoning: {
-    color: '#8E8E93',
-    fontSize: 11,
-    fontStyle: 'italic',
   },
   noPicksText: {
     color: '#8E8E93',
@@ -616,5 +884,16 @@ const styles = StyleSheet.create({
   summaryText: {
     color: '#FFF',
     fontSize: 14,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: '#8E8E93',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
