@@ -11,13 +11,15 @@ interface UserStats {
   wrongPicks: number;
   pendingPicks: number;
   spreadAccuracy: { percentage: number; wins: number; total: number };
-  moneylineAccuracy: { percentage: number; wins: number; total: number };
   overUnderAccuracy: { percentage: number; wins: number; total: number };
-  parlayAccuracy: { percentage: number; wins: number; total: number };
   winRate: number;
   currentWeek: number;
   currentWeekPicks: number;
   decidedPicks: number;
+  lastWeek?: { record: string; winRate: number };
+  lastMonth?: { record: string; winRate: number };
+  season?: { record: string; winRate: number };
+  allTime?: { record: string; winRate: number };
 }
 
 interface UserProfile {
@@ -36,9 +38,7 @@ const defaultUserStats: UserStats = {
   wrongPicks: 0,
   pendingPicks: 0,
   spreadAccuracy: { percentage: 0, wins: 0, total: 0 },
-  moneylineAccuracy: { percentage: 0, wins: 0, total: 0 },
   overUnderAccuracy: { percentage: 0, wins: 0, total: 0 },
-  parlayAccuracy: { percentage: 0, wins: 0, total: 0 },
   winRate: 0,
   currentWeek: 1,
   currentWeekPicks: 0,
@@ -92,7 +92,7 @@ export default function ProfileScreen() {
       try {
         const statsResult = await getUserStats(user.id);
         if (statsResult?.success && statsResult?.data) {
-          setUserStats({
+        setUserStats({
             ...defaultUserStats,
             totalPicks: statsResult.data.totalPicks || 0,
             correctPicks: statsResult.data.correctPicks || 0,
@@ -103,7 +103,14 @@ export default function ProfileScreen() {
             accuracy: statsResult.data.winRate || 0,
             currentWeek: statsResult.data.currentWeek || 1,
             currentWeekPicks: statsResult.data.currentWeekPicks || 0,
-            decidedPicks: statsResult.data.decidedPicks || 0
+            decidedPicks: statsResult.data.decidedPicks || 0,
+            spreadAccuracy: statsResult.data.spreadAccuracy || { percentage: 0, wins: 0, total: 0 },
+            overUnderAccuracy: statsResult.data.overUnderAccuracy || { percentage: 0, wins: 0, total: 0 },
+            // Time period data
+            lastWeek: statsResult.data.lastWeek,
+            lastMonth: statsResult.data.lastMonth,
+            season: statsResult.data.season,
+            allTime: statsResult.data.allTime
           });
         }
       } catch (statsError) {
@@ -246,10 +253,38 @@ export default function ProfileScreen() {
         <View style={styles.statsCard}>
           <Text style={styles.sectionTitle}>Prediction Profile</Text>
           
+          {/* Time Period Stats */}
+          <View style={styles.timePeriodStats}>
+            <View style={styles.timePeriodRow}>
+              <Text style={styles.timePeriodLabel}>Last Week:</Text>
+              <Text style={styles.timePeriodValue}>
+                {userStats.lastWeek?.record || '0-0'} ({userStats.lastWeek?.winRate || 0}%)
+              </Text>
+            </View>
+            <View style={styles.timePeriodRow}>
+              <Text style={styles.timePeriodLabel}>Last Month:</Text>
+              <Text style={styles.timePeriodValue}>
+                {userStats.lastMonth?.record || '0-0'} ({userStats.lastMonth?.winRate || 0}%)
+              </Text>
+            </View>
+            <View style={styles.timePeriodRow}>
+              <Text style={styles.timePeriodLabel}>Season 2025:</Text>
+              <Text style={[styles.timePeriodValue, styles.timePeriodHighlight]}>
+                {userStats.season?.record || '0-0'} ({userStats.season?.winRate || 0}%)
+              </Text>
+            </View>
+            <View style={styles.timePeriodRow}>
+              <Text style={styles.timePeriodLabel}>All Time:</Text>
+              <Text style={styles.timePeriodValue}>
+                {userStats.allTime?.record || '0-0'} ({userStats.allTime?.winRate || 0}%)
+              </Text>
+            </View>
+          </View>
+
           <View style={styles.mainStats}>
             <View style={styles.mainStatItem}>
               <Text style={styles.mainStatValue}>{userStats.accuracy}%</Text>
-              <Text style={styles.mainStatLabel}>Accuracy</Text>
+              <Text style={styles.mainStatLabel}>Season Accuracy</Text>
             </View>
             <View style={styles.mainStatItem}>
               <Text style={[styles.mainStatValue, { color: getRiskLevelColor(riskLevel), fontSize: 24 }]}>
@@ -260,6 +295,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.detailedStats}>
+            <Text style={styles.detailedStatsTitle}>Season Breakdown:</Text>
             <View style={styles.statRow}>
               <Text style={styles.statRowLabel}>Spread Picks:</Text>
               <Text style={[styles.statRowValue, { color: '#FF9500' }]}>
@@ -267,21 +303,9 @@ export default function ProfileScreen() {
               </Text>
             </View>
             <View style={styles.statRow}>
-              <Text style={styles.statRowLabel}>Moneyline:</Text>
-              <Text style={[styles.statRowValue, { color: '#34C759' }]}>
-                {userStats.moneylineAccuracy.percentage}% ({userStats.moneylineAccuracy.wins}/{userStats.moneylineAccuracy.total})
-              </Text>
-            </View>
-            <View style={styles.statRow}>
               <Text style={styles.statRowLabel}>Over/Under:</Text>
               <Text style={[styles.statRowValue, { color: '#FF6B35' }]}>
                 {userStats.overUnderAccuracy.percentage}% ({userStats.overUnderAccuracy.wins}/{userStats.overUnderAccuracy.total})
-              </Text>
-            </View>
-            <View style={styles.statRow}>
-              <Text style={styles.statRowLabel}>Parlays (2-3 legs):</Text>
-              <Text style={[styles.statRowValue, { color: '#FF3B30' }]}>
-                {userStats.parlayAccuracy.percentage}% ({userStats.parlayAccuracy.wins}/{userStats.parlayAccuracy.total})
               </Text>
             </View>
           </View>
@@ -439,6 +463,33 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
+  timePeriodStats: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  timePeriodRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  timePeriodLabel: {
+    color: '#8E8E93',
+    fontSize: 14,
+  },
+  timePeriodValue: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  timePeriodHighlight: {
+    color: '#FF6B35',
+    fontWeight: 'bold',
+  },
   mainStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -461,6 +512,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#333',
     paddingTop: 16,
+  },
+  detailedStatsTitle: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   statRow: {
     flexDirection: 'row',

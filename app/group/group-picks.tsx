@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 
@@ -38,6 +38,26 @@ export default function GroupPicksScreen() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const weekScrollViewRef = useRef<ScrollView>(null);
+
+  // Pulse animation for unanimous picks
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   // Load current week from database on mount
   useEffect(() => {
@@ -283,6 +303,14 @@ export default function GroupPicksScreen() {
     }
   };
 
+  // Helper to get consensus color based on strength
+  const getConsensusColor = (percentage: number) => {
+    if (percentage === 100) return '#FFD700'; // Gold for unanimous
+    if (percentage >= 70) return '#34C759'; // Green for strong consensus
+    if (percentage >= 55) return '#FF9500'; // Orange for medium consensus
+    return '#FF3B30'; // Red for weak/contested
+  };
+
   // Calculate consensus for spread picks
   const calculateGameConsensus = (picks: FriendPick[]) => {
     if (!picks || picks.length === 0) return null;
@@ -303,6 +331,8 @@ export default function GroupPicksScreen() {
     
     const homePercentage = Math.round((homeScore / totalPicks) * 100);
     const awayPercentage = 100 - homePercentage;
+    const isUnanimous = homePercentage === 100 || awayPercentage === 100;
+    const winningPercentage = Math.max(homePercentage, awayPercentage);
 
     return {
       homePercentage,
@@ -310,6 +340,9 @@ export default function GroupPicksScreen() {
       recommendation: homePercentage > 50 ? 'home' : 'away',
       homePicks: homeScore,
       awayPicks: awayScore,
+      isUnanimous,
+      consensusStrength: winningPercentage,
+      consensusColor: getConsensusColor(winningPercentage),
     };
   };
 
@@ -334,6 +367,8 @@ export default function GroupPicksScreen() {
     
     const overPercentage = Math.round((overCount / totalPicks) * 100);
     const underPercentage = 100 - overPercentage;
+    const isUnanimous = overPercentage === 100 || underPercentage === 100;
+    const winningPercentage = Math.max(overPercentage, underPercentage);
 
     return {
       overPercentage,
@@ -341,6 +376,9 @@ export default function GroupPicksScreen() {
       recommendation: overPercentage > 50 ? 'over' : 'under',
       overPicks: overCount,
       underPicks: underCount,
+      isUnanimous,
+      consensusStrength: winningPercentage,
+      consensusColor: getConsensusColor(winningPercentage),
     };
   };
 
@@ -487,32 +525,62 @@ export default function GroupPicksScreen() {
                     {/* Spread Consensus Bar */}
                     {spreadConsensus && (
                       <>
-                        <View style={styles.consensusBar}>
-                          <View 
+                        {spreadConsensus.isUnanimous ? (
+                          <Animated.View 
                             style={[
-                              styles.barFill,
-                              styles.awayBarFill,
-                              { flex: spreadConsensus.awayPercentage || 1 }
+                              styles.consensusBar,
+                              styles.unanimousBar,
+                              { transform: [{ scale: pulseAnim }] }
                             ]}
                           >
-                            <Text style={styles.barText}>
-                              {game.awayTeamShort} {game.spread.away}
-                            </Text>
+                            <View style={[styles.barFill, { backgroundColor: spreadConsensus.consensusColor }]}>
+                              <Text style={styles.barText}>
+                                ⭐ {spreadConsensus.recommendation === 'away' 
+                                  ? `${game.awayTeamShort} ${game.spread.away}` 
+                                  : `${game.homeTeamShort} ${game.spread.home}`} - UNANIMOUS
+                              </Text>
+                            </View>
+                          </Animated.View>
+                        ) : (
+                          <View style={styles.consensusBar}>
+                            <View 
+                              style={[
+                                styles.barFill,
+                                { 
+                                  backgroundColor: spreadConsensus.awayPercentage > spreadConsensus.homePercentage 
+                                    ? spreadConsensus.consensusColor 
+                                    : '#2C2C2E',
+                                  flex: spreadConsensus.awayPercentage || 1 
+                                }
+                              ]}
+                            >
+                              {spreadConsensus.awayPercentage > 0 && (
+                                <Text style={styles.barText}>
+                                  {game.awayTeamShort} {game.spread.away}
+                                </Text>
+                              )}
+                            </View>
+                            <View 
+                              style={[
+                                styles.barFill,
+                                { 
+                                  backgroundColor: spreadConsensus.homePercentage > spreadConsensus.awayPercentage 
+                                    ? spreadConsensus.consensusColor 
+                                    : '#2C2C2E',
+                                  flex: spreadConsensus.homePercentage || 1 
+                                }
+                              ]}
+                            >
+                              {spreadConsensus.homePercentage > 0 && (
+                                <Text style={styles.barText}>
+                                  {game.homeTeamShort} {game.spread.home}
+                                </Text>
+                              )}
+                            </View>
                           </View>
-                          <View 
-                            style={[
-                              styles.barFill,
-                              styles.homeBarFill,
-                              { flex: spreadConsensus.homePercentage || 1 }
-                            ]}
-                          >
-                            <Text style={styles.barText}>
-                              {game.homeTeamShort} {game.spread.home}
-                            </Text>
-                          </View>
-                        </View>
+                        )}
                         <Text style={styles.consensusText}>
-                          {spreadConsensus.awayPicks} - {spreadConsensus.homePicks}
+                          {spreadConsensus.awayPicks} - {spreadConsensus.homePicks} • {spreadConsensus.consensusStrength}% consensus
                         </Text>
                       </>
                     )}
@@ -530,32 +598,60 @@ export default function GroupPicksScreen() {
                       {/* O/U Consensus Bar */}
                       {ouConsensus && (
                         <>
-                          <View style={styles.consensusBar}>
-                            <View 
+                          {ouConsensus.isUnanimous ? (
+                            <Animated.View 
                               style={[
-                                styles.barFill,
-                                styles.overBarFill,
-                                { flex: ouConsensus.overPercentage || 1 }
+                                styles.consensusBar,
+                                styles.unanimousBar,
+                                { transform: [{ scale: pulseAnim }] }
                               ]}
                             >
-                              <Text style={styles.barText}>
-                                OVER {game.overUnder}
-                              </Text>
+                              <View style={[styles.barFill, { backgroundColor: ouConsensus.consensusColor }]}>
+                                <Text style={styles.barText}>
+                                  ⭐ {ouConsensus.recommendation === 'over' ? 'OVER' : 'UNDER'} {game.overUnder} - UNANIMOUS
+                                </Text>
+                              </View>
+                            </Animated.View>
+                          ) : (
+                            <View style={styles.consensusBar}>
+                              <View 
+                                style={[
+                                  styles.barFill,
+                                  { 
+                                    backgroundColor: ouConsensus.overPercentage > ouConsensus.underPercentage 
+                                      ? ouConsensus.consensusColor 
+                                      : '#2C2C2E',
+                                    flex: ouConsensus.overPercentage || 1 
+                                  }
+                                ]}
+                              >
+                                {ouConsensus.overPercentage > 0 && (
+                                  <Text style={styles.barText}>
+                                    OVER {game.overUnder}
+                                  </Text>
+                                )}
+                              </View>
+                              <View 
+                                style={[
+                                  styles.barFill,
+                                  { 
+                                    backgroundColor: ouConsensus.underPercentage > ouConsensus.overPercentage 
+                                      ? ouConsensus.consensusColor 
+                                      : '#2C2C2E',
+                                    flex: ouConsensus.underPercentage || 1 
+                                  }
+                                ]}
+                              >
+                                {ouConsensus.underPercentage > 0 && (
+                                  <Text style={styles.barText}>
+                                    UNDER {game.overUnder}
+                                  </Text>
+                                )}
+                              </View>
                             </View>
-                            <View 
-                              style={[
-                                styles.barFill,
-                                styles.underBarFill,
-                                { flex: ouConsensus.underPercentage || 1 }
-                              ]}
-                            >
-                              <Text style={styles.barText}>
-                                UNDER {game.overUnder}
-                              </Text>
-                            </View>
-                          </View>
+                          )}
                           <Text style={styles.consensusText}>
-                            {ouConsensus.overPicks} over - {ouConsensus.underPicks} under
+                            {ouConsensus.overPicks} over - {ouConsensus.underPicks} under • {ouConsensus.consensusStrength}% consensus
                           </Text>
                         </>
                       )}
@@ -787,9 +883,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#2C2C2E',
     marginBottom: 6,
   },
+  unanimousBar: {
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 20,
+    elevation: 15,
+  },
   barFill: {
     justifyContent: 'center',
     alignItems: 'center',
+    flex: 1,
   },
   awayBarFill: {
     backgroundColor: '#FF6B35',
@@ -798,10 +902,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
   },
   overBarFill: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#FF6B35', // Same as away - orange for "over"
   },
   underBarFill: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#007AFF', // Same as home - blue for "under"
+  },
+  unanimousBarFill: {
+    backgroundColor: '#FFD700',
   },
   barText: {
     color: '#FFF',

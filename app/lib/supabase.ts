@@ -506,43 +506,165 @@ export const getGroupPicks = async (groupId: string, weekNumber?: number) => {
 
 // ========== USER STATS & PROFILE ==========
 
+// REPLACE the getUserStats function in your supabase.ts file with this:
+
+/// REPLACE the getUserStats function in your supabase.ts file with this:
+
 export const getUserStats = async (userId: string) => {
   try {
     // Get all picks for the user
     const { data: picks, error: picksError } = await supabase
       .from('picks')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
     
     if (picksError) {
       throw picksError;
     }
 
-    // Calculate statistics
-    const totalPicks = picks?.length || 0;
-    const correctPicks = picks?.filter(pick => pick.correct === true).length || 0;
-    const incorrectPicks = picks?.filter(pick => pick.correct === false).length || 0;
-    const pendingPicks = picks?.filter(pick => pick.correct === null).length || 0;
+    // Get current week from app_state
+    const { data: appState } = await supabase
+      .from('app_state')
+      .select('current_week')
+      .single();
     
-    // Calculate win rate
-    const decidedPicks = correctPicks + incorrectPicks;
-    const winRate = decidedPicks > 0 ? Math.round((correctPicks / decidedPicks) * 100) : 0;
+    const currentWeek = appState?.current_week || 1;
 
-    // Get current week picks
-    const currentWeek = Math.max(...(picks?.map(p => p.week) || [1]), 1);
+    // Helper function to calculate stats for a subset of picks
+    const calculateStats = (pickSubset: any[]) => {
+      const spreadPicks = pickSubset.filter(pick => pick.team_picked !== null);
+      const spreadCorrect = spreadPicks.filter(pick => pick.correct === true).length;
+      const spreadIncorrect = spreadPicks.filter(pick => pick.correct === false).length;
+      const spreadTotal = spreadCorrect + spreadIncorrect;
+      const spreadWinRate = spreadTotal > 0 ? Math.round((spreadCorrect / spreadTotal) * 100) : 0;
+
+      const ouPicks = pickSubset.filter(pick => pick.over_under_pick !== null);
+      const ouCorrect = ouPicks.filter(pick => pick.over_under_correct === true).length;
+      const ouIncorrect = ouPicks.filter(pick => pick.over_under_correct === false).length;
+      const ouTotal = ouCorrect + ouIncorrect;
+      const ouWinRate = ouTotal > 0 ? Math.round((ouCorrect / ouTotal) * 100) : 0;
+
+      const totalCorrect = spreadCorrect + ouCorrect;
+      const totalIncorrect = spreadIncorrect + ouIncorrect;
+      const totalDecided = totalCorrect + totalIncorrect;
+      const overallWinRate = totalDecided > 0 ? Math.round((totalCorrect / totalDecided) * 100) : 0;
+
+      return {
+        correct: totalCorrect,
+        incorrect: totalIncorrect,
+        decided: totalDecided,
+        winRate: overallWinRate,
+        spreadAccuracy: {
+          percentage: spreadWinRate,
+          wins: spreadCorrect,
+          total: spreadTotal
+        },
+        overUnderAccuracy: {
+          percentage: ouWinRate,
+          wins: ouCorrect,
+          total: ouTotal
+        }
+      };
+    };
+
+    // Calculate for different time periods
+    // Last Week = most recently completed week
+    const lastWeek = currentWeek > 1 ? currentWeek - 1 : currentWeek;
+    const lastWeekPicks = picks?.filter(pick => pick.week === lastWeek && pick.season === 2025) || [];
+    
+    // Last Month = last 4 weeks including current
+    const lastMonthStartWeek = Math.max(1, currentWeek - 3);
+    const lastMonthPicks = picks?.filter(pick => 
+      pick.week >= lastMonthStartWeek && 
+      pick.week <= currentWeek && 
+      pick.season === 2025
+    ) || [];
+    
+    // Season = all picks from 2025 season (or all picks if season field doesn't exist)
+    const seasonPicks = picks?.filter(pick => !pick.season || pick.season === 2025) || [];
+    
+    // All Time = all picks ever
+    const allTimePicks = picks || [];
+
+    // Debug logging
+    console.log('=== STATS CALCULATION DEBUG ===');
+    console.log('Total picks in database:', picks?.length);
+    console.log('Current week:', currentWeek);
+    console.log('Last week (Week ' + lastWeek + '):', lastWeekPicks.length, 'picks');
+    console.log('Last month (Weeks ' + lastMonthStartWeek + '-' + currentWeek + '):', lastMonthPicks.length, 'picks');
+    console.log('Season 2025:', seasonPicks.length, 'picks');
+    console.log('All time:', allTimePicks.length, 'picks');
+    
+    // Show sample pick to see structure
+    if (picks && picks.length > 0) {
+      console.log('Sample pick:', JSON.stringify(picks[0], null, 2));
+    }
+
+    const lastWeekStats = calculateStats(lastWeekPicks);
+    const lastMonthStats = calculateStats(lastMonthPicks);
+    const seasonStats = calculateStats(seasonPicks);
+    const allTimeStats = calculateStats(allTimePicks);
+
+    console.log('Season stats calculated:', {
+      correct: seasonStats.correct,
+      incorrect: seasonStats.incorrect,
+      decided: seasonStats.decided,
+      winRate: seasonStats.winRate
+    });
+    console.log('Last week stats:', lastWeekStats);
+    console.log('Last month stats:', lastMonthStats);
+    console.log('All time stats:', allTimeStats);
+    console.log('=== END DEBUG ===');
+
+    // Overall counts
+    const totalPicks = picks?.length || 0;
+    const pendingPicks = picks?.filter(pick => 
+      pick.correct === null && pick.over_under_correct === null
+    ).length || 0;
     const currentWeekPicks = picks?.filter(pick => pick.week === currentWeek).length || 0;
 
     return {
       success: true,
       data: {
         totalPicks,
-        correctPicks,
-        incorrectPicks,
+        correctPicks: seasonStats.correct,
+        incorrectPicks: seasonStats.incorrect,
         pendingPicks,
-        winRate,
+        winRate: seasonStats.winRate,
         currentWeek,
         currentWeekPicks,
-        decidedPicks
+        decidedPicks: seasonStats.decided,
+        
+        // Time period breakdowns
+        lastWeek: {
+          record: `${lastWeekStats.correct}-${lastWeekStats.incorrect}`,
+          winRate: lastWeekStats.winRate,
+          correct: lastWeekStats.correct,
+          incorrect: lastWeekStats.incorrect
+        },
+        lastMonth: {
+          record: `${lastMonthStats.correct}-${lastMonthStats.incorrect}`,
+          winRate: lastMonthStats.winRate,
+          correct: lastMonthStats.correct,
+          incorrect: lastMonthStats.incorrect
+        },
+        season: {
+          record: `${seasonStats.correct}-${seasonStats.incorrect}`,
+          winRate: seasonStats.winRate,
+          correct: seasonStats.correct,
+          incorrect: seasonStats.incorrect
+        },
+        allTime: {
+          record: `${allTimeStats.correct}-${allTimeStats.incorrect}`,
+          winRate: allTimeStats.winRate,
+          correct: allTimeStats.correct,
+          incorrect: allTimeStats.incorrect
+        },
+        
+        // Default to season stats for main display
+        spreadAccuracy: seasonStats.spreadAccuracy,
+        overUnderAccuracy: seasonStats.overUnderAccuracy
       }
     };
   } catch (error) {
