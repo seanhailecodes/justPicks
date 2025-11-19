@@ -508,8 +508,6 @@ export const getGroupPicks = async (groupId: string, weekNumber?: number) => {
 
 // REPLACE the getUserStats function in your supabase.ts file with this:
 
-/// REPLACE the getUserStats function in your supabase.ts file with this:
-
 export const getUserStats = async (userId: string) => {
   try {
     // Get all picks for the user
