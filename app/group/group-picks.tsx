@@ -171,17 +171,16 @@ export default function GroupPicksScreen() {
         const userIds = [...new Set(picks.map(p => p.user_id))];
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, username')
+          .select('id, display_name, username')
           .in('id', userIds);
 
-        const usernameMap = new Map(profiles?.map(p => [p.id, p.username]) || []);
-        
+        const usernameMap = new Map(profiles?.map(p => [p.id, p.display_name || p.username || 'Unknown']) || []);
+
         pickWithUsernames = picks.map(pick => ({
           ...pick,
-          username: usernameMap.get(pick.user_id) || 'Unknown'
+          username: pick.user_id === user.id ? 'You' : (usernameMap.get(pick.user_id) || 'Unknown')
         }));
       }
-
       // Transform picks to match FriendPick interface
       const allPicksByGame: Record<string, FriendPick[]> = {};
       
