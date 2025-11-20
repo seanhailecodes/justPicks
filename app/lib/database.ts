@@ -304,3 +304,107 @@ export function calculateConsensus(picks: PickWithUser[]): GameConsensus | null 
     awayPicks: picks.filter(p => p.pick === 'away').length,
   };
 }
+
+export interface UserGroup {
+  id: string;
+  name: string;
+  role: 'primary_owner' | 'owner' | 'member';
+  visibility: 'private' | 'public';
+  joinType: 'invite_only' | 'request_to_join' | 'open';
+  memberCount: number;
+  activePicks: number;
+  pendingPicks: number;
+}
+
+export async function getUserGroups(userId: string): Promise<UserGroup[]> {
+  try {
+    // Get all groups user is a member of
+    const { data: memberships, error: memberError } = await supabase
+      .from('group_members')
+      .select('group_id, role')
+      .eq('user_id', userId);
+
+    if (memberError) throw memberError;
+    if (!memberships || memberships.length === 0) return [];
+
+    const groupIds = memberships.map(m => m.group_id);
+
+    // Get group details
+    const { data: groups, error: groupError } = await supabase
+      .from('groups')
+      .select('id, name, visibility, join_type')
+      .in('id', groupIds);
+
+    if (groupError) throw groupError;
+
+    // For each group, get member count and pick stats
+    const userGroups: UserGroup[] = await Promise.all(
+      groups.map(async (group) => {
+        const membership = memberships.find(m => m.group_id === group.id);
+        
+        // Get member count
+        const { count: memberCount } = await supabase
+          .from('group_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', group.id);
+
+        // Get current week
+        const { data: appState } = await supabase
+          .from('app_state')
+          .select('current_week')
+          .single();
+        
+        const currentWeek = appState?.current_week || 12;
+
+        // Get games for current week
+        const { data: games } = await supabase
+          .from('games')
+          .select('id, locked')
+          .eq('week', currentWeek)
+          .eq('season', 2025);
+
+        if (!games) return {
+          id: group.id,
+          name: group.name,
+          role: membership?.role || 'member',
+          visibility: group.visibility || 'private',
+          joinType: group.join_type || 'invite_only',
+          memberCount: memberCount || 0,
+          activePicks: 0,
+          pendingPicks: 0,
+        };
+
+        const gameIds = games.map(g => g.id);
+        const lockedGameIds = games.filter(g => g.locked).map(g => g.id);
+        const unlockedGameIds = games.filter(g => !g.locked).map(g => g.id);
+
+        // Count picks for this group
+        const { count: activePicks } = await supabase
+          .from('picks')
+          .select('*', { count: 'exact', head: true })
+          .in('game_id', lockedGameIds);
+
+        const { count: pendingPicks } = await supabase
+          .from('picks')
+          .select('*', { count: 'exact', head: true })
+          .in('game_id', unlockedGameIds);
+
+        return {
+          id: group.id,
+          name: group.name,
+          role: membership?.role || 'member',
+          visibility: group.visibility || 'private',
+          joinType: group.join_type || 'invite_only',
+          memberCount: memberCount || 0,
+          activePicks: activePicks || 0,
+          pendingPicks: pendingPicks || 0,
+        };
+      })
+    );
+
+    return userGroups;
+  } catch (error) {
+    console.error('Error fetching user groups:', error);
+    return [];
+  }
+}
