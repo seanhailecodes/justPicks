@@ -84,7 +84,9 @@ export default function GroupPicksScreen() {
 
       setGameData(game);
 
-      // Now fetch all picks for this game
+      // REPLACE lines 85-112 in your game/[gameId].tsx with this code:
+
+      // Fetch all picks for this game
       const { data: picksData, error: picksError } = await supabase
         .from('picks')
         .select('*')
@@ -92,26 +94,74 @@ export default function GroupPicksScreen() {
 
       if (picksError) {
         console.error('Error fetching picks:', picksError);
-        // Don't throw - just show no picks
         setFriendPicks([]);
         return;
       }
 
       console.log('Picks data loaded:', picksData);
 
-      // Transform picks data to match our interface
-      const picks: FriendPick[] = (picksData || []).map((pick, index) => ({
-        id: pick.id.toString(),
-        username: `user_${pick.user_id.slice(-8)}`, // Use last 8 chars of user ID as username
-        pick: pick.team_picked as 'home' | 'away',
-        confidence: pick.confidence,
-        confidenceValue: pick.confidence === 'High' ? 85 : pick.confidence === 'Medium' ? 65 : 45,
-        confidenceColor: pick.confidence === 'High' ? '#34C759' : pick.confidence === 'Medium' ? '#FFCC00' : '#FF9500',
-        reasoning: pick.reasoning || 'No reasoning provided',
-        timestamp: new Date(pick.created_at).toLocaleString(),
-        winRate: 70 + (index * 5), // Mock win rate for now
-        totalPicks: 20 + (index * 10), // Mock total picks for now
-      }));
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      if (!currentUser) {
+        setFriendPicks([]);
+        return;
+      }
+
+      // Get all groups the current user is in
+      const { data: userGroups } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', currentUser.id);
+
+      const userGroupIds = userGroups?.map(g => g.group_id) || [];
+
+      // Get all members from those groups
+      const { data: groupMembers } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .in('group_id', userGroupIds);
+
+      const groupMateIds = new Set(groupMembers?.map(m => m.user_id) || []);
+
+      // Fetch display names from profiles
+      const userIds = Array.from(new Set(picksData?.map(p => p.user_id) || []));
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, username')
+        .in('id', userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      // Transform picks with usernames
+      const picks: FriendPick[] = (picksData || []).map((pick, index) => {
+        let username = 'Unknown';
+        
+        if (pick.user_id === currentUser.id) {
+          username = 'You';
+        } else if (groupMateIds.has(pick.user_id)) {
+          const profile = profileMap.get(pick.user_id);
+          if (profile) {
+            username = profile.display_name || profile.username || 'Friend';
+          }
+        }
+
+        return {
+          id: pick.id.toString(),
+          username,
+          pick: pick.team_picked as 'home' | 'away',
+          confidence: pick.confidence,
+          confidenceValue: pick.confidence === 'High' ? 85 : pick.confidence === 'Medium' ? 65 : 45,
+          confidenceColor: pick.confidence === 'High' ? '#34C759' : pick.confidence === 'Medium' ? '#FFCC00' : '#FF9500',
+          reasoning: pick.reasoning || 'No reasoning provided',
+          timestamp: new Date(pick.created_at).toLocaleString(),
+          winRate: 70 + (index * 5),
+          totalPicks: 20 + (index * 10),
+        };
+      });
+
+      setFriendPicks(picks);
+      console.log('Processed picks:', picks.length);
 
       setFriendPicks(picks);
       console.log('Processed picks:', picks.length);
