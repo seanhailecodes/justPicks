@@ -174,7 +174,7 @@ export default function GroupPicksScreen() {
           .select('id, display_name, username')
           .in('id', userIds);
 
-        const usernameMap = new Map(profiles?.map(p => [p.id, p.display_name || p.username || 'Unknown']) || []);
+        const usernameMap = new Map(profiles?.map(p => [p.id, p.username || p.display_name || 'Unknown']) || []);
 
         pickWithUsernames = picks.map(pick => ({
           ...pick,

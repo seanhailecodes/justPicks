@@ -1,15 +1,19 @@
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { getFriendsWithStats, getGroupStats, Friend, GroupStats } from '../lib/database';
+import { getFriendsWithStats, getGroupStats, getUserGroups, Friend, GroupStats, UserGroup } from '../lib/database';
 
 export default function GroupsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [friends, setFriends] = useState<Friend[]>([]);
   const [groupStats, setGroupStats] = useState<GroupStats>({ activePicks: 0, pendingPicks: 0, totalFriends: 0 });
+  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   useEffect(() => {
     loadUserAndData();
@@ -28,18 +32,22 @@ export default function GroupsScreen() {
       setCurrentUserId(user.id);
 
       // Load friends and stats
-      const [friendsData, statsData] = await Promise.all([
+      const [friendsData, statsData, groupsData] = await Promise.all([
         getFriendsWithStats(user.id),
-        getGroupStats(user.id)
+        getGroupStats(user.id),
+        getUserGroups(user.id),
       ]);
-
+      
       setFriends(friendsData);
       setGroupStats(statsData);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
+      setUserGroups(groupsData);
+           } 
+          catch (error) {
+          console.error('Error loading data:', error);
+         } 
+          finally {
+          setLoading(false);
+        }
   };
 
   const filteredFriends = friends.filter(friend => 
@@ -52,6 +60,55 @@ export default function GroupsScreen() {
 
   const handleViewPicks = () => {
     router.push('/group/group-picks?groupId=163b5d2c-fb32-4b34-8ed0-4d39fa9a3a9b&groupName=The%20Syndicate');
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) {
+      Alert.alert('Error', 'Please enter a group name');
+      return;
+    }
+
+    if (!currentUserId) {
+      Alert.alert('Error', 'You must be logged in to create a group');
+      return;
+    }
+
+    setCreatingGroup(true);
+    
+    try {
+      // Create the group
+      const { data: newGroup, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: newGroupName.trim(),
+          created_by: currentUserId
+        })
+        .select()
+        .single();
+
+      if (groupError) throw groupError;
+
+      // Add creator as primary owner in group_members
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: 'primary_owner'
+        });
+
+      if (memberError) throw memberError;
+
+      Alert.alert('Success!', `Group "${newGroupName}" created successfully!`);
+      setShowCreateGroupModal(false);
+      setNewGroupName('');
+      loadUserAndData(); // Reload data
+    } catch (error) {
+      console.error('Error creating group:', error);
+      Alert.alert('Error', 'Failed to create group. Please try again.');
+    } finally {
+      setCreatingGroup(false);
+    }
   };
 
   if (loading) {
@@ -67,10 +124,7 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Synidcate Picks</Text>
-        <TouchableOpacity onPress={handleAddFriend}>
-          <Text style={styles.addButton}>+ Add Friends</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>My Squads</Text>
       </View>
 
       <ScrollView 
@@ -78,32 +132,65 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Group Card */}
-        <View style={styles.groupCard}>
-          <View style={styles.groupHeader}>
-            <View>
-              <Text style={styles.groupTitle}>Syndicate Picks</Text>
-              <Text style={styles.groupSubtitle}>All your friends in one place</Text>
-            </View>
-            <Text style={styles.memberCount}>{groupStats.totalFriends} friends</Text>
-          </View>
-          
-          <View style={styles.groupStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{groupStats.activePicks}</Text>
-              <Text style={styles.statLabel}>Picks Made</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, styles.pendingColor]}>{groupStats.pendingPicks}</Text>
-              <Text style={styles.statLabel}>Picks Pending</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.discussButton} onPress={handleViewPicks}>
-            <Text style={styles.discussButtonText}>See Group Picks →</Text>
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => setShowCreateGroupModal(true)}
+          >
+            <Text style={styles.actionButtonText}>➕ Create Group</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleAddFriend}
+          >
+            <Text style={styles.actionButtonText}>👥 Add Friends</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Group Card */}
+        {/* User's Groups */}
+        {userGroups.map((group) => (
+          <View key={group.id} style={styles.groupCard}>
+            <View style={styles.groupHeader}>
+              <View>
+                <Text style={styles.groupTitle}>{group.name}</Text>
+                <View style={styles.groupBadges}>
+                  {group.role === 'primary_owner' && (
+                    <View style={styles.ownerBadge}>
+                      <Text style={styles.badgeText}>👑 Owner</Text>
+                    </View>
+                  )}
+                  {group.visibility === 'public' && (
+                    <View style={styles.publicBadge}>
+                      <Text style={styles.badgeText}>🌐 Public</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Text style={styles.memberCount}>{group.memberCount} members</Text>
+            </View>
+            
+            <View style={styles.groupStats}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{group.activePicks}</Text>
+                <Text style={styles.statLabel}>Picks Made</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, styles.pendingColor]}>{group.pendingPicks}</Text>
+                <Text style={styles.statLabel}>Picks Pending</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.discussButton} 
+              onPress={() => router.push(`/group/group-picks?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
+            >
+              <Text style={styles.discussButtonText}>See Group Picks →</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -167,6 +254,55 @@ export default function GroupsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Create Group Modal */}
+      <Modal
+        visible={showCreateGroupModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCreateGroupModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Create New Group</Text>
+            <Text style={styles.modalSubtitle}>
+              Choose a name for your group. You'll be able to invite friends after creating it.
+            </Text>
+            
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Group name (e.g., 'Fantasy Football Crew')"
+              placeholderTextColor="#666"
+              value={newGroupName}
+              onChangeText={setNewGroupName}
+              autoFocus
+              maxLength={50}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalButtonCancel}
+                onPress={() => {
+                  setShowCreateGroupModal(false);
+                  setNewGroupName('');
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButtonCreate, creatingGroup && styles.modalButtonDisabled]}
+                onPress={handleCreateGroup}
+                disabled={creatingGroup}
+              >
+                <Text style={styles.modalButtonCreateText}>
+                  {creatingGroup ? 'Creating...' : 'Create Group'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -189,11 +325,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
   },
-  addButton: {
-    color: '#FF6B35',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   content: {
     flex: 1,
   },
@@ -201,6 +332,46 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 100,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  groupBadges: {
+  flexDirection: 'row',
+  gap: 8,
+  marginTop: 4,
+},
+ownerBadge: {
+  backgroundColor: '#FFD700',
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 8,
+},
+publicBadge: {
+  backgroundColor: '#34C759',
+  paddingHorizontal: 8,
+  paddingVertical: 2,
+  borderRadius: 8,
+},
+badgeText: {
+  color: '#000',
+  fontSize: 11,
+  fontWeight: '600',
+},
+
   groupCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
@@ -389,5 +560,73 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     lineHeight: 20,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    color: '#8E8E93',
+    fontSize: 14,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalInput: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    padding: 16,
+    color: '#FFF',
+    fontSize: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButtonCancel: {
+    flex: 1,
+    backgroundColor: '#2C2C2E',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancelText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonCreate: {
+    flex: 1,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCreateText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalButtonDisabled: {
+    opacity: 0.5,
   },
 });
