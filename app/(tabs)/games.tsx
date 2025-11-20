@@ -786,18 +786,22 @@ export default function GamesScreen() {
       </View>
     )}
     
-    {game.pickType === 'solo' ? (
-      <Text style={styles.soloText}>Personal tracking only</Text>
-    ) : (
-      <Text style={styles.groupsText}>Everyone can see your pick</Text>
-    )}
-  </View>
-)}
+        {game.pickType === 'solo' ? (
+              <Text style={styles.soloText}>Personal tracking only</Text>
+            ) : (
+              <Text style={styles.groupsText}>Everyone can see your pick</Text>
+            )}
+          </View>
+        )}
 
                 {game.selectedPick && game.pickType === 'group' && !isLocked && (
+                 
                   <TouchableOpacity 
                     style={styles.viewDetailsButton}
-                    onPress={() => handleViewDetails(game.originalId)}
+                    onPress={() => {
+                    console.log('Game ID:', game.originalId);
+                    handleViewDetails(game.originalId);
+                  }}
                   >
                     <Text style={styles.viewDetailsText}>See Everyone's Picks →</Text>
                   </TouchableOpacity>
