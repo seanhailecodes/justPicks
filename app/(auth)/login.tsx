@@ -146,19 +146,15 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Temporary debug button */}
+        {/* Debug buttons */}
         <TouchableOpacity
           style={[styles.button, { backgroundColor: '#666', marginTop: 20 }]}
           onPress={async () => {
-            const { error } = await supabase.auth.signOut();
-            if (error) {
-              Alert.alert('Error signing out', error.message);
-            } else {
-              Alert.alert('Signed out', 'Session cleared');
-            }
+            await supabase.auth.signOut();
+            Alert.alert('Session cleared', 'Reload the app now');
           }}
         >
-          <Text style={styles.buttonText}>Debug: Sign Out</Text>
+          <Text style={styles.buttonText}>Debug: Clear Session</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -166,6 +162,17 @@ export default function LoginScreen() {
           onPress={handlePasswordReset}
         >
           <Text style={styles.buttonText}>Reset Password</Text>
+        </TouchableOpacity>
+
+{/* // Add this somewhere visible on the login screen, maybe after the "Sign Up" link */}
+        <TouchableOpacity 
+          onPress={async () => {
+            await supabase.auth.signOut();
+            alert('Session cleared! Restart the app.');
+          }}
+          style={{ padding: 20, backgroundColor: '#333', margin: 20 }}
+        >
+          <Text style={{ color: '#FFF', textAlign: 'center' }}>Clear Session (Debug)</Text>
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>

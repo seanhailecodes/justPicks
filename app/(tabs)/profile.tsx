@@ -136,8 +136,12 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.replace('/(auth)/login');
+    try {
+      router.replace('/(auth)/login'); // Redirect FIRST
+      await supabase.auth.signOut(); // Then sign out
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const getRiskLevel = (accuracy: number) => {
