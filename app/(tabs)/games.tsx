@@ -71,7 +71,7 @@ interface NFLGame {
 export default function GamesScreen() {
   const router = useRouter();
   const [selectedSport, setSelectedSport] = useState('Football');
-  const [selectedWeek, setSelectedWeek] = useState('Week 4');
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null); // Start with null
   const [showPickModal, setShowPickModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -79,7 +79,8 @@ export default function GamesScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
-  const [currentWeekNumber, setCurrentWeekNumber] = useState(4);
+  const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null); // Start with null
+  const [isInitializing, setIsInitializing] = useState(true); // Add initialization flag
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const sports = ['Football', 'Basketball', 'College', 'Other'];
@@ -164,7 +165,7 @@ export default function GamesScreen() {
   const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12', 'Week 13', 'Week 14', 'Week 15', 'Week 16', 'Week 17', 'Week 18' ];
   const visibleWeeks = allWeeks.filter(week => {
     const weekNum = parseInt(week.replace('Week ', ''));
-    return weekNum >= currentWeekNumber - 1; // Show 1 week back, current, and future
+    return weekNum >= (currentWeekNumber || 12) - 1; // Show 1 week back, current, and future
   });
 
   // Helper function to extract spread value from string like "NYJ +3" -> 3
@@ -340,6 +341,7 @@ export default function GamesScreen() {
       const weekNum = await getCurrentWeek();
       setCurrentWeekNumber(weekNum);
       setSelectedWeek(`Week ${weekNum}`);
+      setIsInitializing(false); // Mark initialization as complete
     };
     
     loadCurrentWeek();
@@ -371,14 +373,14 @@ export default function GamesScreen() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user) {
+      if (session?.user && selectedWeek) {
         loadUserPicks(session.user.id);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session?.user) {
+      if (session?.user && selectedWeek) {
         setTimeout(() => {
           loadUserPicks(session.user.id);
         }, 500);
@@ -388,13 +390,16 @@ export default function GamesScreen() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Only load games after initialization is complete
   useEffect(() => {
-    if (session?.user) {
-      loadUserPicks(session.user.id);
-    } else {
-      loadGamesFromDatabase();
+    if (!isInitializing && selectedWeek) {
+      if (session?.user) {
+        loadUserPicks(session.user.id);
+      } else {
+        loadGamesFromDatabase();
+      }
     }
-  }, [selectedWeek, session]);
+  }, [selectedWeek, session, isInitializing]);
 
   // Pulse animation for Very High confidence
   useEffect(() => {
@@ -579,6 +584,17 @@ export default function GamesScreen() {
     const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
     return `${gameDate.toLocaleDateString('en-US', options)} ${time}`;
   };
+
+  // Show loading state while initializing
+  if (isInitializing) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ color: '#FFF', fontSize: 18 }}>Loading games...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
