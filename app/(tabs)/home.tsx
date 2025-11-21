@@ -46,6 +46,26 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+
+      {/* Temporary logout button */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: 50,
+          right: 20,
+          backgroundColor: '#FF3B30',
+          padding: 10,
+          borderRadius: 8,
+          zIndex: 999,
+        }}
+        onPress={async () => {
+          await supabase.auth.signOut();
+          router.replace('/(auth)/login');
+        }}
+      >
+        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>LOGOUT</Text>
+      </TouchableOpacity>
+
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good evening!</Text>

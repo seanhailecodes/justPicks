@@ -8,12 +8,16 @@ export default function GroupsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [friends, setFriends] = useState<Friend[]>([]);
   const [groupStats, setGroupStats] = useState<GroupStats>({ activePicks: 0, pendingPicks: 0, totalFriends: 0 });
-  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedGroupForInvite, setSelectedGroupForInvite] = useState<UserGroup | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   useEffect(() => {
     loadUserAndData();
@@ -21,7 +25,6 @@ export default function GroupsScreen() {
 
   const loadUserAndData = async () => {
     try {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.log('No authenticated user');
@@ -31,23 +34,20 @@ export default function GroupsScreen() {
 
       setCurrentUserId(user.id);
 
-      // Load friends and stats
       const [friendsData, statsData, groupsData] = await Promise.all([
         getFriendsWithStats(user.id),
         getGroupStats(user.id),
-        getUserGroups(user.id),
+        getUserGroups(user.id)
       ]);
-      
+
       setFriends(friendsData);
       setGroupStats(statsData);
       setUserGroups(groupsData);
-           } 
-          catch (error) {
-          console.error('Error loading data:', error);
-         } 
-          finally {
-          setLoading(false);
-        }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredFriends = friends.filter(friend => 
@@ -76,7 +76,6 @@ export default function GroupsScreen() {
     setCreatingGroup(true);
     
     try {
-      // Create the group
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
@@ -88,7 +87,6 @@ export default function GroupsScreen() {
 
       if (groupError) throw groupError;
 
-      // Add creator as primary owner in group_members
       const { error: memberError } = await supabase
         .from('group_members')
         .insert({
@@ -102,12 +100,80 @@ export default function GroupsScreen() {
       Alert.alert('Success!', `Group "${newGroupName}" created successfully!`);
       setShowCreateGroupModal(false);
       setNewGroupName('');
-      loadUserAndData(); // Reload data
+      loadUserAndData();
     } catch (error) {
       console.error('Error creating group:', error);
       Alert.alert('Error', 'Failed to create group. Please try again.');
     } finally {
       setCreatingGroup(false);
+    }
+  };
+
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim()) {
+      Alert.alert('Error', 'Please enter an email address');
+      return;
+    }
+
+    if (!selectedGroupForInvite || !currentUserId) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setSendingInvite(true);
+
+    try {
+      const { data: invite, error: dbError } = await supabase
+        .from('group_invites')
+        .insert({
+          group_id: selectedGroupForInvite.id,
+          invited_by: currentUserId,
+          invitee_email: inviteEmail.trim().toLowerCase(),
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, username')
+        .eq('id', currentUserId)
+        .single();
+
+      const inviterName = profile?.display_name || profile?.username || 'A friend';
+
+      const { data, error: functionError } = await supabase.functions.invoke('send-invite', {
+        body: {
+          inviteeEmail: inviteEmail.trim(),
+          groupName: selectedGroupForInvite.name,
+          inviterName: inviterName,
+          groupId: selectedGroupForInvite.id,
+          inviteId: invite.id,
+        },
+      });
+
+      if (functionError) throw functionError;
+
+      Alert.alert(
+        '📧 Invite Sent!',
+        `We've sent an email invitation to ${inviteEmail}. They'll receive instructions to join "${selectedGroupForInvite.name}".`
+      );
+      
+      setShowInviteModal(false);
+      setInviteEmail('');
+    } catch (error) {
+      console.error('Error sending invite:', error);
+      Alert.alert('Error', 'Failed to send invite. Please try again.');
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -124,7 +190,7 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Squads</Text>
+        <Text style={styles.title}>Squad</Text>
       </View>
 
       <ScrollView 
@@ -132,7 +198,6 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton}
@@ -148,8 +213,6 @@ export default function GroupsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Group Card */}
-        {/* User's Groups */}
         {userGroups.map((group) => (
           <View key={group.id} style={styles.groupCard}>
             <View style={styles.groupHeader}>
@@ -167,6 +230,17 @@ export default function GroupsScreen() {
                     </View>
                   )}
                 </View>
+
+                {/* DEV ONLY: Test Accept Invite */}
+                {__DEV__ && (
+                  <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: '#9B59B6', marginTop: 12 }]}
+                    onPress={() => router.push('/accept-invite/9c8a54d9-0030-4664-b36a-e38e6f897044')}
+                  >
+                    <Text style={styles.actionButtonText}>🧪 [DEV] Test Accept Invite</Text>
+                  </TouchableOpacity>
+                )}
+
               </View>
               <Text style={styles.memberCount}>{group.memberCount} members</Text>
             </View>
@@ -189,10 +263,21 @@ export default function GroupsScreen() {
             >
               <Text style={styles.discussButtonText}>See Group Picks →</Text>
             </TouchableOpacity>
+
+            {group.role === 'primary_owner' && (
+              <TouchableOpacity 
+                style={styles.inviteButton}
+                onPress={() => {
+                  setSelectedGroupForInvite(group);
+                  setShowInviteModal(true);
+                }}
+              >
+                <Text style={styles.inviteButtonText}>📧 Invite Members</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ))}
 
-        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
@@ -204,7 +289,6 @@ export default function GroupsScreen() {
           />
         </View>
 
-        {/* Friends List */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Friends ({friends.length})</Text>
           
@@ -232,7 +316,6 @@ export default function GroupsScreen() {
           ))}
         </View>
 
-        {/* Empty State */}
         {friends.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>👥</Text>
@@ -246,7 +329,6 @@ export default function GroupsScreen() {
           </View>
         )}
 
-        {/* Info Card */}
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>🎯 About Syndicate Picks</Text>
           <Text style={styles.infoText}>
@@ -255,7 +337,6 @@ export default function GroupsScreen() {
         </View>
       </ScrollView>
 
-      {/* Create Group Modal */}
       <Modal
         visible={showCreateGroupModal}
         transparent={true}
@@ -297,6 +378,55 @@ export default function GroupsScreen() {
               >
                 <Text style={styles.modalButtonCreateText}>
                   {creatingGroup ? 'Creating...' : 'Create Group'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showInviteModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowInviteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Invite to {selectedGroupForInvite?.name}</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter the email address of someone you know personally. They'll receive an invitation to join your group.
+            </Text>
+            
+            <TextInput
+              style={styles.modalInput}
+              placeholder="friend@example.com"
+              placeholderTextColor="#666"
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoFocus
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalButtonCancel}
+                onPress={() => {
+                  setShowInviteModal(false);
+                  setInviteEmail('');
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButtonCreate, sendingInvite && styles.modalButtonDisabled]}
+                onPress={handleSendInvite}
+                disabled={sendingInvite}
+              >
+                <Text style={styles.modalButtonCreateText}>
+                  {sendingInvite ? 'Sending...' : 'Send Invite'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -349,29 +479,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  groupBadges: {
-  flexDirection: 'row',
-  gap: 8,
-  marginTop: 4,
-},
-ownerBadge: {
-  backgroundColor: '#FFD700',
-  paddingHorizontal: 8,
-  paddingVertical: 2,
-  borderRadius: 8,
-},
-publicBadge: {
-  backgroundColor: '#34C759',
-  paddingHorizontal: 8,
-  paddingVertical: 2,
-  borderRadius: 8,
-},
-badgeText: {
-  color: '#000',
-  fontSize: 11,
-  fontWeight: '600',
-},
-
   groupCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
@@ -392,9 +499,27 @@ badgeText: {
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  groupSubtitle: {
-    color: '#8E8E93',
-    fontSize: 14,
+  groupBadges: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  ownerBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  publicBadge: {
+    backgroundColor: '#34C759',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  badgeText: {
+    color: '#000',
+    fontSize: 11,
+    fontWeight: '600',
   },
   memberCount: {
     color: '#FF6B35',
@@ -436,6 +561,18 @@ badgeText: {
   discussButtonText: {
     color: '#FF6B35',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  inviteButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    backgroundColor: '#34C759',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  inviteButtonText: {
+    color: '#FFF',
+    fontSize: 14,
     fontWeight: '600',
   },
   searchContainer: {
@@ -561,7 +698,6 @@ badgeText: {
     fontSize: 14,
     lineHeight: 20,
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
