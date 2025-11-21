@@ -177,6 +177,12 @@ export default function GroupsScreen() {
     }
   };
 
+  // Helper function to format accuracy display
+  const formatAccuracy = (accuracy: number | null) => {
+    if (accuracy === null) return '🏈'; // No data yet
+    return `${accuracy}%`;
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -252,15 +258,30 @@ export default function GroupsScreen() {
               <Text style={styles.memberCount}>{group.memberCount} members</Text>
             </View>
             
-            <View style={styles.groupStats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{group.activePicks}</Text>
-                <Text style={styles.statLabel}>Picks Made</Text>
+            {/* NEW: Performance Metrics Grid */}
+            <View style={styles.performanceGrid}>
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceValue}>
+                  {formatAccuracy(group.rating)}
+                  {group.trend === 'up' && <Text style={styles.trendUp}> ↑</Text>}
+                  {group.trend === 'down' && <Text style={styles.trendDown}> ↓</Text>}
+                </Text>
+                <Text style={styles.performanceLabel}>Group Rating</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, styles.pendingColor]}>{group.pendingPicks}</Text>
-                <Text style={styles.statLabel}>Picks Pending</Text>
+              
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceValue}>{formatAccuracy(group.weekAccuracy)}</Text>
+                <Text style={styles.performanceLabel}>Last Week</Text>
+              </View>
+              
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceValue}>{formatAccuracy(group.monthAccuracy)}</Text>
+                <Text style={styles.performanceLabel}>Last Month</Text>
+              </View>
+              
+              <View style={styles.performanceStat}>
+                <Text style={styles.performanceValue}>{formatAccuracy(group.allTimeAccuracy)}</Text>
+                <Text style={styles.performanceLabel}>All Time</Text>
               </View>
             </View>
 
@@ -556,35 +577,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  groupStats: {
+  // NEW: Performance metrics styles
+  performanceGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     backgroundColor: '#2C2C2E',
     borderRadius: 8,
-    padding: 16,
+    padding: 12,
     marginBottom: 16,
   },
-  statItem: {
-    flex: 1,
+  performanceStat: {
+    width: '50%',
     alignItems: 'center',
+    paddingVertical: 12,
   },
-  statValue: {
+  performanceValue: {
     color: '#FFF',
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  statLabel: {
+  performanceLabel: {
     color: '#8E8E93',
     fontSize: 12,
   },
-  statDivider: {
-    width: 1,
-    backgroundColor: '#444',
-    marginHorizontal: 20,
+  trendUp: {
+    color: '#34C759',
+    fontSize: 20,
   },
-  pendingColor: {
-    color: '#FF9500',
+  trendDown: {
+    color: '#FF3B30',
+    fontSize: 20,
   },
+  // Old styles removed: groupStats, statItem, statValue, statLabel, statDivider, pendingColor
   discussButton: {
     alignItems: 'center',
   },
