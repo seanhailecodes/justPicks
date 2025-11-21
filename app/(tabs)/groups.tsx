@@ -213,6 +213,13 @@ export default function GroupsScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity 
+          style={styles.browseButton}
+          onPress={() => router.push('/group/browse-groups')}
+        >
+          <Text style={styles.browseButtonText}>🔍 Browse Public Groups</Text>
+        </TouchableOpacity>
+
         {userGroups.map((group) => (
           <View key={group.id} style={styles.groupCard}>
             <View style={styles.groupHeader}>
@@ -486,6 +493,20 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: '#FFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  browseButton: {
+    backgroundColor: '#2C2C2E',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  browseButtonText: {
+    color: '#FFF',
+    fontSize: 15,
     fontWeight: '600',
   },
   groupCard: {

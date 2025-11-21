@@ -106,7 +106,8 @@ export default function CreateGroupScreen() {
           created_by: currentUserId,
           invite_code: finalInviteCode,
           visibility: isPrivate ? 'private' : 'public',
-          require_approval: requireApproval
+          require_approval: requireApproval,
+          sport: 'nfl' // Hardcoded for now, will be dynamic when NBA is added
         })
         .select()
         .single();
