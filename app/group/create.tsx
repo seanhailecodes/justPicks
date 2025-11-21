@@ -39,15 +39,65 @@ export default function CreateGroupScreen() {
       return;
     }
 
+    setCreating(true);
+
+    try {
+      // Get user's tier
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('tier')
+        .eq('id', currentUserId)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      // Define tier limits
+      const tierLimits: { [key: string]: number } = {
+        'bronze': 1,
+        'silver': 3,
+        'gold': 5,
+        'platinum': 10,
+        'pro': 25
+      };
+
+      const userTier = profile?.tier || 'bronze';
+      const groupLimit = tierLimits[userTier];
+
+      // Count existing groups as primary_owner
+      const { count, error: countError } = await supabase
+        .from('group_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', currentUserId)
+        .eq('role', 'primary_owner');
+
+      if (countError) throw countError;
+
+      if ((count || 0) >= groupLimit) {
+        const tierNames: { [key: string]: string } = {
+          'bronze': 'Bronze',
+          'silver': 'Silver',
+          'gold': 'Gold',
+          'platinum': 'Platinum',
+          'pro': 'Pro'
+        };
+
+        Alert.alert(
+          'Group Limit Reached',
+          `${tierNames[userTier]} membership allows ${groupLimit} group${groupLimit === 1 ? '' : 's'}. Want to create more? Upgrade your account!`,
+          [{ text: 'OK' }]
+        );
+        setCreating(false);
+        return;
+      }
+
     // Generate code if not set
     let finalInviteCode = inviteCode.trim();
     if (!finalInviteCode) {
       finalInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     }
 
-    setCreating(true);
-
-    try {
       // Create the group with all settings
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
