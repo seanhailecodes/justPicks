@@ -56,13 +56,14 @@ export async function setGameResultManual(
   homeScore: number,
   awayScore: number
 ) {
-  // Update the game with final scores
+  // Update the game with final scores AND lock it
   const { data, error } = await supabase
     .from('games')
     .update({
       home_score: homeScore,
       away_score: awayScore,
       game_status: 'final',
+      locked: true,  // ← ADD THIS LINE
       resolved_at: new Date().toISOString()
     })
     .eq('id', gameId);
@@ -72,7 +73,7 @@ export async function setGameResultManual(
     return { success: false, error };
   }
 
-  console.log(`Updated game ${gameId}: ${homeScore}-${awayScore}`);
+  console.log(`Updated and locked game ${gameId}: ${homeScore}-${awayScore}`);
   return { success: true, gameUpdated: true };
 }
 
