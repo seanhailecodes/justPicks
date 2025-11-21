@@ -201,7 +201,7 @@ export default function GroupsScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => setShowCreateGroupModal(true)}
+            onPress={() => router.push('/group/create')}
           >
             <Text style={styles.actionButtonText}>➕ Create Group</Text>
           </TouchableOpacity>
@@ -265,15 +265,24 @@ export default function GroupsScreen() {
             </TouchableOpacity>
 
             {group.role === 'primary_owner' && (
-              <TouchableOpacity 
-                style={styles.inviteButton}
-                onPress={() => {
-                  setSelectedGroupForInvite(group);
-                  setShowInviteModal(true);
-                }}
-              >
-                <Text style={styles.inviteButtonText}>📧 Invite Members</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity 
+                  style={styles.inviteButton}
+                  onPress={() => {
+                    setSelectedGroupForInvite(group);
+                    setShowInviteModal(true);
+                  }}
+                >
+                  <Text style={styles.inviteButtonText}>📧 Invite Members</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.settingsButton}
+                  onPress={() => router.push(`/group/settings?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
+                >
+                  <Text style={styles.settingsButtonText}>⚙️ Group Settings</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         ))}
@@ -571,6 +580,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inviteButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  settingsButton: {
+    marginTop: 8,
+    paddingVertical: 10,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  settingsButtonText: {
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',

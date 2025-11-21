@@ -1,13 +1,26 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function CreateGroupScreen() {
   const [groupName, setGroupName] = useState('');
-  const [description, setDescription] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  const loadUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setCurrentUserId(user.id);
+    }
+  };
 
   // Generate a random group code
   const generateGroupCode = () => {
@@ -15,28 +28,65 @@ export default function CreateGroupScreen() {
     setInviteCode(code);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!groupName.trim()) {
-      // TODO: Show error
+      Alert.alert('Error', 'Please enter a group name');
+      return;
+    }
+
+    if (!currentUserId) {
+      Alert.alert('Error', 'You must be logged in to create a group');
       return;
     }
 
     // Generate code if not set
-    if (!inviteCode) {
-      generateGroupCode();
+    let finalInviteCode = inviteCode.trim();
+    if (!finalInviteCode) {
+      finalInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     }
 
-    // TODO: Actually create the group
-    console.log('Create group:', {
-      name: groupName,
-      description,
-      isPrivate,
-      requireApproval,
-      code: inviteCode,
-    });
+    setCreating(true);
 
-    // Navigate back to groups
-    router.replace('/(tabs)/groups');
+    try {
+      // Create the group with all settings
+      const { data: newGroup, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: groupName.trim(),
+          created_by: currentUserId,
+          invite_code: finalInviteCode,
+          visibility: isPrivate ? 'private' : 'public',
+          require_approval: requireApproval
+        })
+        .select()
+        .single();
+
+      if (groupError) throw groupError;
+
+      // Add the creator as primary_owner
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: newGroup.id,
+          user_id: currentUserId,
+          role: 'primary_owner'
+        });
+
+      if (memberError) throw memberError;
+
+      Alert.alert(
+        'Success!', 
+        `Group "${groupName}" created successfully!${isPrivate ? ' This is a private group - only invited members can join.' : ''}`
+      );
+      
+      // Navigate back to groups
+      router.replace('/(tabs)/groups');
+    } catch (error) {
+      console.error('Error creating group:', error);
+      Alert.alert('Error', 'Failed to create group. Please try again.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleBack = () => {
@@ -69,21 +119,6 @@ export default function CreateGroupScreen() {
             maxLength={30}
           />
           <Text style={styles.helperText}>{groupName.length}/30</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Description (Optional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="What's this group about?"
-            placeholderTextColor="#8E8E93"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={3}
-            maxLength={100}
-          />
-          <Text style={styles.helperText}>{description.length}/100</Text>
         </View>
 
         <View style={styles.section}>
@@ -137,22 +172,19 @@ export default function CreateGroupScreen() {
 
         <View style={styles.inviteSection}>
           <Text style={styles.sectionTitle}>Invite Friends</Text>
-          <TouchableOpacity style={styles.inviteButton}>
-            <Text style={styles.inviteIcon}>📱</Text>
-            <Text style={styles.inviteText}>Share Invite Link</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.inviteButton}>
-            <Text style={styles.inviteIcon}>👥</Text>
-            <Text style={styles.inviteText}>Add from Friend List</Text>
-          </TouchableOpacity>
+          <Text style={styles.inviteDescription}>
+            After creating your group, you'll be able to invite friends via email.
+          </Text>
         </View>
 
         <TouchableOpacity 
-          style={[styles.createButton, !groupName.trim() && styles.createButtonDisabled]}
+          style={[styles.createButton, (!groupName.trim() || creating) && styles.createButtonDisabled]}
           onPress={handleCreate}
-          disabled={!groupName.trim()}
+          disabled={!groupName.trim() || creating}
         >
-          <Text style={styles.createButtonText}>Create Group</Text>
+          <Text style={styles.createButtonText}>
+            {creating ? 'Creating...' : 'Create Group'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -211,10 +243,6 @@ const styles = StyleSheet.create({
     padding: 16,
     color: '#FFF',
     fontSize: 16,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
   },
   helperText: {
     color: '#8E8E93',
@@ -277,21 +305,10 @@ const styles = StyleSheet.create({
   inviteSection: {
     marginBottom: 32,
   },
-  inviteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1C1C1E',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  inviteIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  inviteText: {
-    color: '#FFF',
-    fontSize: 16,
+  inviteDescription: {
+    color: '#8E8E93',
+    fontSize: 14,
+    lineHeight: 20,
   },
   createButton: {
     backgroundColor: '#FF6B35',
@@ -301,6 +318,7 @@ const styles = StyleSheet.create({
   },
   createButtonDisabled: {
     backgroundColor: '#333',
+    opacity: 0.5,
   },
   createButtonText: {
     color: '#FFF',
