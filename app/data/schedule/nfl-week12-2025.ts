@@ -282,8 +282,8 @@ export const NFL_WEEK_12_2025: NFLGame[] = [
     homeTeamShort: "DAL",
     awayTeamShort: "PHI",
     spread: {
-      home: "DAL -3.5",
-      away: "PHI +3.5",
+      home: "DAL +3.5",
+      away: "PHI -3.5",
       value: 3.5
     },
     overUnder: 48.5,
