@@ -317,7 +317,7 @@ export default function GamesScreen() {
           home: `${dbGame.home_team} ${dbGame.home_spread > 0 ? '+' : ''}${dbGame.home_spread}`,
           away: `${dbGame.away_team} ${dbGame.away_spread > 0 ? '+' : ''}${dbGame.away_spread}`,
         },
-        overUnder: dbGame.over_under || undefined, 
+        overUnder: dbGame.over_under_line ?? undefined, 
         selectedPick: picks.get(dbGame.id)?.pick || null,
         selectedOverUnderPick: picks.get(dbGame.id)?.overUnderPick || null,
         pickType: picks.get(dbGame.id)?.pickType || null,
