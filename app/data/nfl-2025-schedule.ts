@@ -14,14 +14,14 @@ import { NFL_WEEK_10_2025 } from './schedule/nfl-week10-2025';
 import { NFL_WEEK_11_2025 } from './schedule/nfl-week11-2025';
 import { NFL_WEEK_12_2025 } from './schedule/nfl-week12-2025';
 import { NFL_WEEK_13_2025 } from './schedule/nfl-week13-2025';
-// import { NFL_WEEK_14_2025 } from './schedule/nfl-week14-2025';
+import { NFL_WEEK_14_2025 } from './schedule/nfl-week14-2025';
 // import { NFL_WEEK_15_2025 } from './schedule/nfl-week15-2025';
 // import { NFL_WEEK_16_2025 } from './schedule/nfl-week16-2025';
 // import { NFL_WEEK_17_2025 } from './schedule/nfl-week17-2025';
 // import { NFL_WEEK_18_2025 } from './schedule/nfl-week18-2025';
 
 // Re-export individual weeks for direct import, 
-export { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025, NFL_WEEK_6_2025, NFL_WEEK_7_2025, NFL_WEEK_8_2025, NFL_WEEK_9_2025, NFL_WEEK_10_2025, NFL_WEEK_11_2025, NFL_WEEK_12_2025 , NFL_WEEK_13_2025 };
+export { NFL_WEEK_1_2025, NFL_WEEK_2_2025, NFL_WEEK_3_2025, NFL_WEEK_4_2025, NFL_WEEK_5_2025, NFL_WEEK_6_2025, NFL_WEEK_7_2025, NFL_WEEK_8_2025, NFL_WEEK_9_2025, NFL_WEEK_10_2025, NFL_WEEK_11_2025, NFL_WEEK_12_2025 , NFL_WEEK_13_2025, NFL_WEEK_14_2025, };
 //   NFL_WEEK_13_2025, NFL_WEEK_14_2025, NFL_WEEK_15_2025, NFL_WEEK_16_2025, NFL_WEEK_17_2025, NFL_WEEK_18_2025
 //add week by week
 
@@ -39,7 +39,7 @@ export const ALL_WEEKS_REGISTRY: Record<number, NFLGame[]> = {
   11: NFL_WEEK_11_2025,
   12: NFL_WEEK_12_2025,
   13: NFL_WEEK_13_2025,
-  // 14: NFL_WEEK_14_2025,
+  14: NFL_WEEK_14_2025,
   // 15: NFL_WEEK_15_2025,
   // 16: NFL_WEEK_16_2025,
   // 17: NFL_WEEK_17_2025,
