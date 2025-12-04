@@ -25,11 +25,6 @@ interface GroupRatingsProps {
   sport?: Sport;
 }
 
-interface RecentPick {
-  correct: boolean | null;
-  game_date: string;
-}
-
 export default function GroupRatingsLeaderboard({ 
   mode, 
   userId, 
@@ -39,7 +34,6 @@ export default function GroupRatingsLeaderboard({
 }: GroupRatingsProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month' | 'season' | 'allTime'>('week');
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
-  const [recentPicks, setRecentPicks] = useState<Record<string, RecentPick[]>>({});
   const [loading, setLoading] = useState(true);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
 
@@ -62,27 +56,6 @@ export default function GroupRatingsLeaderboard({
       fetchCurrentWeek();
     }
   }, [sport, sportConfig]);
-
-  // Fetch recent picks for form display
-  const fetchRecentPicks = async (userIds: string[]) => {
-    const recentData: Record<string, RecentPick[]> = {};
-    
-    for (const oderId of userIds) {
-      const { data } = await supabase
-        .from('picks')
-        .select('correct, game_id, created_at')
-        .eq('user_id', oderId)
-        .not('correct', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      
-      if (data) {
-        recentData[oderId] = data;
-      }
-    }
-    
-    setRecentPicks(recentData);
-  };
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -109,9 +82,6 @@ export default function GroupRatingsLeaderboard({
         }
 
         setLeaderboardData(data);
-        
-        const userIds = data.map(u => u.userId);
-        await fetchRecentPicks(userIds);
       } catch (error) {
         console.error('Error fetching leaderboard:', error);
       } finally {
@@ -134,34 +104,6 @@ export default function GroupRatingsLeaderboard({
     if (winRate >= 50) return '#2196F3';
     if (winRate >= 40) return '#FF9800';
     return '#F44336';
-  };
-
-  const renderRecentForm = (oderId: string) => {
-    const picks = recentPicks[oderId] || [];
-    
-    if (picks.length === 0) {
-      return <Text style={styles.noFormText}>No recent</Text>;
-    }
-
-    return (
-      <View style={styles.formContainer}>
-        {picks.slice(0, 5).map((pick, index) => (
-          <View 
-            key={index}
-            style={[
-              styles.formDot,
-              pick.correct === true ? styles.formWin : 
-              pick.correct === false ? styles.formLoss : 
-              styles.formPending
-            ]}
-          >
-            <Text style={styles.formText}>
-              {pick.correct === true ? 'W' : pick.correct === false ? 'L' : '-'}
-            </Text>
-          </View>
-        ))}
-      </View>
-    );
   };
 
   // Get dynamic tab labels based on sport
@@ -339,11 +281,6 @@ export default function GroupRatingsLeaderboard({
                         {user.winRate}%
                       </Text>
                       <Text style={styles.statLabel}>Win Rate</Text>
-                    </View>
-
-                    <View style={styles.stat}>
-                      <Text style={styles.formLabel}>Form</Text>
-                      {renderRecentForm(user.userId)}
                     </View>
                   </View>
                 </View>
@@ -582,42 +519,6 @@ const styles = StyleSheet.create({
     color: '#F44336',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  formContainer: {
-    flexDirection: 'row',
-    gap: 4,
-    marginTop: 4,
-  },
-  formDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  formWin: {
-    backgroundColor: '#4CAF50',
-  },
-  formLoss: {
-    backgroundColor: '#F44336',
-  },
-  formPending: {
-    backgroundColor: '#666',
-  },
-  formText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  formLabel: {
-    color: '#8E8E93',
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  noFormText: {
-    color: '#666',
-    fontSize: 10,
-    marginTop: 4,
   },
   summaryCard: {
     backgroundColor: '#1C1C1E',
