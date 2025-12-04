@@ -137,6 +137,27 @@ export default function GroupPicksScreen() {
 
       setCurrentUserId(user.id);
 
+      // FIRST: Get group members so we only show their picks
+      const { data: groupMembers, error: membersError } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .eq('group_id', groupId);
+
+      if (membersError) {
+        console.error('Error fetching group members:', membersError);
+      }
+
+      const memberIds = groupMembers?.map(m => m.user_id) || [];
+      console.log('Group members:', memberIds.length);
+
+      if (memberIds.length === 0) {
+        console.log('No members in group');
+        setGamesData([]);
+        setFriendPicksByGame({});
+        setLoading(false);
+        return;
+      }
+
       const { data: games, error: gamesError } = await supabase
         .from('games')
         .select('*')
@@ -176,15 +197,19 @@ export default function GroupPicksScreen() {
 
       const gameIds = games.map(g => g.id);
       
+      // FIXED: Only get picks from GROUP MEMBERS
       const { data: picks, error: picksError } = await supabase
         .from('picks')
         .select('*')
         .in('game_id', gameIds)
+        .in('user_id', memberIds)  // <-- Filter by group membership!
         .order('created_at', { ascending: false });
 
       if (picksError) {
         console.error('Error fetching picks:', picksError);
       }
+
+      console.log('Picks from group members:', picks?.length || 0);
 
       let pickWithUsernames = picks || [];
       if (picks && picks.length > 0) {
