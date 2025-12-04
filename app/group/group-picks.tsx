@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
+import { Sport } from '../../services/pickrating';
 
 interface FriendPick {
   id: string;
@@ -16,19 +17,26 @@ interface FriendPick {
   winRate: number;
   totalPicks: number;
   weightedScore?: number;
-  // Add O/U fields
   overUnderPick?: 'over' | 'under';
   overUnderConfidence?: string;
 }
 
+interface GroupInfo {
+  id: string;
+  name: string;
+  sport: Sport;
+}
+
 export default function GroupPicksScreen() {
-  // Get groupId and groupName from route params
   const params = useLocalSearchParams();
   const groupId = params.groupId as string || '';
   const groupName = params.groupName as string || 'Group';
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'picks' | 'ratings'>('picks');
+
+  // Group info (including sport)
+  const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
 
   // Existing state
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
@@ -59,6 +67,29 @@ export default function GroupPicksScreen() {
     ).start();
   }, []);
 
+  // Fetch group info including sport
+  useEffect(() => {
+    const fetchGroupInfo = async () => {
+      if (!groupId) return;
+
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id, name, sport')
+        .eq('id', groupId)
+        .single();
+
+      if (data) {
+        setGroupInfo({
+          id: data.id,
+          name: data.name,
+          sport: (data.sport as Sport) || 'nfl'
+        });
+      }
+    };
+
+    fetchGroupInfo();
+  }, [groupId]);
+
   // Load current week from database on mount
   useEffect(() => {
     const loadCurrentWeek = async () => {
@@ -72,7 +103,6 @@ export default function GroupPicksScreen() {
         setCurrentWeekNumber(data.current_week);
         setSelectedWeek(data.current_week);
         
-        // Scroll to current week after a short delay
         setTimeout(() => {
           if (weekScrollViewRef.current && data.current_week > 4) {
             weekScrollViewRef.current.scrollTo({ 
@@ -97,7 +127,6 @@ export default function GroupPicksScreen() {
   const loadGamesAndPicks = async () => {
     console.log('Loading games for week:', selectedWeek);
     try {
-      // Get current user
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (!user) {
@@ -108,7 +137,6 @@ export default function GroupPicksScreen() {
 
       setCurrentUserId(user.id);
 
-      // First get games
       const { data: games, error: gamesError } = await supabase
         .from('games')
         .select('*')
@@ -130,7 +158,6 @@ export default function GroupPicksScreen() {
         return;
       }
 
-      // Transform games data
       const transformedGames = games.map(game => ({
         id: game.id,
         homeTeam: game.home_team,
@@ -145,13 +172,9 @@ export default function GroupPicksScreen() {
         locked: game.locked
       }));
 
-      console.log('Game O/U lines:', transformedGames.map(g => ({ id: g.id, ou: g.overUnder })));
-
       setGamesData(transformedGames);
 
-      // Get all picks for these games - WITHOUT the profile join first
       const gameIds = games.map(g => g.id);
-      console.log('Fetching picks for game IDs:', gameIds);
       
       const { data: picks, error: picksError } = await supabase
         .from('picks')
@@ -163,9 +186,6 @@ export default function GroupPicksScreen() {
         console.error('Error fetching picks:', picksError);
       }
 
-      console.log('Picks fetched:', picks?.length || 0);
-
-      // If we have picks, get the usernames separately
       let pickWithUsernames = picks || [];
       if (picks && picks.length > 0) {
         const userIds = [...new Set(picks.map(p => p.user_id))];
@@ -181,7 +201,7 @@ export default function GroupPicksScreen() {
           username: pick.user_id === user.id ? 'You' : (usernameMap.get(pick.user_id) || 'Unknown')
         }));
       }
-      // Transform picks to match FriendPick interface
+
       const allPicksByGame: Record<string, FriendPick[]> = {};
       
       gameIds.forEach(gameId => {
@@ -196,9 +216,9 @@ export default function GroupPicksScreen() {
           confidenceColor: getConfidenceColor(pick.confidence),
           reasoning: pick.reasoning,
           timestamp: formatTimeAgo(pick.created_at),
-          winRate: 0, // Would need to calculate
-          totalPicks: 0, // Would need to calculate
-          weightedScore: 0, // Would need to calculate
+          winRate: 0,
+          totalPicks: 0,
+          weightedScore: 0,
           overUnderPick: pick.over_under_pick,
           overUnderConfidence: pick.over_under_confidence
         }));
@@ -207,7 +227,6 @@ export default function GroupPicksScreen() {
       });
       
       setFriendPicksByGame(allPicksByGame);
-      console.log('Picks organized by game:', Object.keys(allPicksByGame).length, 'games have picks');
     } catch (error) {
       console.error('Error loading group picks data:', error);
     } finally {
@@ -302,15 +321,13 @@ export default function GroupPicksScreen() {
     }
   };
 
-  // Helper to get consensus color based on strength
   const getConsensusColor = (percentage: number) => {
-    if (percentage === 100) return '#FFD700'; // Gold for unanimous
-    if (percentage >= 70) return '#34C759'; // Green for strong consensus
-    if (percentage >= 55) return '#FF9500'; // Orange for medium consensus
-    return '#FF3B30'; // Red for weak/contested
+    if (percentage === 100) return '#FFD700';
+    if (percentage >= 70) return '#34C759';
+    if (percentage >= 55) return '#FF9500';
+    return '#FF3B30';
   };
 
-  // Calculate consensus for spread picks
   const calculateGameConsensus = (picks: FriendPick[]) => {
     if (!picks || picks.length === 0) return null;
 
@@ -345,7 +362,6 @@ export default function GroupPicksScreen() {
     };
   };
 
-  // Calculate consensus for O/U picks
   const calculateOUConsensus = (picks: FriendPick[]) => {
     const ouPicks = picks.filter(p => p.overUnderPick);
     if (ouPicks.length === 0) return null;
@@ -381,13 +397,6 @@ export default function GroupPicksScreen() {
     };
   };
 
-  // Debug logging for ratings tab
-  useEffect(() => {
-    if (activeTab === 'ratings') {
-      console.log('Ratings tab active - groupId:', groupId, 'currentUserId:', currentUserId);
-    }
-  }, [activeTab, groupId, currentUserId]);
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -416,14 +425,15 @@ export default function GroupPicksScreen() {
         mode="group"
         userId={currentUserId}
         groupId={groupId}
-        groupName={groupName}
+        groupName={groupInfo?.name || groupName}
+        sport={groupInfo?.sport || 'nfl'}
       />
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER */}
+      {/* HEADER - Generic "Our Picks" with week */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>‹</Text>
@@ -459,6 +469,11 @@ export default function GroupPicksScreen() {
       {/* PICKS TAB CONTENT */}
       {activeTab === 'picks' && (
         <>
+          {/* Group Name Row for This Week's Picks */}
+          <View style={styles.groupNameRow}>
+            <Text style={styles.groupNameText}>{groupInfo?.name || groupName}</Text>
+          </View>
+
           {/* Week Selector */}
           <ScrollView 
             ref={weekScrollViewRef}
@@ -493,7 +508,6 @@ export default function GroupPicksScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Loop through all games for the week */}
             {gamesData.map(game => {
               const gamePicks = friendPicksByGame[game.id] || [];
               const spreadConsensus = calculateGameConsensus(gamePicks);
@@ -521,7 +535,6 @@ export default function GroupPicksScreen() {
                   <View style={styles.pickSection}>
                     <Text style={styles.pickTypeLabel}>SPREAD</Text>
                     
-                    {/* Spread Consensus Bar */}
                     {spreadConsensus && (
                       <>
                         {spreadConsensus.isUnanimous ? (
@@ -594,7 +607,6 @@ export default function GroupPicksScreen() {
                     <View style={styles.pickSection}>
                       <Text style={styles.pickTypeLabel}>OVER/UNDER {game.overUnder}</Text>
                       
-                      {/* O/U Consensus Bar */}
                       {ouConsensus && (
                         <>
                           {ouConsensus.isUnanimous ? (
@@ -669,20 +681,18 @@ export default function GroupPicksScreen() {
                           <View style={styles.miniPickHeader}>
                             <Text style={[
                               styles.miniUsername,
-                              pick.username === currentUserId && styles.miniUsernameYou
+                              pick.username === 'You' && styles.miniUsernameYou
                             ]}>
                               {pick.username}
                             </Text>
                           </View>
                           <View style={styles.miniPickDetails}>
-                            {/* Spread pick */}
                             <View style={styles.pickDetail}>
                               <Text style={styles.miniPickChoice}>
                                 {pick.pick === 'home' ? game.homeTeamShort : game.awayTeamShort} {pick.pick === 'home' ? game.spread.home : game.spread.away}
                               </Text>
                               <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.confidence) }]} />
                             </View>
-                            {/* O/U pick if exists */}
                             {pick.overUnderPick && (
                               <View style={styles.pickDetail}>
                                 <Text style={styles.miniPickChoice}>
@@ -799,6 +809,17 @@ const styles = StyleSheet.create({
   tabButtonTextActive: {
     color: '#FF6B35',
   },
+  groupNameRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  groupNameText: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
   weekSelector: {
     maxHeight: 40,
     marginVertical: 8,
@@ -893,21 +914,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1,
-  },
-  awayBarFill: {
-    backgroundColor: '#FF6B35',
-  },
-  homeBarFill: {
-    backgroundColor: '#007AFF',
-  },
-  overBarFill: {
-    backgroundColor: '#FF6B35', // Same as away - orange for "over"
-  },
-  underBarFill: {
-    backgroundColor: '#007AFF', // Same as home - blue for "under"
-  },
-  unanimousBarFill: {
-    backgroundColor: '#FFD700',
   },
   barText: {
     color: '#FFF',

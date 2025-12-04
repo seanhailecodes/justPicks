@@ -6,7 +6,278 @@ import { supabase } from '../app/lib/supabase';
  * - Total picks made (15-20% weight) 
  * - Recency (10-15% weight)
  * - Confidence impact (varies by correctness)
+ * 
+ * Sport-aware timeframes:
+ * - Week-based sports (NFL, NCAAF): Uses actual week numbers
+ * - Date-based sports (NBA, WNBA, etc.): Uses rolling date windows
+ * - Event-based sports (UFC, Boxing, PGA): Uses event/tournament windows
  */
+
+// ============================================
+// SPORT CONFIGURATION
+// ============================================
+
+export type Sport = 
+  // Football (week-based)
+  | 'nfl' 
+  | 'ncaaf'
+  // Basketball (date-based)
+  | 'nba' 
+  | 'wnba' 
+  | 'ncaab'
+  // Other team sports (date-based)
+  | 'mlb' 
+  | 'nhl'
+  // Soccer (matchday-based, treated as week-based)
+  | 'soccer_epl'      // English Premier League
+  | 'soccer_laliga'   // La Liga
+  | 'soccer_bundesliga'
+  | 'soccer_seriea'
+  | 'soccer_ligue1'
+  | 'soccer_mls'
+  | 'soccer_champions_league'
+  | 'soccer_world_cup'
+  // Combat sports (event-based)
+  | 'ufc'
+  | 'boxing'
+  // Golf (tournament-based)
+  | 'pga'
+  | 'lpga'
+  // Tennis (tournament-based)
+  | 'tennis_atp'
+  | 'tennis_wta'
+  // Motorsports (event-based)
+  | 'f1'
+  | 'nascar';
+
+// Scheduling model for each sport
+type ScheduleModel = 'week' | 'date' | 'event';
+
+interface SportConfig {
+  name: string;
+  shortName: string;
+  scheduleModel: ScheduleModel;
+  seasonLength: number;        // days for date-based, weeks for week-based
+  weekLabel: string;           // "Week", "Matchday", "Round", etc.
+  appStateKey?: string;        // key in app_state table for current week (if week-based)
+}
+
+const SPORT_CONFIG: Record<Sport, SportConfig> = {
+  // Football - Week-based
+  nfl: {
+    name: 'NFL',
+    shortName: 'NFL',
+    scheduleModel: 'week',
+    seasonLength: 18,
+    weekLabel: 'Week',
+    appStateKey: 'current_week'
+  },
+  ncaaf: {
+    name: 'College Football',
+    shortName: 'NCAAF',
+    scheduleModel: 'week',
+    seasonLength: 15,
+    weekLabel: 'Week',
+    appStateKey: 'current_ncaaf_week'
+  },
+
+  // Basketball - Date-based
+  nba: {
+    name: 'NBA',
+    shortName: 'NBA',
+    scheduleModel: 'date',
+    seasonLength: 180,  // ~6 months
+    weekLabel: 'Days'
+  },
+  wnba: {
+    name: 'WNBA',
+    shortName: 'WNBA',
+    scheduleModel: 'date',
+    seasonLength: 120,  // ~4 months
+    weekLabel: 'Days'
+  },
+  ncaab: {
+    name: 'College Basketball',
+    shortName: 'NCAAB',
+    scheduleModel: 'date',
+    seasonLength: 150,  // ~5 months
+    weekLabel: 'Days'
+  },
+
+  // Other team sports - Date-based
+  mlb: {
+    name: 'MLB',
+    shortName: 'MLB',
+    scheduleModel: 'date',
+    seasonLength: 180,
+    weekLabel: 'Days'
+  },
+  nhl: {
+    name: 'NHL',
+    shortName: 'NHL',
+    scheduleModel: 'date',
+    seasonLength: 180,
+    weekLabel: 'Days'
+  },
+
+  // Soccer - Matchday-based (treated as week-based)
+  soccer_epl: {
+    name: 'English Premier League',
+    shortName: 'EPL',
+    scheduleModel: 'week',
+    seasonLength: 38,
+    weekLabel: 'Matchday',
+    appStateKey: 'current_epl_matchday'
+  },
+  soccer_laliga: {
+    name: 'La Liga',
+    shortName: 'La Liga',
+    scheduleModel: 'week',
+    seasonLength: 38,
+    weekLabel: 'Matchday',
+    appStateKey: 'current_laliga_matchday'
+  },
+  soccer_bundesliga: {
+    name: 'Bundesliga',
+    shortName: 'Bundesliga',
+    scheduleModel: 'week',
+    seasonLength: 34,
+    weekLabel: 'Matchday',
+    appStateKey: 'current_bundesliga_matchday'
+  },
+  soccer_seriea: {
+    name: 'Serie A',
+    shortName: 'Serie A',
+    scheduleModel: 'week',
+    seasonLength: 38,
+    weekLabel: 'Matchday',
+    appStateKey: 'current_seriea_matchday'
+  },
+  soccer_ligue1: {
+    name: 'Ligue 1',
+    shortName: 'Ligue 1',
+    scheduleModel: 'week',
+    seasonLength: 38,
+    weekLabel: 'Matchday',
+    appStateKey: 'current_ligue1_matchday'
+  },
+  soccer_mls: {
+    name: 'MLS',
+    shortName: 'MLS',
+    scheduleModel: 'week',
+    seasonLength: 34,
+    weekLabel: 'Week',
+    appStateKey: 'current_mls_week'
+  },
+  soccer_champions_league: {
+    name: 'UEFA Champions League',
+    shortName: 'UCL',
+    scheduleModel: 'week',
+    seasonLength: 13,  // Group stage + knockouts
+    weekLabel: 'Matchday',
+    appStateKey: 'current_ucl_matchday'
+  },
+  soccer_world_cup: {
+    name: 'FIFA World Cup',
+    shortName: 'World Cup',
+    scheduleModel: 'week',
+    seasonLength: 7,  // Group stage + knockouts
+    weekLabel: 'Matchday',
+    appStateKey: 'current_worldcup_matchday'
+  },
+
+  // Combat sports - Event-based
+  ufc: {
+    name: 'UFC',
+    shortName: 'UFC',
+    scheduleModel: 'event',
+    seasonLength: 365,
+    weekLabel: 'Event'
+  },
+  boxing: {
+    name: 'Boxing',
+    shortName: 'Boxing',
+    scheduleModel: 'event',
+    seasonLength: 365,
+    weekLabel: 'Event'
+  },
+
+  // Golf - Tournament-based
+  pga: {
+    name: 'PGA Tour',
+    shortName: 'PGA',
+    scheduleModel: 'event',
+    seasonLength: 300,
+    weekLabel: 'Tournament'
+  },
+  lpga: {
+    name: 'LPGA Tour',
+    shortName: 'LPGA',
+    scheduleModel: 'event',
+    seasonLength: 300,
+    weekLabel: 'Tournament'
+  },
+
+  // Tennis - Tournament-based
+  tennis_atp: {
+    name: 'ATP Tour',
+    shortName: 'ATP',
+    scheduleModel: 'event',
+    seasonLength: 330,
+    weekLabel: 'Tournament'
+  },
+  tennis_wta: {
+    name: 'WTA Tour',
+    shortName: 'WTA',
+    scheduleModel: 'event',
+    seasonLength: 330,
+    weekLabel: 'Tournament'
+  },
+
+  // Motorsports - Event-based
+  f1: {
+    name: 'Formula 1',
+    shortName: 'F1',
+    scheduleModel: 'event',
+    seasonLength: 280,
+    weekLabel: 'Race'
+  },
+  nascar: {
+    name: 'NASCAR',
+    shortName: 'NASCAR',
+    scheduleModel: 'event',
+    seasonLength: 300,
+    weekLabel: 'Race'
+  }
+};
+
+// Helper to get sport config
+export function getSportConfig(sport: Sport): SportConfig {
+  return SPORT_CONFIG[sport];
+}
+
+// Helper to get all sports by category
+export function getSportsByCategory(): Record<string, Sport[]> {
+  return {
+    football: ['nfl', 'ncaaf'],
+    basketball: ['nba', 'wnba', 'ncaab'],
+    baseball: ['mlb'],
+    hockey: ['nhl'],
+    soccer: [
+      'soccer_epl', 'soccer_laliga', 'soccer_bundesliga', 
+      'soccer_seriea', 'soccer_ligue1', 'soccer_mls',
+      'soccer_champions_league', 'soccer_world_cup'
+    ],
+    combat: ['ufc', 'boxing'],
+    golf: ['pga', 'lpga'],
+    tennis: ['tennis_atp', 'tennis_wta'],
+    motorsports: ['f1', 'nascar']
+  };
+}
+
+// ============================================
+// INTERFACES
+// ============================================
 
 export interface PickStats {
   userId: string;
@@ -15,10 +286,10 @@ export interface PickStats {
   incorrectPicks: number;
   totalPicks: number;
   pendingPicks: number;
-  confidenceImpact: number; // aggregate weighted score
+  confidenceImpact: number;
   daysSinceLastPick: number;
   lastPickDate: string | null;
-  rating: number; // 0-100
+  rating: number;
 }
 
 export interface UserRatingData {
@@ -28,29 +299,78 @@ export interface UserRatingData {
   weekStats: PickStats;
   monthStats: PickStats;
   allTimeStats: PickStats;
-  isAnonymized?: boolean; // True if username is hashed for privacy
-  displayName?: string; // Real name or anonymized name
+  isAnonymized?: boolean;
+  displayName?: string;
 }
 
 export interface LeaderboardUser {
   userId: string;
-  displayName: string; // What to show (real name or anonymized)
+  displayName: string;
   isAnonymized: boolean;
   rating: number;
   totalPicks: number;
   correctPicks: number;
+  incorrectPicks: number;
+  pendingPicks: number;
   winRate: number;
   lastPickDate: string | null;
   rank: number;
 }
 
+// ============================================
+// CACHING
+// ============================================
+
+// Cache for current week/matchday per sport
+const weekCache: Record<string, { week: number; fetchedAt: number }> = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Get confidence multiplier for a pick
- * High confidence correct: +1.2 boost
- * High confidence incorrect: -1.0 penalty
- * Low confidence correct: +0.6 boost
- * Low confidence incorrect: -0.3 penalty
+ * Get current week/matchday for a week-based sport
  */
+async function getCurrentWeek(sport: Sport): Promise<number> {
+  const config = SPORT_CONFIG[sport];
+  
+  if (config.scheduleModel !== 'week' || !config.appStateKey) {
+    return 1; // Default for non-week-based sports
+  }
+
+  const cacheKey = config.appStateKey;
+  
+  // Return cached value if still valid
+  if (weekCache[cacheKey] && Date.now() - weekCache[cacheKey].fetchedAt < CACHE_TTL) {
+    return weekCache[cacheKey].week;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('app_state')
+      .select(config.appStateKey)
+      .single();
+
+    if (error) {
+      console.error(`Error fetching current week for ${sport}:`, error);
+      return 1;
+    }
+
+    const week = data?.[config.appStateKey] || 1;
+    
+    weekCache[cacheKey] = {
+      week,
+      fetchedAt: Date.now()
+    };
+
+    return week;
+  } catch (error) {
+    console.error(`Error in getCurrentWeek for ${sport}:`, error);
+    return 1;
+  }
+}
+
+// ============================================
+// CONFIDENCE MULTIPLIERS
+// ============================================
+
 function getConfidenceMultiplier(confidence: string, isCorrect: boolean): number {
   const confidenceLevel = confidence?.toLowerCase() || 'medium';
   
@@ -67,28 +387,24 @@ function getConfidenceMultiplier(confidence: string, isCorrect: boolean): number
         return 1.0;
     }
   } else {
-    // Incorrect picks
     switch (confidenceLevel) {
       case 'very high':
       case 'high':
-        return -1.0; // Worse to be wrong with high confidence
+        return -1.0;
       case 'medium':
         return -0.5;
       case 'low':
-        return -0.3; // Low confidence wrong is less bad
+        return -0.3;
       default:
         return -0.5;
     }
   }
 }
 
-/**
- * PRIVACY HELPER FUNCTIONS
- */
+// ============================================
+// PRIVACY HELPERS
+// ============================================
 
-/**
- * Get all direct friends of a user
- */
 export async function getUserFriends(userId: string): Promise<string[]> {
   try {
     const { data: friendships, error } = await supabase
@@ -109,9 +425,6 @@ export async function getUserFriends(userId: string): Promise<string[]> {
   }
 }
 
-/**
- * Get all groups a user is a member of
- */
 export async function getUserGroups(userId: string): Promise<string[]> {
   try {
     const { data: groupMemberships, error } = await supabase
@@ -131,9 +444,6 @@ export async function getUserGroups(userId: string): Promise<string[]> {
   }
 }
 
-/**
- * Check if two users share any groups
- */
 export async function getSharedGroups(
   userId1: string,
   userId2: string
@@ -150,16 +460,11 @@ export async function getSharedGroups(
   }
 }
 
-/**
- * Check if user B is "known" to user A
- * Known = direct friend OR in same group
- */
 export async function isUserKnown(
   currentUserId: string,
   targetUserId: string
 ): Promise<boolean> {
   try {
-    // Check if direct friends
     const { data: friendship, error: friendError } = await supabase
       .from('friendships')
       .select('id')
@@ -169,10 +474,9 @@ export async function isUserKnown(
       .single();
 
     if (!friendError && friendship) {
-      return true; // They are friends
+      return true;
     }
 
-    // Check if they share any groups
     const sharedGroups = await getSharedGroups(currentUserId, targetUserId);
     return sharedGroups.length > 0;
   } catch (error) {
@@ -181,16 +485,10 @@ export async function isUserKnown(
   }
 }
 
-/**
- * Generate anonymized username
- * Format: User_a3f2b1 (first 6 chars of hashed userId)
- */
 export function anonymizeUsername(userId: string): string {
   try {
-    // Simple hash: take first 6 chars of userId, converted to alphanumeric
-    // Alternative: could use a more sophisticated hash function
     const sanitized = userId
-      .replace(/[^a-zA-Z0-9]/g, '') // Remove special chars
+      .replace(/[^a-zA-Z0-9]/g, '')
       .toLowerCase()
       .substring(0, 6);
 
@@ -201,10 +499,10 @@ export function anonymizeUsername(userId: string): string {
   }
 }
 
-/**
- * Calculate confidence impact score
- * Aggregates the confidence-weighted performance across picks
- */
+// ============================================
+// STATS CALCULATIONS
+// ============================================
+
 function calculateConfidenceImpact(picks: any[]): number {
   if (picks.length === 0) return 0;
   
@@ -212,7 +510,6 @@ function calculateConfidenceImpact(picks: any[]): number {
   let decidedPicksCount = 0;
 
   picks.forEach(pick => {
-    // Only count picks with results (not pending)
     if (pick.correct !== null) {
       const multiplier = getConfidenceMultiplier(pick.confidence, pick.correct);
       totalImpact += multiplier;
@@ -220,17 +517,13 @@ function calculateConfidenceImpact(picks: any[]): number {
     }
   });
 
-  // Return average impact (-1 to +1 scale)
   return decidedPicksCount > 0 ? totalImpact / decidedPicksCount : 0;
 }
 
-/**
- * Calculate days since last pick
- */
 function getDaysSinceLastPick(picks: any[]): number {
-  if (picks.length === 0) return 999; // No picks = very inactive
+  if (picks.length === 0) return 999;
   
-  const lastPick = picks[0]; // Already sorted by created_at DESC
+  const lastPick = picks[0];
   const lastPickDate = new Date(lastPick.created_at);
   const now = new Date();
   const diffMs = now.getTime() - lastPickDate.getTime();
@@ -239,9 +532,6 @@ function getDaysSinceLastPick(picks: any[]): number {
   return Math.max(0, diffDays);
 }
 
-/**
- * Calculate user rating (0-100 scale)
- */
 export function calculateRating(stats: {
   correctPicks: number;
   totalPicks: number;
@@ -252,58 +542,120 @@ export function calculateRating(stats: {
 
   if (totalPicks === 0) return 0;
 
-  // Base accuracy score (0-70 points)
   const accuracy = correctPicks / totalPicks;
   const accuracyScore = accuracy * 70;
 
-  // Participation bonus (0-20 points)
-  // Encourages making picks: 10 picks = 10 pts, 20+ picks = 20 pts
   const pickBonus = Math.min(20, (totalPicks / 20) * 20);
 
-  // Recency penalty (0-10 points deducted)
-  // No picks in 7+ days = -10
-  // Last pick today = 0 penalty
   let recencyPenalty = 0;
   if (daysSinceLastPick > 0) {
     recencyPenalty = Math.min(10, (daysSinceLastPick / 14) * 10);
   }
 
-  // Confidence modifier (0.8 to 1.2 multiplier)
-  // Positive confidence impact = bonus, negative = penalty
   const confidenceModifier = 1 + (confidenceImpact * 0.2);
 
-  // Final calculation
   let rating = (accuracyScore + pickBonus - recencyPenalty) * confidenceModifier;
   
-  // Clamp to 0-100
   return Math.min(100, Math.max(0, Math.round(rating)));
 }
 
+// ============================================
+// PICK FETCHING BY SPORT TYPE
+// ============================================
+
 /**
- * Fetch and calculate all picks for a user in a timeframe
+ * Week-based sports: Get picks for specific week(s)
  */
-async function getPicksInTimeframe(
+async function getWeekBasedPicks(
   userId: string,
-  daysBack: number
+  weeks: number[],
+  sport: Sport,
+  season?: number
+): Promise<any[]> {
+  try {
+    // Default season based on current date
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    // For fall sports (NFL, NCAAF), season spans two years
+    const defaultSeason = currentMonth >= 8 ? currentYear : currentYear - 1;
+    const targetSeason = season || (sport === 'nfl' || sport === 'ncaaf' ? 2025 : defaultSeason);
+
+    // Get game IDs for the specified weeks
+    const { data: games, error: gamesError } = await supabase
+      .from('games')
+      .select('id')
+      .in('week', weeks)
+      .eq('season', targetSeason)
+      .eq('sport', sport);
+
+    if (gamesError || !games || games.length === 0) {
+      // Fallback: try without sport filter for backward compatibility
+      const { data: fallbackGames } = await supabase
+        .from('games')
+        .select('id')
+        .in('week', weeks)
+        .eq('season', targetSeason);
+      
+      if (!fallbackGames || fallbackGames.length === 0) {
+        return [];
+      }
+      
+      const gameIds = fallbackGames.map(g => g.id);
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('id, user_id, game_id, confidence, correct, created_at')
+        .eq('user_id', userId)
+        .in('game_id', gameIds)
+        .order('created_at', { ascending: false });
+      
+      return picks || [];
+    }
+
+    const gameIds = games.map(g => g.id);
+
+    const { data: picks, error: picksError } = await supabase
+      .from('picks')
+      .select('id, user_id, game_id, confidence, correct, created_at')
+      .eq('user_id', userId)
+      .in('game_id', gameIds)
+      .order('created_at', { ascending: false });
+
+    if (picksError) {
+      console.error('Error fetching picks:', picksError);
+      return [];
+    }
+
+    return picks || [];
+  } catch (error) {
+    console.error('Error in getWeekBasedPicks:', error);
+    return [];
+  }
+}
+
+/**
+ * Date-based sports: Get picks within a date range
+ */
+async function getDateBasedPicks(
+  userId: string,
+  daysBack: number,
+  sport?: Sport
 ): Promise<any[]> {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysBack);
     cutoffDate.setHours(0, 0, 0, 0);
 
-    const { data: picks, error } = await supabase
+    let query = supabase
       .from('picks')
-      .select(`
-        id,
-        user_id,
-        game_id,
-        confidence,
-        correct,
-        created_at
-      `)
+      .select('id, user_id, game_id, confidence, correct, created_at')
       .eq('user_id', userId)
       .gte('created_at', cutoffDate.toISOString())
       .order('created_at', { ascending: false });
+
+    // If sport specified, filter by sport (requires game join)
+    // For now, we'll fetch all and filter if needed in the future
+
+    const { data: picks, error } = await query;
 
     if (error) {
       console.error('Error fetching picks:', error);
@@ -312,8 +664,109 @@ async function getPicksInTimeframe(
 
     return picks || [];
   } catch (error) {
-    console.error('Error in getPicksInTimeframe:', error);
+    console.error('Error in getDateBasedPicks:', error);
     return [];
+  }
+}
+
+/**
+ * Event-based sports: Get picks for recent events
+ * Uses date-based approach with event-appropriate windows
+ */
+async function getEventBasedPicks(
+  userId: string,
+  eventsBack: number,
+  sport: Sport
+): Promise<any[]> {
+  // Event-based sports use larger date windows
+  // 1 "event" ≈ 7 days for UFC/Boxing, 4 days for golf tournaments
+  const daysPerEvent = sport === 'pga' || sport === 'lpga' ? 4 : 7;
+  const daysBack = eventsBack * daysPerEvent;
+  
+  return getDateBasedPicks(userId, daysBack, sport);
+}
+
+/**
+ * Universal pick fetcher - routes to appropriate method based on sport
+ */
+async function getPicksForTimeframe(
+  userId: string,
+  timeframe: 'week' | 'month' | 'season' | 'allTime',
+  sport: Sport = 'nfl'
+): Promise<any[]> {
+  const config = SPORT_CONFIG[sport];
+
+  if (config.scheduleModel === 'week') {
+    const currentWeek = await getCurrentWeek(sport);
+    // Use previous completed week for "week" filter (current week has pending games)
+    const lastCompletedWeek = Math.max(1, currentWeek - 1);
+    
+    let weeks: number[];
+    switch (timeframe) {
+      case 'week':
+        // Previous completed week only
+        weeks = [lastCompletedWeek];
+        break;
+      case 'month':
+        // Last 4 completed weeks
+        weeks = Array.from({ length: 4 }, (_, i) => lastCompletedWeek - i).filter(w => w >= 1);
+        break;
+      case 'season':
+        // All completed weeks this season (1 through last completed)
+        weeks = Array.from({ length: lastCompletedWeek }, (_, i) => i + 1);
+        break;
+      case 'allTime':
+        // All possible weeks
+        weeks = Array.from({ length: config.seasonLength }, (_, i) => i + 1);
+        break;
+      default:
+        weeks = [lastCompletedWeek];
+    }
+    
+    return getWeekBasedPicks(userId, weeks, sport);
+    
+  } else if (config.scheduleModel === 'event') {
+    let eventsBack: number;
+    switch (timeframe) {
+      case 'week':
+        eventsBack = 1;  // Current/most recent event
+        break;
+      case 'month':
+        eventsBack = 4;  // Last ~4 events
+        break;
+      case 'season':
+        eventsBack = 20; // ~20 events
+        break;
+      case 'allTime':
+        eventsBack = 100;
+        break;
+      default:
+        eventsBack = 1;
+    }
+    
+    return getEventBasedPicks(userId, eventsBack, sport);
+    
+  } else {
+    // Date-based
+    let daysBack: number;
+    switch (timeframe) {
+      case 'week':
+        daysBack = 7;
+        break;
+      case 'month':
+        daysBack = 30;
+        break;
+      case 'season':
+        daysBack = config.seasonLength;
+        break;
+      case 'allTime':
+        daysBack = 999;
+        break;
+      default:
+        daysBack = 7;
+    }
+    
+    return getDateBasedPicks(userId, daysBack, sport);
   }
 }
 
@@ -322,10 +775,11 @@ async function getPicksInTimeframe(
  */
 async function calculateTimeframeStats(
   userId: string,
-  daysBack: number,
-  username: string
+  timeframe: 'week' | 'month' | 'season' | 'allTime',
+  username: string,
+  sport: Sport = 'nfl'
 ): Promise<PickStats> {
-  const picks = await getPicksInTimeframe(userId, daysBack);
+  const picks = await getPicksForTimeframe(userId, timeframe, sport);
 
   const correctPicks = picks.filter(p => p.correct === true).length;
   const incorrectPicks = picks.filter(p => p.correct === false).length;
@@ -357,14 +811,18 @@ async function calculateTimeframeStats(
   };
 }
 
+// ============================================
+// PUBLIC API
+// ============================================
+
 /**
  * Get all group members with their ratings
  */
 export async function getGroupMembersRatings(
-  groupId: string
+  groupId: string,
+  sport: Sport = 'nfl'
 ): Promise<UserRatingData[]> {
   try {
-    // First, get all members in the group
     const { data: groupMembers, error: membersError } = await supabase
       .from('group_members')
       .select('user_id')
@@ -379,31 +837,28 @@ export async function getGroupMembersRatings(
       return [];
     }
 
-    // For each member, calculate their ratings
     const userIds = groupMembers.map(m => m.user_id);
     const ratings: UserRatingData[] = [];
 
-    for (const userId of userIds) {
+    for (const oderId of userIds) {
       try {
-        // Get user profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, email, username')
-          .eq('id', userId)
+          .eq('id', oderId)
           .single();
 
         if (profileError) {
-          console.warn('Could not fetch profile for user:', userId);
+          console.warn('Could not fetch profile for user:', oderId);
           continue;
         }
 
-        // Calculate stats for each timeframe
-        const weekStats = await calculateTimeframeStats(userId, 7, profile.username);
-        const monthStats = await calculateTimeframeStats(userId, 30, profile.username);
-        const allTimeStats = await calculateTimeframeStats(userId, 999, profile.username);
+        const weekStats = await calculateTimeframeStats(oderId, 'week', profile.username, sport);
+        const monthStats = await calculateTimeframeStats(oderId, 'month', profile.username, sport);
+        const allTimeStats = await calculateTimeframeStats(oderId, 'allTime', profile.username, sport);
 
         ratings.push({
-          userId,
+          oderId,
           username: profile.username || 'User',
           email: profile.email || '',
           weekStats,
@@ -411,7 +866,7 @@ export async function getGroupMembersRatings(
           allTimeStats
         });
       } catch (error) {
-        console.error('Error calculating ratings for user:', userId, error);
+        console.error('Error calculating ratings for user:', oderId, error);
       }
     }
 
@@ -425,9 +880,11 @@ export async function getGroupMembersRatings(
 /**
  * Get ratings for a specific user across all timeframes
  */
-export async function getUserRatings(userId: string): Promise<UserRatingData | null> {
+export async function getUserRatings(
+  userId: string,
+  sport: Sport = 'nfl'
+): Promise<UserRatingData | null> {
   try {
-    // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, email, username')
@@ -439,10 +896,9 @@ export async function getUserRatings(userId: string): Promise<UserRatingData | n
       return null;
     }
 
-    // Calculate stats for each timeframe
-    const weekStats = await calculateTimeframeStats(userId, 7, profile.username);
-    const monthStats = await calculateTimeframeStats(userId, 30, profile.username);
-    const allTimeStats = await calculateTimeframeStats(userId, 999, profile.username);
+    const weekStats = await calculateTimeframeStats(userId, 'week', profile.username, sport);
+    const monthStats = await calculateTimeframeStats(userId, 'month', profile.username, sport);
+    const allTimeStats = await calculateTimeframeStats(userId, 'allTime', profile.username, sport);
 
     return {
       userId,
@@ -463,11 +919,11 @@ export async function getUserRatings(userId: string): Promise<UserRatingData | n
  */
 export async function rankGroupMembers(
   groupId: string,
-  timeframe: 'week' | 'month' | 'allTime' = 'week'
+  timeframe: 'week' | 'month' | 'allTime' = 'week',
+  sport: Sport = 'nfl'
 ): Promise<Array<PickStats & { rank: number }>> {
-  const ratings = await getGroupMembersRatings(groupId);
+  const ratings = await getGroupMembersRatings(groupId, sport);
 
-  // Map timeframe to stats key
   const statsKey =
     timeframe === 'week'
       ? 'weekStats'
@@ -475,11 +931,10 @@ export async function rankGroupMembers(
       ? 'monthStats'
       : 'allTimeStats';
 
-  // Extract stats and sort by rating (descending)
   const ranked = ratings
-    .map((user, index) => ({
+    .map((user) => ({
       ...user[statsKey as keyof typeof user],
-      rank: 0 // Will be updated
+      rank: 0
     }))
     .sort((a, b) => b.rating - a.rating)
     .map((stat, index) => ({
@@ -492,24 +947,19 @@ export async function rankGroupMembers(
 
 /**
  * Get top 5 global performers with privacy/anonymization
- * Shows: top performers user knows about + top unknown performers
  */
 export async function getTopPerformersGlobally(
   currentUserId: string,
-  timeframe: 'week' | 'month' | 'season' | 'allTime' = 'week'
+  timeframe: 'week' | 'month' | 'season' | 'allTime' = 'week',
+  sport: Sport = 'nfl'
 ): Promise<LeaderboardUser[]> {
   try {
-    // Convert timeframe to daysBack
-    const daysBack = timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : timeframe === 'season' ? 120 : 999;
-
-    // Step 1: Get all groups for current user
     const userGroups = await getUserGroups(currentUserId);
     
     if (userGroups.length === 0) {
-      return []; // No groups, no leaderboard
+      return [];
     }
 
-    // Step 2: Get all members from all user's groups
     const { data: groupMembers, error: groupMembersError } = await supabase
       .from('group_members')
       .select('user_id')
@@ -520,15 +970,12 @@ export async function getTopPerformersGlobally(
       return [];
     }
 
-    // Step 3: Get user's direct friends
     const userFriends = await getUserFriends(currentUserId);
 
-    // Combine into unique set of user IDs (group members + direct friends)
     const userIdsSet = new Set<string>();
     (groupMembers || []).forEach(gm => userIdsSet.add(gm.user_id));
     userFriends.forEach(friendId => userIdsSet.add(friendId));
 
-    // Remove current user from the set
     userIdsSet.delete(currentUserId);
     const userIds = Array.from(userIdsSet);
 
@@ -536,46 +983,45 @@ export async function getTopPerformersGlobally(
       return [];
     }
 
-    // Step 4: Calculate ratings for all these users
     const allUsersWithRatings: Array<LeaderboardUser> = [];
 
-    for (const userId of userIds) {
+    for (const oderId of userIds) {
       try {
-        // Get user profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, username, email')
-          .eq('id', userId)
+          .eq('id', oderId)
           .single();
 
         if (profileError) {
-          console.warn('Could not fetch profile for user:', userId);
+          console.warn('Could not fetch profile for user:', oderId);
           continue;
         }
 
-        // Calculate rating for timeframe
-        const stats = await calculateTimeframeStats(userId, daysBack, profile.username);
+        const stats = await calculateTimeframeStats(oderId, timeframe, profile.username, sport);
 
-        // Check if this user is known to current user
-        const isKnown = await isUserKnown(currentUserId, userId);
+        const isKnown = await isUserKnown(currentUserId, oderId);
+
+        const decidedPicks = stats.correctPicks + stats.incorrectPicks;
 
         allUsersWithRatings.push({
-          userId,
-          displayName: isKnown ? profile.username : anonymizeUsername(userId),
+          oderId,
+          displayName: isKnown ? profile.username : anonymizeUsername(oderId),
           isAnonymized: !isKnown,
           rating: stats.rating,
           totalPicks: stats.totalPicks,
           correctPicks: stats.correctPicks,
-          winRate: stats.totalPicks > 0 ? Math.round((stats.correctPicks / stats.totalPicks) * 100) : 0,
+          incorrectPicks: stats.incorrectPicks,
+          pendingPicks: stats.pendingPicks,
+          winRate: decidedPicks > 0 ? Math.round((stats.correctPicks / decidedPicks) * 100) : 0,
           lastPickDate: stats.lastPickDate,
-          rank: 0 // Will be updated
+          rank: 0
         });
       } catch (error) {
-        console.error('Error calculating rating for user:', userId, error);
+        console.error('Error calculating rating for user:', oderId, error);
       }
     }
 
-    // Step 5: Sort by rating and take top 5
     const topPerformers = allUsersWithRatings
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 5)
@@ -593,17 +1039,13 @@ export async function getTopPerformersGlobally(
 
 /**
  * Get all members in a specific group with their ratings
- * Shows real names for everyone (same group = known)
  */
 export async function getGroupLeaderboard(
   groupId: string,
-  timeframe: 'week' | 'month' | 'season' | 'allTime' = 'week'
+  timeframe: 'week' | 'month' | 'season' | 'allTime' = 'week',
+  sport: Sport = 'nfl'
 ): Promise<LeaderboardUser[]> {
   try {
-    // Convert timeframe to daysBack
-    const daysBack = timeframe === 'week' ? 7 : timeframe === 'month' ? 30 : timeframe === 'season' ? 120 : 999;
-
-    // Step 1: Get all members in this group
     const { data: groupMembers, error: membersError } = await supabase
       .from('group_members')
       .select('user_id')
@@ -620,43 +1062,43 @@ export async function getGroupLeaderboard(
 
     const userIds = groupMembers.map(m => m.user_id);
 
-    // Step 2: Calculate ratings for all members
     const leaderboardUsers: LeaderboardUser[] = [];
 
-    for (const userId of userIds) {
+    for (const oderId of userIds) {
       try {
-        // Get user profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, username, email')
-          .eq('id', userId)
+          .eq('id', oderId)
           .single();
 
         if (profileError) {
-          console.warn('Could not fetch profile for user:', userId);
+          console.warn('Could not fetch profile for user:', oderId);
           continue;
         }
 
-        // Calculate rating for timeframe
-        const stats = await calculateTimeframeStats(userId, daysBack, profile.username);
+        const stats = await calculateTimeframeStats(oderId, timeframe, profile.username, sport);
+
+        const decidedPicks = stats.correctPicks + stats.incorrectPicks;
 
         leaderboardUsers.push({
-          userId,
-          displayName: profile.username, // Always real name in group
+          userId: oderId,
+          displayName: profile.username,
           isAnonymized: false,
           rating: stats.rating,
           totalPicks: stats.totalPicks,
           correctPicks: stats.correctPicks,
-          winRate: stats.totalPicks > 0 ? Math.round((stats.correctPicks / stats.totalPicks) * 100) : 0,
+          incorrectPicks: stats.incorrectPicks,
+          pendingPicks: stats.pendingPicks,
+          winRate: decidedPicks > 0 ? Math.round((stats.correctPicks / decidedPicks) * 100) : 0,
           lastPickDate: stats.lastPickDate,
-          rank: 0 // Will be updated
+          rank: 0
         });
       } catch (error) {
-        console.error('Error calculating rating for user:', userId, error);
+        console.error('Error calculating rating for user:', oderId, error);
       }
     }
 
-    // Step 3: Sort by rating and assign ranks
     const ranked = leaderboardUsers
       .sort((a, b) => b.rating - a.rating)
       .map((user, index) => ({
@@ -668,5 +1110,106 @@ export async function getGroupLeaderboard(
   } catch (error) {
     console.error('Error in getGroupLeaderboard:', error);
     return [];
+  }
+}
+
+// ============================================
+// DISPLAY HELPERS
+// ============================================
+
+/**
+ * Get timeframe display label based on sport
+ */
+export async function getTimeframeLabel(
+  timeframe: 'week' | 'month' | 'season' | 'allTime',
+  sport: Sport
+): Promise<string> {
+  const config = SPORT_CONFIG[sport];
+
+  if (config.scheduleModel === 'week') {
+    const currentWeek = await getCurrentWeek(sport);
+    const lastCompletedWeek = Math.max(1, currentWeek - 1);
+    
+    switch (timeframe) {
+      case 'week':
+        return `${config.weekLabel} ${lastCompletedWeek}`;
+      case 'month':
+        return `Last 4 ${config.weekLabel}s`;
+      case 'season':
+        return `${new Date().getFullYear()} Season`;
+      case 'allTime':
+        return 'All Time';
+    }
+  } else if (config.scheduleModel === 'event') {
+    switch (timeframe) {
+      case 'week':
+        return `Recent ${config.weekLabel}`;
+      case 'month':
+        return `Last 4 ${config.weekLabel}s`;
+      case 'season':
+        return 'This Season';
+      case 'allTime':
+        return 'All Time';
+    }
+  } else {
+    switch (timeframe) {
+      case 'week':
+        return 'Last 7 Days';
+      case 'month':
+        return 'Last 30 Days';
+      case 'season':
+        return 'This Season';
+      case 'allTime':
+        return 'All Time';
+    }
+  }
+}
+
+/**
+ * Sync version for UI (uses cached week or defaults)
+ */
+export function getTimeframeLabelSync(
+  timeframe: 'week' | 'month' | 'season' | 'allTime',
+  sport: Sport,
+  currentWeek?: number
+): string {
+  const config = SPORT_CONFIG[sport];
+
+  if (config.scheduleModel === 'week') {
+    // Use previous completed week (current week has pending games)
+    const lastCompletedWeek = currentWeek ? Math.max(1, currentWeek - 1) : 1;
+    
+    switch (timeframe) {
+      case 'week':
+        return `${config.weekLabel} ${lastCompletedWeek}`;
+      case 'month':
+        return `Last 4 ${config.weekLabel}s`;
+      case 'season':
+        return `${new Date().getFullYear()} Season`;
+      case 'allTime':
+        return 'All Time';
+    }
+  } else if (config.scheduleModel === 'event') {
+    switch (timeframe) {
+      case 'week':
+        return `Recent ${config.weekLabel}`;
+      case 'month':
+        return `Last 4 ${config.weekLabel}s`;
+      case 'season':
+        return 'This Season';
+      case 'allTime':
+        return 'All Time';
+    }
+  } else {
+    switch (timeframe) {
+      case 'week':
+        return 'Last 7 Days';
+      case 'month':
+        return 'Last 30 Days';
+      case 'season':
+        return 'This Season';
+      case 'allTime':
+        return 'All Time';
+    }
   }
 }

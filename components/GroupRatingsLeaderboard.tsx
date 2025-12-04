@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
 import { 
   ActivityIndicator, 
-  SafeAreaView, 
   ScrollView, 
   StyleSheet, 
   Text, 
   TouchableOpacity, 
   View 
 } from 'react-native';
-import { getTopPerformersGlobally, getGroupLeaderboard, LeaderboardUser } from '../services/pickrating';
+import { 
+  getTopPerformersGlobally, 
+  getGroupLeaderboard, 
+  getTimeframeLabelSync,
+  getSportConfig,
+  LeaderboardUser,
+  Sport 
+} from '../services/pickrating';
 import { supabase } from '../app/lib/supabase';
 
 interface GroupRatingsProps {
@@ -16,9 +22,9 @@ interface GroupRatingsProps {
   userId: string;
   groupId?: string;
   groupName?: string;
+  sport?: Sport;
 }
 
-// Add interface for recent picks data
 interface RecentPick {
   correct: boolean | null;
   game_date: string;
@@ -28,28 +34,50 @@ export default function GroupRatingsLeaderboard({
   mode, 
   userId, 
   groupId = '163b5d2c-fb32-4b34-8ed0-4d39fa9a3a9b', 
-  groupName = 'The Syndicate' 
+  groupName = 'The Syndicate',
+  sport = 'nfl'
 }: GroupRatingsProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month' | 'season' | 'allTime'>('week');
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
   const [recentPicks, setRecentPicks] = useState<Record<string, RecentPick[]>>({});
   const [loading, setLoading] = useState(true);
+  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
+
+  // Get sport config for dynamic labels
+  const sportConfig = getSportConfig(sport);
+
+  // Fetch current week for week-based sports
+  useEffect(() => {
+    if (sportConfig.scheduleModel === 'week' && sportConfig.appStateKey) {
+      const fetchCurrentWeek = async () => {
+        const { data } = await supabase
+          .from('app_state')
+          .select(sportConfig.appStateKey!)
+          .single();
+        
+        if (data?.[sportConfig.appStateKey!]) {
+          setCurrentWeek(data[sportConfig.appStateKey!]);
+        }
+      };
+      fetchCurrentWeek();
+    }
+  }, [sport, sportConfig]);
 
   // Fetch recent picks for form display
   const fetchRecentPicks = async (userIds: string[]) => {
     const recentData: Record<string, RecentPick[]> = {};
     
-    for (const userId of userIds) {
+    for (const oderId of userIds) {
       const { data } = await supabase
         .from('picks')
         .select('correct, game_id, created_at')
-        .eq('user_id', userId)
+        .eq('user_id', oderId)
         .not('correct', 'is', null)
         .order('created_at', { ascending: false })
         .limit(5);
       
       if (data) {
-        recentData[userId] = data;
+        recentData[oderId] = data;
       }
     }
     
@@ -58,7 +86,7 @@ export default function GroupRatingsLeaderboard({
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      console.log('Fetching leaderboard - Mode:', mode, 'UserId:', userId, 'Timeframe:', selectedTimeframe);
+      console.log('Fetching leaderboard - Mode:', mode, 'UserId:', userId, 'Timeframe:', selectedTimeframe, 'Sport:', sport);
       
       if (!userId) {
         console.log('No userId, returning early');
@@ -72,17 +100,16 @@ export default function GroupRatingsLeaderboard({
       try {
         if (mode === 'global') {
           console.log('Fetching global leaderboard...');
-          data = await getTopPerformersGlobally(userId, selectedTimeframe);
+          data = await getTopPerformersGlobally(userId, selectedTimeframe, sport);
           console.log('Global data received:', data);
         } else {
           console.log('Fetching group leaderboard for group:', groupId);
-          data = await getGroupLeaderboard(groupId, selectedTimeframe);
+          data = await getGroupLeaderboard(groupId, selectedTimeframe, sport);
           console.log('Group data received:', data);
         }
 
         setLeaderboardData(data);
         
-        // Fetch recent picks for form display
         const userIds = data.map(u => u.userId);
         await fetchRecentPicks(userIds);
       } catch (error) {
@@ -93,9 +120,8 @@ export default function GroupRatingsLeaderboard({
     };
 
     fetchLeaderboard();
-  }, [mode, selectedTimeframe, userId, groupId]);
+  }, [mode, selectedTimeframe, userId, groupId, sport]);
 
-  // Helper to get rating color
   const getRatingColor = (rating: number) => {
     if (rating >= 80) return '#4CAF50';
     if (rating >= 60) return '#2196F3';
@@ -103,7 +129,6 @@ export default function GroupRatingsLeaderboard({
     return '#F44336';
   };
 
-  // Helper to get win rate color
   const getWinRateColor = (winRate: number) => {
     if (winRate >= 60) return '#4CAF50';
     if (winRate >= 50) return '#2196F3';
@@ -111,9 +136,8 @@ export default function GroupRatingsLeaderboard({
     return '#F44336';
   };
 
-  // Render recent form (last 5 picks)
-  const renderRecentForm = (userId: string) => {
-    const picks = recentPicks[userId] || [];
+  const renderRecentForm = (oderId: string) => {
+    const picks = recentPicks[oderId] || [];
     
     if (picks.length === 0) {
       return <Text style={styles.noFormText}>No recent</Text>;
@@ -140,12 +164,62 @@ export default function GroupRatingsLeaderboard({
     );
   };
 
+  // Get dynamic tab labels based on sport
+  const getTabLabel = (timeframe: 'week' | 'month' | 'season' | 'allTime'): string => {
+    if (sportConfig.scheduleModel === 'week') {
+      const lastCompletedWeek = currentWeek ? Math.max(1, currentWeek - 1) : null;
+      
+      switch (timeframe) {
+        case 'week':
+          return lastCompletedWeek ? `${sportConfig.weekLabel} ${lastCompletedWeek}` : sportConfig.weekLabel;
+        case 'month':
+          return `4 ${sportConfig.weekLabel}s`;
+        case 'season':
+          return 'Season';
+        case 'allTime':
+          return 'All Time';
+        default:
+          return 'Week';
+      }
+    } else if (sportConfig.scheduleModel === 'event') {
+      switch (timeframe) {
+        case 'week':
+          return `Last ${sportConfig.weekLabel}`;
+        case 'month':
+          return `4 ${sportConfig.weekLabel}s`;
+        case 'season':
+          return 'Season';
+        case 'allTime':
+          return 'All Time';
+        default:
+          return 'Event';
+      }
+    } else {
+      switch (timeframe) {
+        case 'week':
+          return '7 Days';
+        case 'month':
+          return '30 Days';
+        case 'season':
+          return 'Season';
+        case 'allTime':
+          return 'All Time';
+        default:
+          return '7 Days';
+      }
+    }
+  };
+
   const modeTitle = mode === 'global' ? 'Top Performers' : groupName;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{modeTitle}</Text>
+    <View style={styles.container}>
+      {/* Group Name Row with Sport Badge */}
+      <View style={styles.groupHeader}>
+        <Text style={styles.groupName}>{modeTitle}</Text>
+        <View style={styles.sportBadge}>
+          <Text style={styles.sportBadgeText}>{sportConfig.shortName}</Text>
+        </View>
       </View>
 
       {mode === 'global' && (
@@ -161,7 +235,7 @@ export default function GroupRatingsLeaderboard({
           onPress={() => setSelectedTimeframe('week')}
         >
           <Text style={[styles.tabText, selectedTimeframe === 'week' && styles.tabTextActive]}>
-            Week
+            {getTabLabel('week')}
           </Text>
         </TouchableOpacity>
 
@@ -170,7 +244,7 @@ export default function GroupRatingsLeaderboard({
           onPress={() => setSelectedTimeframe('month')}
         >
           <Text style={[styles.tabText, selectedTimeframe === 'month' && styles.tabTextActive]}>
-            Month
+            {getTabLabel('month')}
           </Text>
         </TouchableOpacity>
 
@@ -179,7 +253,7 @@ export default function GroupRatingsLeaderboard({
           onPress={() => setSelectedTimeframe('season')}
         >
           <Text style={[styles.tabText, selectedTimeframe === 'season' && styles.tabTextActive]}>
-            Season
+            {getTabLabel('season')}
           </Text>
         </TouchableOpacity>
 
@@ -188,7 +262,7 @@ export default function GroupRatingsLeaderboard({
           onPress={() => setSelectedTimeframe('allTime')}
         >
           <Text style={[styles.tabText, selectedTimeframe === 'allTime' && styles.tabTextActive]}>
-            All Time
+            {getTabLabel('allTime')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -255,7 +329,7 @@ export default function GroupRatingsLeaderboard({
                     <View style={styles.stat}>
                       <View style={styles.correctIncorrectContainer}>
                         <Text style={styles.correctText}>{user.correctPicks}✓</Text>
-                        <Text style={styles.incorrectText}>{user.totalPicks - user.correctPicks}✗</Text>
+                        <Text style={styles.incorrectText}>{user.incorrectPicks}✗</Text>
                       </View>
                       <Text style={styles.statLabel}>W-L</Text>
                     </View>
@@ -281,7 +355,7 @@ export default function GroupRatingsLeaderboard({
           {leaderboardData.length > 0 && (
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>
-                {mode === 'global' ? 'Top 5' : 'Group'} Stats ({selectedTimeframe === 'allTime' ? 'All Time' : selectedTimeframe})
+                {mode === 'global' ? 'Top 5' : 'Group'} Stats ({getTimeframeLabelSync(selectedTimeframe, sport, currentWeek || undefined)})
               </Text>
               <View style={styles.summaryRow}>
                 <View style={styles.summaryItem}>
@@ -313,7 +387,7 @@ export default function GroupRatingsLeaderboard({
           )}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -322,15 +396,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  header: {
-    padding: 16,
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
-  title: {
+  groupName: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
+  },
+  sportBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sportBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   infoBar: {
     paddingHorizontal: 16,
@@ -363,7 +452,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   tabTextActive: {
