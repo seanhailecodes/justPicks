@@ -45,6 +45,7 @@ export default function GroupPicksScreen() {
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [groupMemberCount, setGroupMemberCount] = useState<number>(0);
   const weekScrollViewRef = useRef<ScrollView>(null);
 
   // Pulse animation for unanimous picks
@@ -148,7 +149,9 @@ export default function GroupPicksScreen() {
       }
 
       const memberIds = groupMembers?.map(m => m.user_id) || [];
-      console.log('Group members:', memberIds.length);
+      const memberCount = memberIds.length;
+      setGroupMemberCount(memberCount);
+      console.log('Group members:', memberCount);
 
       if (memberIds.length === 0) {
         console.log('No members in group');
@@ -346,14 +349,17 @@ export default function GroupPicksScreen() {
     }
   };
 
-  const getConsensusColor = (percentage: number) => {
-    if (percentage === 100) return '#FFD700';
-    if (percentage >= 70) return '#34C759';
-    if (percentage >= 55) return '#FF9500';
-    return '#FF3B30';
+  const getConsensusColor = (percentage: number, isUnanimous: boolean = false) => {
+    // Bright green only for unanimous
+    if (isUnanimous) return '#34C759';
+    
+    // Muted colors for non-unanimous
+    if (percentage >= 70) return '#6B7280';  // Muted gray
+    if (percentage >= 55) return '#6B7280';  // Muted gray
+    return '#4B5563';                         // Darker gray for split
   };
 
-  const calculateGameConsensus = (picks: FriendPick[]) => {
+  const calculateGameConsensus = (picks: FriendPick[], totalMembers: number) => {
     if (!picks || picks.length === 0) return null;
 
     let homeScore = 0;
@@ -372,7 +378,12 @@ export default function GroupPicksScreen() {
     
     const homePercentage = Math.round((homeScore / totalPicks) * 100);
     const awayPercentage = 100 - homePercentage;
-    const isUnanimous = homePercentage === 100 || awayPercentage === 100;
+    
+    // Unanimous requires: ALL members picked AND all agree
+    const allMembersPicked = totalPicks >= totalMembers;
+    const allAgree = homePercentage === 100 || awayPercentage === 100;
+    const isUnanimous = allMembersPicked && allAgree && totalMembers > 1;
+    
     const winningPercentage = Math.max(homePercentage, awayPercentage);
 
     return {
@@ -383,11 +394,11 @@ export default function GroupPicksScreen() {
       awayPicks: awayScore,
       isUnanimous,
       consensusStrength: winningPercentage,
-      consensusColor: getConsensusColor(winningPercentage),
+      consensusColor: getConsensusColor(winningPercentage, isUnanimous),
     };
   };
 
-  const calculateOUConsensus = (picks: FriendPick[]) => {
+  const calculateOUConsensus = (picks: FriendPick[], totalMembers: number) => {
     const ouPicks = picks.filter(p => p.overUnderPick);
     if (ouPicks.length === 0) return null;
 
@@ -407,7 +418,12 @@ export default function GroupPicksScreen() {
     
     const overPercentage = Math.round((overCount / totalPicks) * 100);
     const underPercentage = 100 - overPercentage;
-    const isUnanimous = overPercentage === 100 || underPercentage === 100;
+    
+    // Unanimous requires: ALL members picked O/U AND all agree
+    const allMembersPicked = totalPicks >= totalMembers;
+    const allAgree = overPercentage === 100 || underPercentage === 100;
+    const isUnanimous = allMembersPicked && allAgree && totalMembers > 1;
+    
     const winningPercentage = Math.max(overPercentage, underPercentage);
 
     return {
@@ -418,7 +434,7 @@ export default function GroupPicksScreen() {
       underPicks: underCount,
       isUnanimous,
       consensusStrength: winningPercentage,
-      consensusColor: getConsensusColor(winningPercentage),
+      consensusColor: getConsensusColor(winningPercentage, isUnanimous),
     };
   };
 
@@ -535,8 +551,8 @@ export default function GroupPicksScreen() {
           >
             {gamesData.map(game => {
               const gamePicks = friendPicksByGame[game.id] || [];
-              const spreadConsensus = calculateGameConsensus(gamePicks);
-              const ouConsensus = calculateOUConsensus(gamePicks);
+              const spreadConsensus = calculateGameConsensus(gamePicks, groupMemberCount);
+              const ouConsensus = calculateOUConsensus(gamePicks, groupMemberCount);
               
               return (
                 <View key={game.id} style={styles.gameSection}>
@@ -929,7 +945,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   unanimousBar: {
-    shadowColor: '#FF6B35',
+    shadowColor: '#34C759',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 20,
