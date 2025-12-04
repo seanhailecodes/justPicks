@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import {
   ActivityIndicator,
+  Image,
+  ImageSourcePropType,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -13,15 +15,49 @@ import {
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
 
+// Sport logos - add your logo files to assets/images/
+// If a logo file doesn't exist, set to null and it will show text only
+const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {
+  // Uncomment these as you add logo files to assets/images/
+  // nfl: require('../../assets/images/nfl.png'),
+  // ncaaf: require('../../assets/images/ncaaf.png'),
+  // nba: require('../../assets/images/nba.png'),
+  // ncaab: require('../../assets/images/ncaab.png'),
+  // wnba: require('../../assets/images/wnba.png'),
+  // mlb: require('../../assets/images/mlb.png'),
+  // nhl: require('../../assets/images/nhl.png'),
+  // soccer_epl: require('../../assets/images/epl.png'),
+  // ufc: require('../../assets/images/ufc.png'),
+  // pga: require('../../assets/images/pga.png'),
+};
+
+// Fallback emojis when logos aren't available
+const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
+  nfl: '🏈',
+  ncaaf: '🏈',
+  nba: '🏀',
+  ncaab: '🏀',
+  wnba: '🏀',
+  mlb: '⚾',
+  nhl: '🏒',
+  soccer_epl: '⚽',
+  soccer_laliga: '⚽',
+  soccer_mls: '⚽',
+  ufc: '🥊',
+  boxing: '🥊',
+  pga: '⛳',
+  f1: '🏎️',
+};
+
 // Sports available in the app (add more as you expand)
-const AVAILABLE_SPORTS: { sport: Sport; emoji: string; enabled: boolean }[] = [
-  { sport: 'nfl', emoji: '🏈', enabled: true },
-  { sport: 'ncaaf', emoji: '🏈', enabled: false },
-  { sport: 'nba', emoji: '🏀', enabled: false },
-  { sport: 'ncaab', emoji: '🏀', enabled: false },
-  { sport: 'soccer_epl', emoji: '⚽', enabled: false },
-  { sport: 'ufc', emoji: '🥊', enabled: false },
-  { sport: 'pga', emoji: '⛳', enabled: false },
+const AVAILABLE_SPORTS: { sport: Sport; enabled: boolean }[] = [
+  { sport: 'nfl', enabled: true },
+  { sport: 'ncaaf', enabled: false },
+  { sport: 'nba', enabled: false },
+  { sport: 'ncaab', enabled: false },
+  { sport: 'soccer_epl', enabled: false },
+  { sport: 'ufc', enabled: false },
+  { sport: 'pga', enabled: false },
 ];
 
 interface UserGroup {
@@ -125,21 +161,39 @@ export default function HomeScreen() {
 
   const loadUserStats = async (uid: string) => {
     try {
+      // Get all picks
       const { data: picks } = await supabase
         .from('picks')
-        .select('correct')
+        .select('correct, game_id, week, season')
         .eq('user_id', uid);
 
       if (picks) {
         const correct = picks.filter(p => p.correct === true).length;
         const wrong = picks.filter(p => p.correct === false).length;
-        const pending = picks.filter(p => p.correct === null).length;
         const decided = correct + wrong;
+
+        // Get current week's unlocked games to calculate "upcoming" properly
+        const { data: upcomingGames } = await supabase
+          .from('games')
+          .select('id')
+          .eq('week', currentWeek)
+          .eq('season', 2025)
+          .eq('locked', false)
+          .gt('game_date', new Date().toISOString());
+
+        const upcomingGameIds = new Set(upcomingGames?.map(g => g.id) || []);
+        
+        // Upcoming = picks for current week games that haven't started
+        const upcoming = picks.filter(p => 
+          p.week === currentWeek && 
+          p.season === 2025 && 
+          upcomingGameIds.has(p.game_id)
+        ).length;
 
         setUserStats({
           correct,
           wrong,
-          pending,
+          pending: upcoming, // Now shows only current week upcoming
           winRate: decided > 0 ? Math.round((correct / decided) * 100) : 0
         });
       }
@@ -349,9 +403,11 @@ export default function HomeScreen() {
         style={styles.sportTabsContainer}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {AVAILABLE_SPORTS.map(({ sport, emoji, enabled }) => {
+        {AVAILABLE_SPORTS.map(({ sport, enabled }) => {
           const config = getSportConfig(sport);
           const isSelected = selectedSport === sport;
+          const logo = SPORT_LOGOS[sport];
+          const emoji = SPORT_EMOJIS[sport];
 
           return (
             <TouchableOpacity
@@ -364,7 +420,18 @@ export default function HomeScreen() {
               onPress={() => enabled && setSelectedSport(sport)}
               disabled={!enabled}
             >
-              <Text style={styles.sportEmoji}>{emoji}</Text>
+              {logo ? (
+                <Image 
+                  source={logo} 
+                  style={[
+                    styles.sportLogo,
+                    !enabled && styles.sportLogoDisabled
+                  ]} 
+                  resizeMode="contain"
+                />
+              ) : emoji ? (
+                <Text style={styles.sportEmoji}>{emoji}</Text>
+              ) : null}
               <Text style={[
                 styles.sportTabText,
                 isSelected && styles.sportTabTextActive,
@@ -400,7 +467,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statValueOrange}>{userStats.pending}</Text>
-                <Text style={styles.statLabel}>Pending</Text>
+                <Text style={styles.statLabel}>Upcoming</Text>
               </View>
             </View>
           </View>
@@ -594,8 +661,15 @@ const styles = StyleSheet.create({
   sportTabDisabled: {
     opacity: 0.4,
   },
+  sportLogo: {
+    width: 24,
+    height: 24,
+  },
+  sportLogoDisabled: {
+    opacity: 0.4,
+  },
   sportEmoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   sportTabText: {
     color: '#8E8E93',
