@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../app/lib/supabase';
+
+interface UserGroup {
+  id: string;
+  name: string;
+  sport: string;
+}
 
 interface PickModalProps {
   visible: boolean;
@@ -24,22 +31,94 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
   const [confidence, setConfidence] = useState('Medium');
   const [overUnderConfidence, setOverUnderConfidence] = useState('Medium');
   const [reasoning, setReasoning] = useState('');
-  const [pickType, setPickType] = useState('group'); // Default to group (Syndicate)
+  const [pickType, setPickType] = useState<'solo' | 'group'>('group');
   const [showHelp, setShowHelp] = useState(false);
+  
+  // Group selection state
+  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [loadingGroups, setLoadingGroups] = useState(false);
 
-  const SYNDICATE = 'The Syndicate'; // Your brand name
-
-  // Reset state when modal opens with new data
+  // Fetch user's groups when modal opens
   useEffect(() => {
     if (visible) {
+      fetchUserGroups();
+      // Reset state
       setSelectedPick(currentPick || '');
       setSelectedOverUnder(currentOverUnderPick || '');
-      setPickType('group'); // Always default to sharing with Syndicate
+      setPickType('group');
       setConfidence('Medium');
       setOverUnderConfidence('Medium');
       setReasoning('');
     }
-  }, [visible, currentPick, currentOverUnderPick, groups]);
+  }, [visible, currentPick, currentOverUnderPick]);
+
+  const fetchUserGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setUserGroups([]);
+        return;
+      }
+
+      // Get group IDs user is member of
+      const { data: memberships } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', user.id);
+
+      if (!memberships || memberships.length === 0) {
+        setUserGroups([]);
+        return;
+      }
+
+      const groupIds = memberships.map(m => m.group_id);
+
+      // Get group details (only NFL groups for now, or filter by game sport)
+      const { data: groupsData } = await supabase
+        .from('groups')
+        .select('id, name, sport')
+        .in('id', groupIds);
+
+      if (groupsData) {
+        setUserGroups(groupsData);
+        // Pre-select all groups by default
+        setSelectedGroups(new Set(groupsData.map(g => g.id)));
+      }
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const toggleGroupSelection = (groupId: string) => {
+    const newSelection = new Set(selectedGroups);
+    if (newSelection.has(groupId)) {
+      newSelection.delete(groupId);
+    } else {
+      newSelection.add(groupId);
+    }
+    setSelectedGroups(newSelection);
+    
+    // If no groups selected, switch to solo
+    if (newSelection.size === 0) {
+      setPickType('solo');
+    } else {
+      setPickType('group');
+    }
+  };
+
+  const selectAllGroups = () => {
+    setSelectedGroups(new Set(userGroups.map(g => g.id)));
+    setPickType('group');
+  };
+
+  const deselectAllGroups = () => {
+    setSelectedGroups(new Set());
+    setPickType('solo');
+  };
 
   const confidenceLevels = [
     { level: 'Very Low', value: 20, color: '#FF3B30' },
@@ -50,14 +129,20 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
   ];
 
   const handleSubmit = () => {
+    const groupIds = Array.from(selectedGroups);
+    const groupNames = userGroups
+      .filter(g => selectedGroups.has(g.id))
+      .map(g => g.name);
+
     onSubmit({
       pick: selectedPick,
       overUnderPick: selectedOverUnder,
       confidence,
-      overUnderConfidence, 
+      overUnderConfidence,
       reasoning,
-      groups: pickType === 'group' ? [SYNDICATE] : [],
-      type: pickType,
+      groups: groupNames, // For display
+      groupIds: groupIds, // For database
+      type: selectedGroups.size > 0 ? 'group' : 'solo',
     });
     onClose();
   };
@@ -87,7 +172,8 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               <View style={styles.helpCard}>
                 <Text style={styles.helpTitle}>How Picks Work:</Text>
                 <Text style={styles.helpText}>• Solo picks are just for you to track</Text>
-                <Text style={styles.helpText}>• {SYNDICATE} picks are shared for discussion</Text>
+                <Text style={styles.helpText}>• Group picks are shared for discussion</Text>
+                <Text style={styles.helpText}>• You can share to multiple groups at once</Text>
                 <Text style={styles.helpText}>• All picks lock when the game starts</Text>
                 <TouchableOpacity onPress={() => setShowHelp(false)}>
                   <Text style={styles.helpClose}>Got it!</Text>
@@ -123,7 +209,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               </View>
             </View>
 
-            {/* OVER/UNDER PICK SECTION - NEW */}
+            {/* OVER/UNDER PICK SECTION */}
             {game.overUnder && (
               <View style={styles.pickSection}>
                 <Text style={styles.sectionTitle}>Over/Under Total: {game.overUnder}</Text>
@@ -148,109 +234,167 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               </View>
             )}
 
-            {/* SHARE TYPE SECTION */}
+            {/* SHARE TO GROUPS SECTION */}
             <View style={styles.shareSection}>
               <View style={styles.shareSectionHeader}>
-                <Text style={styles.sectionTitle}>How do you want to track this?</Text>
+                <Text style={styles.sectionTitle}>Share to Groups</Text>
                 <TouchableOpacity onPress={() => setShowHelp(true)}>
-                  <Text style={styles.helpLink}>What's the difference?</Text>
+                  <Text style={styles.helpLink}>How does this work?</Text>
                 </TouchableOpacity>
               </View>
-              
-              <View style={styles.shareOptions}>
-                <TouchableOpacity
-                  style={[styles.shareButton, pickType === 'solo' && styles.shareButtonSelected]}
-                  onPress={() => setPickType('solo')}
-                >
-                  <Text style={styles.shareIcon}>🎯</Text>
-                  <Text style={[styles.shareText, pickType === 'solo' && styles.shareTextSelected]}>
-                    Just for me
-                  </Text>
-                  <Text style={styles.shareSubtext}>Private tracking</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.shareButton, pickType === 'group' && styles.shareButtonSelected]}
-                  onPress={() => setPickType('group')}
-                >
-                  <Text style={styles.shareIcon}>👥</Text>
-                  <Text style={[styles.shareText, pickType === 'group' && styles.shareTextSelected]}>
-                    Share with {SYNDICATE}
-                  </Text>
-                  <Text style={styles.shareSubtext}>Discuss with everyone</Text>
-                </TouchableOpacity>
-              </View>
+
+              {loadingGroups ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FF6B35" />
+                  <Text style={styles.loadingText}>Loading your groups...</Text>
+                </View>
+              ) : userGroups.length === 0 ? (
+                <View style={styles.noGroupsCard}>
+                  <Text style={styles.noGroupsText}>You're not in any groups yet</Text>
+                  <Text style={styles.noGroupsSubtext}>Your pick will be saved as solo</Text>
+                </View>
+              ) : (
+                <>
+                  {/* Quick Actions */}
+                  <View style={styles.quickActions}>
+                    <TouchableOpacity 
+                      style={styles.quickActionButton}
+                      onPress={selectAllGroups}
+                    >
+                      <Text style={styles.quickActionText}>Select All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.quickActionButton}
+                      onPress={deselectAllGroups}
+                    >
+                      <Text style={styles.quickActionText}>Solo Only</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Group List */}
+                  <View style={styles.groupList}>
+                    {userGroups.map(group => (
+                      <TouchableOpacity
+                        key={group.id}
+                        style={[
+                          styles.groupItem,
+                          selectedGroups.has(group.id) && styles.groupItemSelected
+                        ]}
+                        onPress={() => toggleGroupSelection(group.id)}
+                      >
+                        <View style={styles.groupItemLeft}>
+                          <View style={[
+                            styles.checkbox,
+                            selectedGroups.has(group.id) && styles.checkboxSelected
+                          ]}>
+                            {selectedGroups.has(group.id) && (
+                              <Text style={styles.checkmark}>✓</Text>
+                            )}
+                          </View>
+                          <View>
+                            <Text style={[
+                              styles.groupName,
+                              selectedGroups.has(group.id) && styles.groupNameSelected
+                            ]}>
+                              {group.name}
+                            </Text>
+                            <Text style={styles.groupSport}>{group.sport?.toUpperCase() || 'NFL'}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.groupIcon}>👥</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Selection Summary */}
+                  <View style={styles.selectionSummary}>
+                    {selectedGroups.size === 0 ? (
+                      <Text style={styles.summaryText}>🎯 Solo pick - only you will see this</Text>
+                    ) : selectedGroups.size === 1 ? (
+                      <Text style={styles.summaryText}>
+                        👥 Sharing with {userGroups.find(g => selectedGroups.has(g.id))?.name}
+                      </Text>
+                    ) : (
+                      <Text style={styles.summaryText}>
+                        👥 Sharing with {selectedGroups.size} groups
+                      </Text>
+                    )}
+                  </View>
+                </>
+              )}
             </View>
 
-     {/* SPREAD CONFIDENCE LEVEL - Only show if spread pick is selected */}
-        {selectedPick && (
-          <View style={styles.confidenceSection}>
-            <Text style={styles.sectionTitle}>Spread Pick Confidence</Text>
-            <View style={styles.confidenceOptions}>
-              {confidenceLevels.map(({ level, value, color }) => (
-                <TouchableOpacity
-                  key={level}
-                  style={[
-                    styles.confidenceButton,
-                    confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
-                  ]}
-                  onPress={() => setConfidence(level)}
-                >
-                  <Text style={[
-                    styles.confidenceText,
-                    confidence === level && styles.confidenceTextSelected
-                  ]}>
-                    {level}
-                  </Text>
-                  <Text style={[
-                    styles.confidenceValue,
-                    confidence === level && styles.confidenceTextSelected
-                  ]}>
-                    {value}%
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-          {/* OVER/UNDER CONFIDENCE LEVEL - Only show if over/under pick is selected */}
-          {selectedOverUnder && (
-            <View style={styles.confidenceSection}>
-              <Text style={styles.sectionTitle}>Over/Under Confidence</Text>
-              <View style={styles.confidenceOptions}>
-                {confidenceLevels.map(({ level, value, color }) => (
-                  <TouchableOpacity
-                    key={level}
-                    style={[
-                      styles.confidenceButton,
-                      overUnderConfidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
-                    ]}
-                    onPress={() => setOverUnderConfidence(level)}
-                  >
-                    <Text style={[
-                      styles.confidenceText,
-                      overUnderConfidence === level && styles.confidenceTextSelected
-                    ]}>
-                      {level}
-                    </Text>
-                    <Text style={[
-                      styles.confidenceValue,
-                      overUnderConfidence === level && styles.confidenceTextSelected
-                    ]}>
-                      {value}%
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* SPREAD CONFIDENCE LEVEL */}
+            {selectedPick && (
+              <View style={styles.confidenceSection}>
+                <Text style={styles.sectionTitle}>Spread Pick Confidence</Text>
+                <View style={styles.confidenceOptions}>
+                  {confidenceLevels.map(({ level, value, color }) => (
+                    <TouchableOpacity
+                      key={level}
+                      style={[
+                        styles.confidenceButton,
+                        confidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
+                      ]}
+                      onPress={() => setConfidence(level)}
+                    >
+                      <Text style={[
+                        styles.confidenceText,
+                        confidence === level && styles.confidenceTextSelected
+                      ]}>
+                        {level}
+                      </Text>
+                      <Text style={[
+                        styles.confidenceValue,
+                        confidence === level && styles.confidenceTextSelected
+                      ]}>
+                        {value}%
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
-          )}
+            )}
+
+            {/* OVER/UNDER CONFIDENCE LEVEL */}
+            {selectedOverUnder && (
+              <View style={styles.confidenceSection}>
+                <Text style={styles.sectionTitle}>Over/Under Confidence</Text>
+                <View style={styles.confidenceOptions}>
+                  {confidenceLevels.map(({ level, value, color }) => (
+                    <TouchableOpacity
+                      key={`ou-${level}`}
+                      style={[
+                        styles.confidenceButton,
+                        overUnderConfidence === level && [styles.confidenceButtonSelected, { backgroundColor: color }]
+                      ]}
+                      onPress={() => setOverUnderConfidence(level)}
+                    >
+                      <Text style={[
+                        styles.confidenceText,
+                        overUnderConfidence === level && styles.confidenceTextSelected
+                      ]}>
+                        {level}
+                      </Text>
+                      <Text style={[
+                        styles.confidenceValue,
+                        overUnderConfidence === level && styles.confidenceTextSelected
+                      ]}>
+                        {value}%
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* REASONING SECTION */}
             <View style={styles.reasoningSection}>
               <Text style={styles.sectionTitle}>Share Your Reasoning</Text>
               <Text style={styles.reasoningSubtitle}>
-                This will be visible to all friends in "{SYNDICATE}"
+                {selectedGroups.size > 0 
+                  ? `Visible to members of ${selectedGroups.size} group${selectedGroups.size > 1 ? 's' : ''}`
+                  : 'Only visible to you'}
               </Text>
               <TextInput
                 style={styles.reasoningInput}
@@ -271,7 +415,7 @@ export default function PickModal({ visible, onClose, onSubmit, game, currentPic
               disabled={!selectedPick && !selectedOverUnder}
             >
               <Text style={styles.submitButtonText}>
-                {pickType === 'solo' ? 'Save Pick' : 'Share Pick'}
+                {selectedGroups.size === 0 ? 'Save Pick' : `Share to ${selectedGroups.size} Group${selectedGroups.size > 1 ? 's' : ''}`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -356,38 +500,119 @@ const styles = StyleSheet.create({
   shareSection: {
     marginBottom: 20,
   },
-  shareOptions: {
+  loadingContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
     gap: 12,
   },
-  shareButton: {
-    flex: 1,
+  loadingText: {
+    color: '#8E8E93',
+    fontSize: 14,
+  },
+  noGroupsCard: {
     backgroundColor: '#2C2C2E',
-    padding: 16,
     borderRadius: 8,
+    padding: 20,
     alignItems: 'center',
   },
-  shareButtonSelected: {
-    backgroundColor: 'rgba(255, 107, 53, 0.2)',
+  noGroupsText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  noGroupsSubtext: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: '#2C2C2E',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  quickActionText: {
+    color: '#FF6B35',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  groupList: {
+    gap: 8,
+  },
+  groupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#2C2C2E',
+    padding: 14,
+    borderRadius: 10,
     borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  groupItemSelected: {
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
     borderColor: '#FF6B35',
   },
-  shareIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+  groupItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  shareText: {
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#555',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
+  },
+  checkmark: {
     color: '#FFF',
     fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 4,
   },
-  shareTextSelected: {
+  groupName: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  groupNameSelected: {
     color: '#FF6B35',
   },
-  shareSubtext: {
+  groupSport: {
     color: '#8E8E93',
     fontSize: 11,
+    marginTop: 2,
+  },
+  groupIcon: {
+    fontSize: 18,
+  },
+  selectionSummary: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 107, 53, 0.1)',
+    borderRadius: 8,
+  },
+  summaryText: {
+    color: '#FF6B35',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   gameInfo: {
     backgroundColor: '#2C2C2E',
@@ -452,7 +677,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confidenceButtonSelected: {
-    // Background color set dynamically in the component
+    // Background color set dynamically
   },
   confidenceText: {
     color: '#FFF',

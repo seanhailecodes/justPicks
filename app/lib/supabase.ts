@@ -506,7 +506,6 @@ export const getGroupPicks = async (groupId: string, weekNumber?: number) => {
 
 // ========== USER STATS & PROFILE ==========
 
-// REPLACE the getUserStats function in your supabase.ts file with this:
 
 export const getUserStats = async (userId: string) => {
   try {
@@ -528,6 +527,25 @@ export const getUserStats = async (userId: string) => {
       .single();
     
     const currentWeek = appState?.current_week || 1;
+
+    // Get current week's games to check which are still upcoming (not locked)
+    const { data: currentWeekGames } = await supabase
+      .from('games')
+      .select('id, locked, game_date')
+      .eq('week', currentWeek)
+      .eq('season', 2025);
+
+    // Create a set of game IDs that are still upcoming (not locked)
+    const upcomingGameIds = new Set(
+      currentWeekGames
+        ?.filter(game => {
+          // Game is upcoming if not locked AND game_date is in the future
+          if (game.locked) return false;
+          const gameDate = new Date(game.game_date);
+          return gameDate > new Date();
+        })
+        .map(game => game.id) || []
+    );
 
     // Helper function to calculate stats for a subset of picks
     const calculateStats = (pickSubset: any[]) => {
@@ -613,22 +631,35 @@ export const getUserStats = async (userId: string) => {
     console.log('Last week stats:', lastWeekStats);
     console.log('Last month stats:', lastMonthStats);
     console.log('All time stats:', allTimeStats);
+
+    // Calculate UPCOMING PICKS correctly:
+    // Only count picks for current week games that haven't started yet
+    const upcomingPicks = picks?.filter(pick => 
+      pick.week === currentWeek && 
+      pick.season === 2025 &&
+      upcomingGameIds.has(pick.game_id)
+    ).length || 0;
+
+    console.log('Upcoming game IDs:', upcomingGameIds.size);
+    console.log('Upcoming picks (current week, unlocked games):', upcomingPicks);
     console.log('=== END DEBUG ===');
 
-    // Overall counts
-    const totalPicks = picks?.length || 0;
-    const pendingPicks = picks?.filter(pick => 
-      pick.correct === null && pick.over_under_correct === null
-    ).length || 0;
+    // Total decided picks (for display as "Total Picks")
+    const totalDecidedPicks = seasonStats.decided;
+    
+    // Current week picks count
     const currentWeekPicks = picks?.filter(pick => pick.week === currentWeek).length || 0;
 
     return {
       success: true,
       data: {
-        totalPicks,
+        // Use decided picks as "Total Picks" for cleaner display
+        totalPicks: totalDecidedPicks,
         correctPicks: seasonStats.correct,
         incorrectPicks: seasonStats.incorrect,
-        pendingPicks,
+        // NEW: upcomingPicks only counts current week, unlocked games
+        pendingPicks: upcomingPicks,
+        upcomingPicks: upcomingPicks,
         winRate: seasonStats.winRate,
         currentWeek,
         currentWeekPicks,
