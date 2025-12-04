@@ -43,7 +43,7 @@ export const NFL_WEEK_14_2025: NFLGame[] = [
       away: "DAL +3",
       value: 3
     },
-    overUnder: 48.5,
+    overUnder: 54.5,
     moneyline: {
       home: -165,
       away: 140
