@@ -236,19 +236,31 @@ export default function HomeScreen() {
       // Get group details filtered by sport
       const { data: groups } = await supabase
         .from('groups')
-        .select('id, name, sport, member_count')
+        .select('id, name, sport')
         .in('id', groupIds)
         .eq('sport', selectedSport);
 
-      if (groups) {
-        const transformedGroups: UserGroup[] = groups.map(g => ({
-          id: g.id,
-          name: g.name,
-          sport: g.sport || 'nfl',
-          memberCount: g.member_count || 0,
-        }));
+      if (groups && groups.length > 0) {
+        // Get actual member counts from group_members table
+        const groupsWithCounts = await Promise.all(
+          groups.map(async (group) => {
+            const { count } = await supabase
+              .from('group_members')
+              .select('*', { count: 'exact', head: true })
+              .eq('group_id', group.id);
 
-        setUserGroups(transformedGroups);
+            return {
+              id: group.id,
+              name: group.name,
+              sport: group.sport || 'nfl',
+              memberCount: count || 0,
+            };
+          })
+        );
+
+        setUserGroups(groupsWithCounts);
+      } else {
+        setUserGroups([]);
       }
     } catch (error) {
       console.error('Error loading user groups:', error);

@@ -58,22 +58,32 @@ export default function BrowseGroupsScreen() {
         .select('group_id')
         .eq('user_id', user.id);
 
-      const memberGroupIds = userMemberships?.map(m => m.group_id) || [];
+      const memberGroupIds = new Set(userMemberships?.map(m => m.group_id) || []);
 
-      // Get all public groups (filtered by sport = nfl for now)
+      // Get all public groups
       const { data: publicGroups, error: groupsError } = await supabase
         .from('groups')
         .select('*')
         .eq('visibility', 'public')
-        .eq('sport', 'nfl')
-        .not('id', 'in', `(${memberGroupIds.length > 0 ? memberGroupIds.join(',') : "'00000000-0000-0000-0000-000000000000'"})`)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
-      if (groupsError) throw groupsError;
+      if (groupsError) {
+        console.error('Error fetching public groups:', groupsError);
+        throw groupsError;
+      }
+
+      console.log('Public groups found:', publicGroups?.length || 0);
+
+      // Filter out groups user is already a member of (in JS - more reliable than Supabase .not())
+      const availableGroups = (publicGroups || []).filter(
+        group => !memberGroupIds.has(group.id)
+      );
+
+      console.log('Available groups (excluding already joined):', availableGroups.length);
 
       // Get member counts and owner info for each group
       const groupsWithDetails = await Promise.all(
-        (publicGroups || []).map(async (group) => {
+        availableGroups.map(async (group) => {
           // Get member count
           const { count } = await supabase
             .from('group_members')
@@ -154,6 +164,17 @@ export default function BrowseGroupsScreen() {
     }
   };
 
+  const getSportEmoji = (sport: string) => {
+    switch (sport) {
+      case 'nfl': return '🏈';
+      case 'nba': return '🏀';
+      case 'mlb': return '⚾';
+      case 'nhl': return '🏒';
+      case 'soccer_epl': return '⚽';
+      default: return '🏈';
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -210,6 +231,11 @@ export default function BrowseGroupsScreen() {
                   <Text style={styles.groupName}>{group.name}</Text>
                   <Text style={styles.groupOwner}>by @{group.ownerUsername}</Text>
                   <View style={styles.groupBadges}>
+                    <View style={styles.sportBadge}>
+                      <Text style={styles.badgeText}>
+                        {getSportEmoji(group.sport)} {(group.sport || 'nfl').toUpperCase()}
+                      </Text>
+                    </View>
                     <View style={styles.publicBadge}>
                       <Text style={styles.badgeText}>🌐 Public</Text>
                     </View>
@@ -335,6 +361,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  sportBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   publicBadge: {
     backgroundColor: '#34C759',
