@@ -1,213 +1,105 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, View, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-export default function AcceptInviteScreen() {
-  const { inviteId } = useLocalSearchParams<{ inviteId: string }>();
-  const [loading, setLoading] = useState(true);
-  const [invite, setInvite] = useState<any>(null);
-  const [accepting, setAccepting] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+export default function FindFriendsScreen() {
+  const [username, setUsername] = useState('');
 
-  useEffect(() => {
-    loadInvite();
-  }, []);
-
-  const loadInvite = async () => {
-    try {
-      // Check if user is logged in
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        // Not logged in - redirect to login
-        Alert.alert(
-          'Login Required',
-          'Please log in to accept this invitation',
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-        );
-        return;
-      }
-
-      setCurrentUserId(user.id);
-
-      // Fetch the invite
-      const { data: inviteData, error } = await supabase
-        .from('group_invites')
-        .select(`
-          *,
-          groups (
-            id,
-            name
-          )
-        `)
-        .eq('id', inviteId)
-        .single();
-
-      if (error) throw error;
-
-      // Fetch inviter profile separately
-      if (inviteData) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('username, display_name')
-          .eq('id', inviteData.invited_by)
-          .single();
-        
-        inviteData.profiles = profileData;
-      }
-
-      // Check if invite is valid
-      if (!inviteData) {
-        Alert.alert('Invalid Invite', 'This invitation does not exist.');
-        return;
-      }
-
-      if (inviteData.status !== 'pending') {
-        Alert.alert('Invite Already Used', 'This invitation has already been used.');
-        return;
-      }
-
-      // Check if expired
-      const expiresAt = new Date(inviteData.expires_at);
-      if (expiresAt < new Date()) {
-        Alert.alert('Invite Expired', 'This invitation has expired.');
-        return;
-      }
-
-      // Check if user email matches
-      if (inviteData.invitee_email.toLowerCase() !== user.email?.toLowerCase()) {
-        Alert.alert(
-          'Wrong Account',
-          `This invitation was sent to ${inviteData.invitee_email}. You are logged in as ${user.email}.`
-        );
-        return;
-      }
-
-      setInvite(inviteData);
-    } catch (error) {
-      console.error('Error loading invite:', error);
-      Alert.alert('Error', 'Failed to load invitation.');
-    } finally {
-      setLoading(false);
-    }
+  const handleSkip = () => {
+    router.replace('/(tabs)/home');
   };
 
-  const handleAcceptInvite = async () => {
-    if (!invite || !currentUserId) return;
-
-    setAccepting(true);
-
-    try {
-      // Add user to group
-      const { error: memberError } = await supabase
-        .from('group_members')
-        .insert({
-          group_id: invite.group_id,
-          user_id: currentUserId,
-          role: 'member'
-        });
-
-      if (memberError) throw memberError;
-
-      // Update invite status
-      const { error: updateError } = await supabase
-        .from('group_invites')
-        .update({ status: 'accepted' })
-        .eq('id', inviteId);
-
-      if (updateError) throw updateError;
-
-      Alert.alert(
-        '🎉 Success!',
-        `You've joined "${invite.groups.name}"!`,
-        [
-          {
-            text: 'View Group',
-            onPress: () => router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.groups.name)}`)
-          }
-        ]
-      );
-    } catch (error: any) {
-      console.error('Error accepting invite:', error);
-      
-      // Check if user is already a member
-      if (error.code === '23505') {
-        Alert.alert('Already a Member', "You're already a member of this group!");
-        router.replace('/(tabs)/groups');
-      } else {
-        Alert.alert('Error', 'Failed to accept invitation. Please try again.');
-      }
-    } finally {
-      setAccepting(false);
-    }
+  const handleAddUsername = () => {
+    // TODO: Implement add friend by username
+    console.log('Add friend:', username);
+    setUsername('');
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={styles.loadingText}>Loading invitation...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleConnectFacebook = () => {
+    // TODO: Implement Facebook connection
+    console.log('Connect Facebook');
+  };
 
-  if (!invite) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContent}>
-          <Text style={styles.errorIcon}>❌</Text>
-          <Text style={styles.errorTitle}>Invalid Invitation</Text>
-          <TouchableOpacity 
-            style={styles.button}
-            onPress={() => router.replace('/(tabs)/groups')}
-          >
-            <Text style={styles.buttonText}>Go to Groups</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const inviterName = invite.profiles?.display_name || invite.profiles?.username || 'Someone';
+  const handleImportContacts = () => {
+    // TODO: Implement contact import
+    console.log('Import contacts');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.emoji}>📧</Text>
-        <Text style={styles.title}>You've been invited!</Text>
-        
-        <View style={styles.inviteCard}>
-          <Text style={styles.inviteText}>
-            <Text style={styles.bold}>{inviterName}</Text> has invited you to join
-          </Text>
-          <Text style={styles.groupName}>{invite.groups.name}</Text>
-          <Text style={styles.subtitle}>on justPicks</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Find Friends</Text>
+        <TouchableOpacity onPress={handleSkip}>
+          <Text style={styles.skipButton}>Skip</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>How justPicks Works</Text>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoIcon}>🎯</Text>
+            <Text style={styles.infoText}>Make picks on any game - track them privately or share with friends</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoIcon}>👥</Text>
+            <Text style={styles.infoText}>Join groups to discuss picks before games start</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoIcon}>🏆</Text>
+            <Text style={styles.infoText}>Build your accuracy score and climb the leaderboard</Text>
+          </View>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.acceptButton, accepting && styles.buttonDisabled]}
-          onPress={handleAcceptInvite}
-          disabled={accepting}
-        >
-          <Text style={styles.acceptButtonText}>
-            {accepting ? 'Joining...' : 'Accept Invitation'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.declineButton}
-          onPress={() => router.replace('/(tabs)/groups')}
-        >
-          <Text style={styles.declineButtonText}>Maybe Later</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.footer}>
-          This invitation expires in {Math.ceil((new Date(invite.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days
+        <Text style={styles.description}>
+          You can start making picks right away, or connect with friends first
         </Text>
-      </View>
+
+        <TouchableOpacity style={styles.socialButton} onPress={handleConnectFacebook}>
+          <Text style={styles.socialIcon}>📘</Text>
+          <Text style={styles.socialButtonText}>Connect Facebook Friends</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.socialButton} onPress={handleImportContacts}>
+          <Text style={styles.socialIcon}>📞</Text>
+          <Text style={styles.socialButtonText}>Import Phone Contacts</Text>
+        </TouchableOpacity>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Add by Username</Text>
+          <View style={styles.usernameInput}>
+            <TextInput
+              style={styles.input}
+              placeholder="@username or friend code"
+              placeholderTextColor="#8E8E93"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity 
+              style={[styles.addButton, !username && styles.addButtonDisabled]} 
+              onPress={handleAddUsername}
+              disabled={!username}
+            >
+              <Text style={styles.addButtonText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>QR Code Share</Text>
+          <View style={styles.qrContainer}>
+            <View style={styles.qrPlaceholder}>
+              <Text style={styles.qrText}>QR</Text>
+            </View>
+            <Text style={styles.qrDescription}>Share your QR code in person</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.continueButton} onPress={handleSkip}>
+          <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -217,116 +109,154 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 24,
+    paddingBottom: 0,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  skipButton: {
+    color: '#FF6B35',
+    fontSize: 16,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     padding: 24,
   },
-  loadingText: {
+  description: {
+    color: '#8E8E93',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  socialButton: {
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  socialIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  socialButtonText: {
     color: '#FFF',
     fontSize: 16,
-    marginTop: 16,
   },
-  emoji: {
-    fontSize: 64,
+  section: {
+    marginTop: 32,
     marginBottom: 24,
   },
-  errorIcon: {
-    fontSize: 64,
-    marginBottom: 24,
-  },
-  title: {
+  sectionTitle: {
     color: '#FFF',
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 32,
-    textAlign: 'center',
+    marginBottom: 12,
   },
-  errorTitle: {
+  usernameInput: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    padding: 16,
     color: '#FFF',
+    fontSize: 16,
+  },
+  addButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
+  addButtonDisabled: {
+    backgroundColor: '#333',
+  },
+  addButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  qrContainer: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+  },
+  qrPlaceholder: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  qrText: {
+    color: '#000',
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 32,
-    textAlign: 'center',
   },
-  inviteCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 16,
-    padding: 32,
-    marginBottom: 32,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-    width: '100%',
-  },
-  inviteText: {
-    color: '#FFF',
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  bold: {
-    fontWeight: 'bold',
-    color: '#FF6B35',
-  },
-  groupName: {
-    color: '#FFF',
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: '#8E8E93',
-    fontSize: 16,
-  },
-  acceptButton: {
-    backgroundColor: '#FF6B35',
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 12,
-    marginBottom: 16,
-    width: '100%',
-    alignItems: 'center',
-  },
-  acceptButtonText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  declineButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    marginBottom: 32,
-  },
-  declineButtonText: {
-    color: '#8E8E93',
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#FF6B35',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  footer: {
+  qrDescription: {
     color: '#8E8E93',
     fontSize: 14,
+  },
+  continueButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 32,
+  },
+  continueButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  infoCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+  },
+  infoTitle: {
+    color: '#FF6B35',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
     textAlign: 'center',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  infoIcon: {
+    fontSize: 20,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  infoText: {
+    color: '#FFF',
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
   },
 });

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export default function LoginScreen() {
@@ -31,65 +31,65 @@ export default function LoginScreen() {
     return () => subscription.unsubscribe();
   }, []);
 
-    const handleAuth = async () => {
-      if (!email.trim() || !password.trim()) {
-        Alert.alert('Error', 'Please enter both email and password');
-        return;
-      }
+  const handleAuth = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
 
-      setLoading(true);
+    setLoading(true);
 
-      if (isSignUp) {
-        // Sign up - requires email verification
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password,
-          options: {
-            emailRedirectTo: 'justpicks://auth/callback',  // ← THE KEY LINE
-          }
-        });
-
-        if (error) {
-          Alert.alert('Error', error.message);
-        } else {
-          // Don't try to auto-login, just tell them to check email
-          Alert.alert(
-            'Check your email!', 
-            'We sent you a verification link. Click it to activate your account.',
-            [{ text: 'OK', onPress: () => setIsSignUp(false) }]
-          );
+    if (isSignUp) {
+      // Sign up - requires email verification
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          emailRedirectTo: 'justpicks://auth/callback',
         }
+      });
+
+      if (error) {
+        Alert.alert('Error', error.message);
       } else {
-        // Sign in existing user
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password,
-        });
-
-        if (error) {
-          Alert.alert('Error', error.message);
-        }
+        // Don't try to auto-login, just tell them to check email
+        Alert.alert(
+          'Check your email!', 
+          'We sent you a verification link. Click it to activate your account.',
+          [{ text: 'OK', onPress: () => setIsSignUp(false) }]
+        );
       }
+    } else {
+      // Sign in existing user
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
 
-      setLoading(false);
-    };
+      if (error) {
+        Alert.alert('Error', error.message);
+      }
+    }
 
-    const handlePasswordReset = async () => {
-  if (!email.trim()) {
-    Alert.alert('Error', 'Please enter your email address');
-    return;
-  }
+    setLoading(false);
+  };
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-    redirectTo: 'justpicks://reset-password',
-  });
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      Alert.alert('Enter Email', 'Please enter your email address first, then tap Reset Password.');
+      return;
+    }
 
-  if (error) {
-    Alert.alert('Error', error.message);
-  } else {
-    Alert.alert('Check your email', 'Password reset link sent!');
-  }
-};
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'justpicks://reset-password',
+    });
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      Alert.alert('Check your email', 'Password reset link sent!');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -97,7 +97,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        <Text style={styles.title}>Welcome to justPicks</Text>
+        <Text style={styles.title}>Welcome to JustPicks</Text>
         
         <Text style={styles.subtitle}>
           {isSignUp ? 'Create your account' : 'Sign in to continue'}
@@ -146,38 +146,35 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Debug buttons */}
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: '#666', marginTop: 20 }]}
-          onPress={async () => {
-            await supabase.auth.signOut();
-            Alert.alert('Session cleared', 'Reload the app now');
-          }}
-        >
-          <Text style={styles.buttonText}>Debug: Clear Session</Text>
-        </TouchableOpacity>
+        {/* Forgot Password - always visible */}
+        {!isSignUp && (
+          <TouchableOpacity
+            style={styles.forgotButton}
+            onPress={handlePasswordReset}
+          >
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+        )}
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: '#444', marginTop: 10 }]}
-          onPress={handlePasswordReset}
-        >
-          <Text style={styles.buttonText}>Reset Password</Text>
-        </TouchableOpacity>
-
-{/* // Add this somewhere visible on the login screen, maybe after the "Sign Up" link */}
-        <TouchableOpacity 
-          onPress={async () => {
-            await supabase.auth.signOut();
-            alert('Session cleared! Restart the app.');
-          }}
-          style={{ padding: 20, backgroundColor: '#333', margin: 20 }}
-        >
-          <Text style={{ color: '#FFF', textAlign: 'center' }}>Clear Session (Debug)</Text>
-        </TouchableOpacity>
+        {/* Debug buttons - only visible in development */}
+        {__DEV__ && (
+          <View style={styles.debugContainer}>
+            <Text style={styles.debugLabel}>🛠 Dev Tools</Text>
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={async () => {
+                await supabase.auth.signOut();
+                Alert.alert('Session cleared', 'Reload the app now');
+              }}
+            >
+              <Text style={styles.debugButtonText}>Clear Session</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={styles.disclaimer}>
           {isSignUp 
-            ? 'Your account will be created instantly'
+            ? 'By signing up, you agree to our Terms of Service'
             : 'Welcome back! Enter your credentials to continue'
           }
         </Text>
@@ -238,10 +235,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  forgotButton: {
+    marginTop: 8,
+    padding: 10,
+  },
+  forgotText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  debugContainer: {
+    marginTop: 40,
+    padding: 16,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333',
+    borderStyle: 'dashed',
+  },
+  debugLabel: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  debugButton: {
+    backgroundColor: '#333',
+    borderRadius: 6,
+    padding: 12,
+    alignItems: 'center',
+  },
+  debugButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+  },
   disclaimer: {
     color: '#8E8E93',
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 24,
   },
 });

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
 
 export default function CreateGroupScreen() {
   const [groupName, setGroupName] = useState('');
@@ -28,9 +29,17 @@ export default function CreateGroupScreen() {
     setInviteCode(code);
   };
 
+  // Handle group name change with sanitization
+  const handleGroupNameChange = (text: string) => {
+    const sanitized = sanitizeGroupName(text);
+    setGroupName(sanitized);
+  };
+
   const handleCreate = async () => {
-    if (!groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name');
+    // Validate group name
+    const validation = isValidGroupName(groupName);
+    if (!validation.valid) {
+      Alert.alert('Invalid Name', validation.error);
       return;
     }
 
@@ -92,17 +101,20 @@ export default function CreateGroupScreen() {
         return;
       }
 
-    // Generate code if not set
-    let finalInviteCode = inviteCode.trim();
-    if (!finalInviteCode) {
-      finalInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    }
+      // Generate code if not set
+      let finalInviteCode = inviteCode.trim().toUpperCase();
+      if (!finalInviteCode) {
+        finalInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      }
+
+      // Final sanitization before save
+      const finalGroupName = sanitizeGroupName(groupName);
 
       // Create the group with all settings
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
-          name: groupName.trim(),
+          name: finalGroupName,
           created_by: currentUserId,
           invite_code: finalInviteCode,
           visibility: isPrivate ? 'private' : 'public',
@@ -127,7 +139,7 @@ export default function CreateGroupScreen() {
 
       Alert.alert(
         'Success!', 
-        `Group "${groupName}" created successfully!${isPrivate ? ' This is a private group - only invited members can join.' : ''}`
+        `Group "${finalGroupName}" created successfully!${isPrivate ? ' This is a private group - only invited members can join.' : ''}`
       );
       
       // Navigate back to groups
@@ -166,7 +178,7 @@ export default function CreateGroupScreen() {
             placeholder="Enter group name"
             placeholderTextColor="#8E8E93"
             value={groupName}
-            onChangeText={setGroupName}
+            onChangeText={handleGroupNameChange}
             maxLength={30}
           />
           <Text style={styles.helperText}>{groupName.length}/30</Text>
@@ -180,7 +192,7 @@ export default function CreateGroupScreen() {
               placeholder="AUTO"
               placeholderTextColor="#8E8E93"
               value={inviteCode}
-              onChangeText={setInviteCode}
+              onChangeText={(text) => setInviteCode(text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
               autoCapitalize="characters"
               maxLength={6}
             />
@@ -224,14 +236,14 @@ export default function CreateGroupScreen() {
         <View style={styles.inviteSection}>
           <Text style={styles.sectionTitle}>Invite Friends</Text>
           <Text style={styles.inviteDescription}>
-            After creating your group, you'll be able to invite friends via email.
+            After creating your group, you'll be able to invite friends via email or share link.
           </Text>
         </View>
 
         <TouchableOpacity 
-          style={[styles.createButton, (!groupName.trim() || creating) && styles.createButtonDisabled]}
+          style={[styles.createButton, (groupName.trim().length < 2 || creating) && styles.createButtonDisabled]}
           onPress={handleCreate}
-          disabled={!groupName.trim() || creating}
+          disabled={groupName.trim().length < 2 || creating}
         >
           <Text style={styles.createButtonText}>
             {creating ? 'Creating...' : 'Create Group'}

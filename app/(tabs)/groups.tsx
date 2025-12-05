@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert, Share } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { getFriendsWithStats, getGroupStats, getUserGroups, Friend, GroupStats, UserGroup } from '../lib/database';
 
@@ -106,6 +106,42 @@ export default function GroupsScreen() {
       Alert.alert('Error', 'Failed to create group. Please try again.');
     } finally {
       setCreatingGroup(false);
+    }
+  };
+
+  const handleShareInviteLink = async () => {
+    if (!selectedGroupForInvite) return;
+
+    try {
+      // Get the group's invite code
+      const { data: groupData } = await supabase
+        .from('groups')
+        .select('invite_code')
+        .eq('id', selectedGroupForInvite.id)
+        .single();
+
+      const inviteCode = groupData?.invite_code;
+      
+      if (!inviteCode) {
+        Alert.alert('Error', 'No invite code found for this group');
+        return;
+      }
+
+      const inviteLink = `https://justpicks.app/join/${inviteCode}`;
+      // Alternative deep link: justpicks://join/${inviteCode}
+
+      const result = await Share.share({
+        message: `Join my group "${selectedGroupForInvite.name}" on JustPicks! 🏈\n\nUse code: ${inviteCode}\n\nOr click: ${inviteLink}`,
+        title: `Join ${selectedGroupForInvite.name} on JustPicks`,
+      });
+
+      if (result.action === Share.sharedAction) {
+        // User shared successfully
+        setShowInviteModal(false);
+      }
+    } catch (error) {
+      console.error('Error sharing invite link:', error);
+      Alert.alert('Error', 'Failed to share invite link');
     }
   };
 
@@ -229,8 +265,8 @@ export default function GroupsScreen() {
         {userGroups.map((group) => (
           <View key={group.id} style={styles.groupCard}>
             <View style={styles.groupHeader}>
-              <View>
-                <Text style={styles.groupTitle}>{group.name}</Text>
+              <View style={styles.groupTitleContainer}>
+                <Text style={styles.groupTitle} numberOfLines={2}>{group.name}</Text>
                 <View style={styles.groupBadges}>
                   {group.role === 'primary_owner' && (
                     <View style={styles.ownerBadge}>
@@ -255,7 +291,7 @@ export default function GroupsScreen() {
                 )}
 
               </View>
-              <Text style={styles.memberCount}>{group.memberCount} members</Text>
+              <Text style={styles.memberCount}>{group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}</Text>
             </View>
             
             {/* NEW: Performance Metrics Grid */}
@@ -422,6 +458,7 @@ export default function GroupsScreen() {
         </View>
       </Modal>
 
+      {/* UPDATED: Invite Modal with Share Link option */}
       <Modal
         visible={showInviteModal}
         transparent={true}
@@ -432,8 +469,18 @@ export default function GroupsScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Invite to {selectedGroupForInvite?.name}</Text>
             <Text style={styles.modalSubtitle}>
-              Enter the email address of someone you know personally. They'll receive an invitation to join your group.
+              Share an invite link or send a direct email invitation.
             </Text>
+
+            {/* Share Link Button - Primary option */}
+            <TouchableOpacity 
+              style={styles.shareButton}
+              onPress={handleShareInviteLink}
+            >
+              <Text style={styles.shareButtonText}>🔗 Share Invite Link</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.orDivider}>— or send email —</Text>
             
             <TextInput
               style={styles.modalInput}
@@ -443,7 +490,6 @@ export default function GroupsScreen() {
               onChangeText={setInviteEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoFocus
             />
             
             <View style={styles.modalButtons}>
@@ -463,7 +509,7 @@ export default function GroupsScreen() {
                 disabled={sendingInvite}
               >
                 <Text style={styles.modalButtonCreateText}>
-                  {sendingInvite ? 'Sending...' : 'Send Invite'}
+                  {sendingInvite ? 'Sending...' : 'Send Email'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -541,8 +587,13 @@ const styles = StyleSheet.create({
   groupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
+  },
+  groupTitleContainer: {
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 12,
   },
   groupTitle: {
     color: '#FFF',
@@ -576,6 +627,7 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     fontSize: 16,
     fontWeight: '600',
+    flexShrink: 0,
   },
   // NEW: Performance metrics styles
   performanceGrid: {
@@ -609,7 +661,6 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 20,
   },
-  // Old styles removed: groupStats, statItem, statValue, statLabel, statDivider, pendingColor
   discussButton: {
     alignItems: 'center',
   },
@@ -799,7 +850,7 @@ const styles = StyleSheet.create({
     padding: 16,
     color: '#FFF',
     fontSize: 16,
-    marginBottom: 24,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#444',
   },
@@ -833,5 +884,24 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.5,
+  },
+  // New styles for share link
+  shareButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  shareButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  orDivider: {
+    color: '#8E8E93',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 16,
   },
 });
