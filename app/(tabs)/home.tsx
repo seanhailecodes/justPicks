@@ -402,9 +402,6 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>{getGreeting()}!</Text>
           <Text style={styles.username}>Hey {username}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>LOGOUT</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Sport Tabs */}

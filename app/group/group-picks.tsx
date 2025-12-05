@@ -350,13 +350,12 @@ export default function GroupPicksScreen() {
   };
 
   const getConsensusColor = (percentage: number, isUnanimous: boolean = false) => {
-    // Bright green only for unanimous
-    if (isUnanimous) return '#34C759';
-    
-    // Muted colors for non-unanimous
-    if (percentage >= 70) return '#6B7280';  // Muted gray
-    if (percentage >= 55) return '#6B7280';  // Muted gray
-    return '#4B5563';                         // Darker gray for split
+    // Heat Scale: Cool → Warm based on agreement level
+    if (isUnanimous) return '#34C759';        // Bright Green - all members agree
+    if (percentage === 100) return '#FFD700'; // Gold - 100% but not all members yet
+    if (percentage >= 70) return '#FF9500';   // Orange - strong consensus
+    if (percentage >= 55) return '#5A7BA8';   // Muted Blue - leaning
+    return '#4B5563';                          // Gray - split
   };
 
   const calculateGameConsensus = (picks: FriendPick[], totalMembers: number) => {

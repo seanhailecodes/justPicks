@@ -1,4 +1,10 @@
 import { Tabs } from 'expo-router';
+import { Text, View } from 'react-native';
+
+// Simple emoji-based icons (can replace with proper icon library later)
+const TabIcon = ({ emoji, focused }: { emoji: string; focused: boolean }) => (
+  <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.6 }}>{emoji}</Text>
+);
 
 export default function TabLayout() {
   return (
@@ -16,33 +22,44 @@ export default function TabLayout() {
           paddingTop: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '600',
         },
       }}
     >
-      <Tabs.Screen
-        name="games"
-        options={{
-          title: 'Games',
-        }}
-      />
-        <Tabs.Screen
-          name="groups"
-          options={{
-            title: 'Groups',
-          }}
-        />
+      {/* 1. Home - leftmost */}
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
         }}
       />
+
+      {/* 2. Groups */}
+      <Tabs.Screen
+        name="groups"
+        options={{
+          title: 'Groups',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👥" focused={focused} />,
+        }}
+      />
+
+      {/* 3. Games */}
+      <Tabs.Screen
+        name="games"
+        options={{
+          title: 'Games',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏈" focused={focused} />,
+        }}
+      />
+
+      {/* 4. Profile - rightmost */}
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
         }}
       />
     </Tabs>
