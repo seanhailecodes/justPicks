@@ -51,6 +51,14 @@ export default function PicksTicket({
   const [pickType, setPickType] = useState<'solo' | 'group'>('solo');
   const [slideAnim] = useState(new Animated.Value(0));
 
+  // Select all groups by default when userGroups loads
+  useEffect(() => {
+    if (userGroups.length > 0) {
+      setSelectedGroups(userGroups.map(g => g.id));
+      setPickType('group');
+    }
+  }, [userGroups]);
+
   useEffect(() => {
     Animated.spring(slideAnim, {
       toValue: expanded ? 1 : 0,
@@ -61,12 +69,20 @@ export default function PicksTicket({
   }, [expanded]);
 
   const toggleGroup = (groupId: string) => {
-    setSelectedGroups(prev => 
-      prev.includes(groupId) 
+    setSelectedGroups(prev => {
+      const newSelection = prev.includes(groupId) 
         ? prev.filter(id => id !== groupId)
-        : [...prev, groupId]
-    );
-    setPickType('group');
+        : [...prev, groupId];
+      
+      // If no groups selected, switch to solo mode
+      if (newSelection.length === 0) {
+        setPickType('solo');
+      } else {
+        setPickType('group');
+      }
+      
+      return newSelection;
+    });
   };
 
   const handleConfidenceChange = (gameId: string, betType: string, confidence: 'Low' | 'Medium' | 'High') => {
@@ -119,11 +135,16 @@ export default function PicksTicket({
         {/* Expanded Ticket */}
         {expanded && (
           <View style={styles.expandedTicket}>
+            {/* Handle Bar */}
+            <View style={styles.handleBarContainer}>
+              <View style={styles.handleBar} />
+            </View>
+            
             {/* Header */}
             <View style={styles.ticketHeader}>
               <Text style={styles.ticketTitle}>🎫 Picks Ticket</Text>
-              <TouchableOpacity onPress={() => setExpanded(false)}>
-                <Text style={styles.closeButton}>▼</Text>
+              <TouchableOpacity onPress={() => setExpanded(false)} style={styles.closeButtonContainer}>
+                <Text style={styles.closeButton}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -300,15 +321,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FF6B35',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginHorizontal: 16,
-    marginBottom: 90, // Above tab bar
-    borderRadius: 10,
-    shadowColor: '#FF6B35',
-    shadowOffset: { width: 0, height: 2 },
+    marginBottom: 90,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   collapsedLeft: {
     flexDirection: 'row',
@@ -321,18 +342,33 @@ const styles = StyleSheet.create({
   pickCount: {
     color: '#FFF',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   expandText: {
-    color: '#FFF',
+    color: 'rgba(255,255,255,0.9)',
     fontSize: 13,
-    opacity: 0.9,
+    fontWeight: '600',
   },
   expandedTicket: {
     backgroundColor: '#1C1C1E',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingBottom: 20,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  handleBarContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
   },
   ticketHeader: {
     flexDirection: 'row',
@@ -340,17 +376,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   ticketTitle: {
     color: '#FFF',
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  closeButtonContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeButton: {
-    color: '#8E8E93',
-    fontSize: 18,
-    padding: 4,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontWeight: '600',
   },
   picksList: {
     maxHeight: SCREEN_HEIGHT * 0.35,
@@ -366,10 +411,12 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   pickItem: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 8,
-    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10,
+    padding: 12,
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   pickRow: {
     flexDirection: 'row',
@@ -392,32 +439,32 @@ const styles = StyleSheet.create({
   },
   pickLine: {
     color: '#FFF',
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
     marginRight: 6,
   },
   pickLineTeam: {
     color: '#FF6B35',
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
     marginRight: 4,
   },
   pickGame: {
-    color: '#8E8E93',
-    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
     flexShrink: 1,
   },
   pickGameVs: {
-    color: '#8E8E93',
-    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
   },
   removeButton: {
-    paddingLeft: 10,
+    paddingLeft: 12,
     paddingVertical: 4,
   },
   removeText: {
-    color: '#FF3B30',
-    fontSize: 16,
+    color: 'rgba(255,59,48,0.8)',
+    fontSize: 14,
     fontWeight: '600',
   },
   confidenceRow: {
@@ -426,32 +473,29 @@ const styles = StyleSheet.create({
   },
   confidenceButton: {
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: '#3A3A3C',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     marginLeft: 4,
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: 'transparent',
   },
   confidenceLow: {
-    backgroundColor: '#FF3B30',
-    borderWidth: 2,
-    borderColor: '#FF6961',
+    backgroundColor: 'rgba(255,59,48,0.9)',
+    borderColor: 'rgba(255,59,48,0.3)',
   },
   confidenceMedium: {
-    backgroundColor: '#FF9500',
-    borderWidth: 2,
-    borderColor: '#FFB340',
+    backgroundColor: 'rgba(255,149,0,0.9)',
+    borderColor: 'rgba(255,149,0,0.3)',
   },
   confidenceHigh: {
-    backgroundColor: '#34C759',
-    borderWidth: 2,
-    borderColor: '#5DD67B',
+    backgroundColor: 'rgba(52,199,89,0.9)',
+    borderColor: 'rgba(52,199,89,0.3)',
   },
   confidenceText: {
-    color: '#8E8E93',
-    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
     fontWeight: '600',
   },
   confidenceTextActive: {
@@ -461,11 +505,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   shareSectionTitle: {
     color: '#8E8E93',
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 12,
   },
   shareOptions: {
@@ -473,12 +520,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   shareButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#2C2C2E',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: 'rgba(255,255,255,0.15)',
     marginRight: 8,
     marginBottom: 8,
   },
@@ -487,8 +534,8 @@ const styles = StyleSheet.create({
     borderColor: '#FF6B35',
   },
   shareButtonText: {
-    color: '#FFF',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
     fontWeight: '600',
   },
   shareButtonTextActive: {
@@ -497,34 +544,42 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 20,
+    paddingBottom: 12,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   clearButton: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#2C2C2E',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,59,48,0.5)',
     alignItems: 'center',
     marginRight: 12,
   },
   clearButtonText: {
     color: '#FF3B30',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   saveButton: {
     flex: 2,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 10,
     backgroundColor: '#34C759',
     alignItems: 'center',
+    shadowColor: '#34C759',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   saveButtonText: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });
