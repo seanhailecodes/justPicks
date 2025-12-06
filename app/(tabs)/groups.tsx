@@ -215,7 +215,7 @@ export default function GroupsScreen() {
 
   // Helper function to format accuracy display
   const formatAccuracy = (accuracy: number | null) => {
-    if (accuracy === null) return '🏈'; // No data yet
+    if (accuracy === null || accuracy === undefined) return '—'; // No data yet
     return `${accuracy}%`;
   };
 
@@ -294,32 +294,41 @@ export default function GroupsScreen() {
               <Text style={styles.memberCount}>{group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}</Text>
             </View>
             
-            {/* NEW: Performance Metrics Grid */}
-            <View style={styles.performanceGrid}>
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceValue}>
-                  {formatAccuracy(group.rating)}
-                  {group.trend === 'up' && <Text style={styles.trendUp}> ↑</Text>}
-                  {group.trend === 'down' && <Text style={styles.trendDown}> ↓</Text>}
-                </Text>
-                <Text style={styles.performanceLabel}>Group Rating</Text>
+            {/* Performance Metrics Grid - only show if group has picks */}
+            {(group.totalGroupPicks ?? 0) > 0 ? (
+              <View style={styles.performanceGrid}>
+                <View style={styles.performanceStat}>
+                  <Text style={styles.performanceValue}>
+                    {formatAccuracy(group.rating)}
+                    {group.trend === 'up' && <Text style={styles.trendUp}> ↑</Text>}
+                    {group.trend === 'down' && <Text style={styles.trendDown}> ↓</Text>}
+                  </Text>
+                  <Text style={styles.performanceLabel}>Group Rating</Text>
+                </View>
+                
+                <View style={styles.performanceStat}>
+                  <Text style={styles.performanceValue}>{formatAccuracy(group.weekAccuracy)}</Text>
+                  <Text style={styles.performanceLabel}>Last Week</Text>
+                </View>
+                
+                <View style={styles.performanceStat}>
+                  <Text style={styles.performanceValue}>{formatAccuracy(group.monthAccuracy)}</Text>
+                  <Text style={styles.performanceLabel}>Last Month</Text>
+                </View>
+                
+                <View style={styles.performanceStat}>
+                  <Text style={styles.performanceValue}>{formatAccuracy(group.allTimeAccuracy)}</Text>
+                  <Text style={styles.performanceLabel}>All Time</Text>
+                </View>
               </View>
-              
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceValue}>{formatAccuracy(group.weekAccuracy)}</Text>
-                <Text style={styles.performanceLabel}>Last Week</Text>
-              </View>
-              
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceValue}>{formatAccuracy(group.monthAccuracy)}</Text>
-                <Text style={styles.performanceLabel}>Last Month</Text>
-              </View>
-              
-              <View style={styles.performanceStat}>
-                <Text style={styles.performanceValue}>{formatAccuracy(group.allTimeAccuracy)}</Text>
-                <Text style={styles.performanceLabel}>All Time</Text>
-              </View>
-            </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.makePicksButton}
+                onPress={() => router.push('/(tabs)/games')}
+              >
+                <Text style={styles.makePicksButtonText}>🎯 Make Picks</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity 
               style={styles.discussButton} 
@@ -652,6 +661,18 @@ const styles = StyleSheet.create({
   performanceLabel: {
     color: '#8E8E93',
     fontSize: 12,
+  },
+  makePicksButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  makePicksButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   trendUp: {
     color: '#34C759',

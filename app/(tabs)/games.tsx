@@ -1,13 +1,14 @@
 import { getWeekSchedule, hasScheduleForWeek } from '@/app/data/nfl-2025-schedule';
 import { getWeekScores, hasScoresForWeek } from '@/app/data/resolution/allScores';
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
-import PickModal from '@/components/PickModal';
+import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, useRef } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserPicks, savePick, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
+import { getUserGroups } from '../lib/database';
 
 
 // Type definitions
@@ -24,7 +25,11 @@ interface Game {
   gameDate: string;
   gameTime: string;
   spread: GameSpread;
+  homeSpreadValue: number;
+  awaySpreadValue: number;
   overUnder?: number;
+  homeMoneyline?: number;
+  awayMoneyline?: number;
   selectedPick?: 'home' | 'away' | null;
   selectedOverUnderPick?: 'over' | 'under' | null;
   overUnderConfidence?: string | null;
@@ -43,55 +48,27 @@ interface PickData {
   type: 'solo' | 'group';
 }
 
-interface NFLGame {
-  id: string;
-  week: number;
-  date: string;
-  time: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeTeamShort: string;
-  awayTeamShort: string;
-  spread: {
-    home: string;
-    away: string;
-    value: number;
-  };
-  overUnder: number;
-  moneyline: {
-    home: number;
-    away: number;
-  };
-  venue: string;
-  tv: string[];
-  isPrimetime: boolean;
-  isNeutralSite?: boolean;
-}
-
 export default function GamesScreen() {
   const router = useRouter();
   const [selectedSport, setSelectedSport] = useState('Football');
-  const [selectedWeek, setSelectedWeek] = useState<string | null>(null); // Start with null
-  const [showPickModal, setShowPickModal] = useState(false);
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
-  const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null); // Start with null
-  const [isInitializing, setIsInitializing] = useState(true); // Add initialization flag
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [pendingPicks, setPendingPicks] = useState<TicketPick[]>([]);
+  const [userGroups, setUserGroups] = useState<{id: string; name: string}[]>([]);
 
   const sports = ['Football', 'Basketball', 'College', 'Other'];
 
-  // Replace your testResolution function with this:
   const autoResolveWeek = async () => {
     const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
     
-    // Check if scores exist
     if (!hasScoresForWeek(weekNumber)) {
-      alert(`❌ No scores file found for Week ${weekNumber}.\n\nPlease create app/data/resolution/week${weekNumber}-scores-2025.ts first.`);
+      alert(`❌ No scores file found for Week ${weekNumber}.`);
       return;
     }
     
@@ -101,8 +78,6 @@ export default function GamesScreen() {
       alert(`❌ Week ${weekNumber} scores are empty.`);
       return;
     }
-    
-    console.log(`Resolving ${scores.length} games for Week ${weekNumber}...`);
     
     try {
       const result = await resolveWeekFromScores(scores);
@@ -119,72 +94,51 @@ export default function GamesScreen() {
     }
   };
 
-    // Automate for the following week
-    const advanceToNextWeek = async () => {
-      const currentWeek = await getCurrentWeek();
-      const nextWeek = currentWeek + 1;
-      
-      // Check if next week schedule exists
-      if (!hasScheduleForWeek(nextWeek)) {
-        Alert.alert(
-          '⚠️ Cannot Advance',
-          `Schedule file for Week ${nextWeek} doesn't exist yet.`,
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-      
-      // Show confirmation dialog
-      Alert.alert(
-        '🔄 Advance Week?',
-        `Advance from Week ${currentWeek} to Week ${nextWeek}?\n\nThis will:\n• Update the current week in the database\n• Show Week ${nextWeek} by default for all users`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          },
-          {
-            text: 'Advance',
-            onPress: async () => {
-              const result = await updateCurrentWeek(nextWeek);
-              
-              if (result.success) {
-                Alert.alert('✅ Success', `Advanced to Week ${nextWeek}!`);
-                setCurrentWeekNumber(nextWeek);
-                setSelectedWeek(`Week ${nextWeek}`);
-              } else {
-                Alert.alert('❌ Error', result.error || 'Failed to update week');
-              }
-            }
-          }
-        ]
-      );
-    };
-
-  // Filter weeks to only show current and future
-  const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12', 'Week 13', 'Week 14', 'Week 15', 'Week 16', 'Week 17', 'Week 18' ];
-  const visibleWeeks = allWeeks.filter(week => {
-    const weekNum = parseInt(week.replace('Week ', ''));
-    return weekNum >= (currentWeekNumber || 12) - 1; // Show 1 week back, current, and future
-  });
-
-  // Helper function to extract spread value from string like "NYJ +3" -> 3
-  const getSpreadValue = (spreadString: string): number => {
-    const match = spreadString.match(/([+-]\d+\.?\d*)/);
-    return match ? parseFloat(match[1]) : 0;
-  };
-
-  // Development function to populate games automatically for selected week
-  const autoPopulateWeek = async () => {
-    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+  const advanceToNextWeek = async () => {
+    const currentWeek = await getCurrentWeek();
+    const nextWeek = currentWeek + 1;
     
-    // Check if schedule exists
-    if (!hasScheduleForWeek(weekNumber)) {
-      alert(`❌ No schedule file found for Week ${weekNumber}.\n\nPlease create app/data/schedule/nfl-week${weekNumber}-2025.ts first.`);
+    if (!hasScheduleForWeek(nextWeek)) {
+      Alert.alert('⚠️ Cannot Advance', `Schedule file for Week ${nextWeek} doesn't exist yet.`);
       return;
     }
     
-    // Get the schedule
+    Alert.alert(
+      '🔄 Advance Week?',
+      `Advance from Week ${currentWeek} to Week ${nextWeek}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Advance',
+          onPress: async () => {
+            const result = await updateCurrentWeek(nextWeek);
+            if (result.success) {
+              Alert.alert('✅ Success', `Advanced to Week ${nextWeek}!`);
+              setCurrentWeekNumber(nextWeek);
+              setSelectedWeek(`Week ${nextWeek}`);
+            } else {
+              Alert.alert('❌ Error', result.error || 'Failed to update week');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12', 'Week 13', 'Week 14', 'Week 15', 'Week 16', 'Week 17', 'Week 18'];
+  const visibleWeeks = allWeeks.filter(week => {
+    const weekNum = parseInt(week.replace('Week ', ''));
+    return weekNum >= (currentWeekNumber || 12) - 1;
+  });
+
+  const autoPopulateWeek = async () => {
+    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+    
+    if (!hasScheduleForWeek(weekNumber)) {
+      alert(`❌ No schedule file found for Week ${weekNumber}.`);
+      return;
+    }
+    
     const schedule = getWeekSchedule(weekNumber);
     
     if (schedule.length === 0) {
@@ -192,9 +146,6 @@ export default function GamesScreen() {
       return;
     }
 
-    console.log(`Populating ${schedule.length} games for Week ${weekNumber}...`);
-    
-    // Populate the games
     const result = await populateWeekGames(weekNumber, schedule);
     
     if (result.success) {
@@ -205,13 +156,11 @@ export default function GamesScreen() {
     }
   };
 
-  // Load user picks from database
   const loadUserPicks = async (userId: string) => {
     try {
       const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
       const result = await getUserPicks(userId, weekNumber);
       
-      // Always create picks map, even if empty
       const picksMap = new Map();
       
       if (result.success && result.data) {
@@ -229,29 +178,22 @@ export default function GamesScreen() {
       }
       
       setUserPicks(picksMap);
-     // Pass the picksMap directly instead of relying on state
       await loadGamesFromDatabase(picksMap);
       
-    } 
-      catch (error) {
+    } catch (error) {
       console.error('Error loading picks:', error);
       await loadGamesFromDatabase(new Map());
     }
   };
 
-  /// Refresh user picks from database
   const refreshUserPicks = async () => {
     if (session?.user) {
-      console.log('Refreshing user picks for user:', session.user.id);
       await loadUserPicks(session.user.id);
     }
   };
 
-
-  // Load games from database
   const loadGamesFromDatabase = async (picksToUse?: Map<string, any>) => {
     try {
-      console.log('Loading games from database for week:', selectedWeek);
       const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
       
       const { data: dbGames, error } = await supabase
@@ -259,7 +201,7 @@ export default function GamesScreen() {
         .select('*')
         .eq('week', weekNumber)
         .eq('season', 2025)
-        .order('game_date', { ascending: true }); 
+        .order('game_date', { ascending: true });
 
       if (error) {
         console.error('Error loading games:', error);
@@ -267,23 +209,12 @@ export default function GamesScreen() {
       }
 
       if (!dbGames || dbGames.length === 0) {
-        console.log(`No games in database for week ${weekNumber}`);
         setGames([]);
         return;
       }
 
       const picks = picksToUse || userPicks;
 
-      console.log('=== DEBUGGING DATES ===');
-        dbGames.forEach(game => {
-          console.log(`${game.away_team} @ ${game.home_team}`);
-          console.log(`Raw DB date: ${game.game_date}`);
-          console.log(`Split date: ${game.game_date.split('T')[0]}`);
-          console.log('---');
-        });
-        console.log('=== END DEBUG ===');
-
-      // Transform database games to Game interface
       const transformedGames: Game[] = (dbGames || []).map((dbGame, index) => ({
         id: index + 1,
         homeTeam: dbGame.home_team,
@@ -293,23 +224,14 @@ export default function GamesScreen() {
         gameTime: (() => {
           try {
             const gameDate = new Date(dbGame.game_date);
-            
-            if (isNaN(gameDate.getTime())) {
-              console.warn('Invalid date format:', dbGame.game_date);
-              return "TBD";
-            }
-            
-            const timeString = gameDate.toLocaleTimeString('en-US', {
+            if (isNaN(gameDate.getTime())) return "TBD";
+            return gameDate.toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
               hour12: true,
               timeZone: 'America/New_York'
             });
-            
-            return timeString;
-            
           } catch (error) {
-            console.error('Time parsing error:', error, 'for date:', dbGame.game_date);
             return "TBD";
           }
         })(),
@@ -317,7 +239,11 @@ export default function GamesScreen() {
           home: `${dbGame.home_team} ${dbGame.home_spread > 0 ? '+' : ''}${dbGame.home_spread}`,
           away: `${dbGame.away_team} ${dbGame.away_spread > 0 ? '+' : ''}${dbGame.away_spread}`,
         },
-        overUnder: dbGame.over_under_line ?? undefined, 
+        homeSpreadValue: dbGame.home_spread,
+        awaySpreadValue: dbGame.away_spread,
+        overUnder: dbGame.over_under_line ?? undefined,
+        homeMoneyline: dbGame.home_moneyline ?? -110,
+        awayMoneyline: dbGame.away_moneyline ?? -110,
         selectedPick: picks.get(dbGame.id)?.pick || null,
         selectedOverUnderPick: picks.get(dbGame.id)?.overUnderPick || null,
         pickType: picks.get(dbGame.id)?.pickType || null,
@@ -329,68 +255,50 @@ export default function GamesScreen() {
       }));
 
       setGames(transformedGames);
-      console.log('Loaded', transformedGames.length, 'games from database');
     } catch (error) {
       console.error('Error in loadGamesFromDatabase:', error);
     }
   };
 
-  // Load current week from database
   useEffect(() => {
     const loadCurrentWeek = async () => {
       const weekNum = await getCurrentWeek();
       setCurrentWeekNumber(weekNum);
       setSelectedWeek(`Week ${weekNum}`);
-      setIsInitializing(false); // Mark initialization as complete
+      setIsInitializing(false);
     };
-    
     loadCurrentWeek();
   }, []);
 
-  // Authentication check
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (session) {
-        setSession(session);
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) setSession(session);
     };
-    
     checkAuth();
   }, []);
 
-  // Update current time every minute
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // Auth state listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user && selectedWeek) {
-        loadUserPicks(session.user.id);
-      }
+      if (session?.user && selectedWeek) loadUserPicks(session.user.id);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user && selectedWeek) {
-        setTimeout(() => {
-          loadUserPicks(session.user.id);
-        }, 500);
+        setTimeout(() => loadUserPicks(session.user.id), 500);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Only load games after initialization is complete
   useEffect(() => {
     if (!isInitializing && selectedWeek) {
       if (session?.user) {
@@ -401,169 +309,171 @@ export default function GamesScreen() {
     }
   }, [selectedWeek, session, isInitializing]);
 
-  // Pulse animation for Very High confidence
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.15,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  // Calculate time until game locks
   const getTimeToLock = (gameDate: string, gameTime: string): string => {
     try {
       const timeMatch = gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
-      if (!timeMatch) {
-        return 'Soon';
-      }
+      if (!timeMatch) return 'Soon';
       
       const [, hours, minutes, period] = timeMatch;
       let hour24 = parseInt(hours);
       const min = parseInt(minutes);
       
-      if (period.toUpperCase() === 'PM' && hour24 !== 12) {
-        hour24 += 12;
-      } else if (period.toUpperCase() === 'AM' && hour24 === 12) {
-        hour24 = 0;
-      }
+      if (period.toUpperCase() === 'PM' && hour24 !== 12) hour24 += 12;
+      else if (period.toUpperCase() === 'AM' && hour24 === 12) hour24 = 0;
       
-      // Parse date components and create date object in local time
       const [year, month, day] = gameDate.split('-').map(Number);
       const gameDateObj = new Date(year, month - 1, day, hour24, min, 0, 0);
-
       const diffMs = gameDateObj.getTime() - currentTime.getTime();
       
-      if (diffMs <= 0) {
-        return 'LOCKED';
-      }
-        
+      if (diffMs <= 0) return 'LOCKED';
+      
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMinutes / 60);
       const diffDays = Math.floor(diffHours / 24);
       
-      if (diffDays > 0) {
-        return `${diffDays}d ${diffHours % 24}h`;
-      }
-      if (diffHours > 0) {
-        return `${diffHours}h ${diffMinutes % 60}m`;
-      }
-      if (diffMinutes > 0) {
-        return `${diffMinutes}m`;
-      }
+      if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h`;
+      if (diffHours > 0) return `${diffHours}h ${diffMinutes % 60}m`;
+      if (diffMinutes > 0) return `${diffMinutes}m`;
       
       return 'LOCKED';
-        
     } catch (error) {
-      console.error('Error calculating time to lock:', error);
       return 'Soon';
     }
   };
 
-  const getLockTimeStyle = (timeToLock: string) => {
-    if (timeToLock === 'LOCKED') return styles.lockTimeLocked;
-    if (timeToLock.includes('m') && !timeToLock.includes('h') && !timeToLock.includes('d')) {
-      return styles.lockTimeUrgent;
-    }
-    if (timeToLock.includes('h') && !timeToLock.includes('d')) {
-      const hours = parseInt(timeToLock);
-      if (hours <= 2) return styles.lockTimeUrgent;
-      if (hours <= 6) return styles.lockTimeWarning;
-    }
-    return styles.lockTimeNormal;
-  };
-
-  const handlePickSelection = (game: Game) => {
+  const handleCellPress = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: 'home' | 'away' | 'over' | 'under') => {
     const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
     if (timeToLock === 'LOCKED') {
       alert('This game has already started. Picks are locked.');
       return;
     }
-    setSelectedGame(game);
-    setShowPickModal(true);
+
+    // Check if this pick already exists in pending
+    const existingIndex = pendingPicks.findIndex(
+      p => p.gameId === game.originalId && p.betType === betType
+    );
+
+    if (existingIndex >= 0) {
+      // If same side, remove it (toggle off)
+      if (pendingPicks[existingIndex].side === side) {
+        setPendingPicks(prev => prev.filter((_, i) => i !== existingIndex));
+      } else {
+        // If different side (e.g. switching home to away), update it
+        setPendingPicks(prev => prev.map((p, i) => 
+          i === existingIndex 
+            ? { ...p, side, line: getLineForPick(game, betType, side) }
+            : p
+        ));
+      }
+    } else {
+      // Add new pick
+      const newPick: TicketPick = {
+        gameId: game.originalId!,
+        gameLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+        betType,
+        side,
+        line: getLineForPick(game, betType, side),
+        odds: '-110',
+        confidence: 'Medium',
+      };
+      setPendingPicks(prev => [...prev, newPick]);
+    }
   };
 
-  const handleViewDetails = (gameId: string | number) => {
-    router.push(`/game/${gameId}`);
+  const getLineForPick = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: string): string => {
+    if (betType === 'spread') {
+      if (side === 'home') return formatSpread(game.homeSpreadValue);
+      return formatSpread(game.awaySpreadValue);
+    }
+    if (betType === 'total') {
+      if (side === 'over') return `O ${game.overUnder}`;
+      return `U ${game.overUnder}`;
+    }
+    // moneyline
+    if (side === 'home') return formatMoneyline(game.homeMoneyline || -110);
+    return formatMoneyline(game.awayMoneyline || -110);
   };
 
-  const handlePickSubmit = async (pickData: PickData) => {
-  try {
-    console.log('1. Pick submitted - starting process');
-    setShowPickModal(false);
-    
+  const handleUpdatePick = (gameId: string, betType: string, updates: Partial<TicketPick>) => {
+    setPendingPicks(prev => prev.map(p => 
+      p.gameId === gameId && p.betType === betType 
+        ? { ...p, ...updates }
+        : p
+    ));
+  };
+
+  const handleRemovePick = (gameId: string, betType: string) => {
+    setPendingPicks(prev => prev.filter(p => !(p.gameId === gameId && p.betType === betType)));
+  };
+
+  const handleClearPicks = () => {
+    setPendingPicks([]);
+  };
+
+  const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType: 'solo' | 'group') => {
     if (!session?.user?.id) {
       alert('Please log in to make picks');
       return;
     }
 
-    if (selectedGame && selectedGame.originalId) {
-      setIsLoading(true);
-      const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-      
-      const result = await savePick(session.user.id, {
-        game_id: selectedGame.originalId,
-        pick: pickData.pick as string,
-        team_picked: pickData.pick,
-        confidence: pickData.confidence as 'Low' | 'Medium' | 'High',
-        reasoning: pickData.reasoning || '',
-        pick_type: pickData.type,
-        groups: pickData.groups,
-        spread_value: 0,
-        week: weekNumber,
-        overUnderPick: pickData.overUnderPick,
-        overUnderConfidence: pickData.overUnderConfidence, 
-      });
+    setIsLoading(true);
+    const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
 
-      if (result.success) {
-        console.log('Pick saved successfully!');
-        // Force refresh picks from database instead of manual state updates
-        await refreshUserPicks();
-      } else {
-        console.error('Failed to save pick:', result.error);
-        alert('Failed to save pick');
+    try {
+      // Save each pick
+      for (const pick of picks) {
+        const game = games.find(g => g.originalId === pick.gameId);
+        if (!game) continue;
+
+        // Determine if it's a spread/moneyline pick (home/away) or O/U pick
+        const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
+        
+        const pickData = {
+          game_id: pick.gameId,
+          pick: isSpreadOrML ? pick.side : null,
+          team_picked: isSpreadOrML ? pick.side : null,
+          confidence: pick.confidence,
+          reasoning: '',
+          pick_type: pickType,
+          groups: groupIds,
+          spread_value: pick.betType === 'spread' 
+            ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
+            : 0,
+          week: weekNumber,
+          overUnderPick: pick.betType === 'total' ? pick.side : null,
+          overUnderConfidence: pick.betType === 'total' ? pick.confidence : null,
+        };
+
+        await savePick(session.user.id, pickData);
       }
-      
-      setIsLoading(false);
-    }
-    
-    setSelectedGame(null);
-    
-  } catch (error) {
-      console.error('=== PICK SAVE ERROR ===');
-      console.error('Error object:', error);
-      console.error('Error message:', error.message);
-      console.error('Selected game:', selectedGame);
-      console.error('Original ID:', selectedGame?.originalId);
-      console.error('User ID:', session?.user?.id);
-      console.error('========================');
-      setIsLoading(false);
-      alert('Error saving pick');
-    }
-};
 
-  const getConfidenceColor = (confidence?: string | null) => {
-    switch (confidence) {
-      case 'High': return '#34C759';
-      case 'Medium': return '#FF9500';
-      case 'Low': return '#FF3B30';
-      default: return '#8E8E93';
+      // Clear pending picks and refresh
+      setPendingPicks([]);
+      await refreshUserPicks();
+      
+      Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved successfully!`);
+    } catch (error) {
+      console.error('Error saving picks:', error);
+      alert('Error saving picks');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // Load user groups when session is available
+  useEffect(() => {
+    const loadGroups = async () => {
+      if (session?.user?.id) {
+        const groups = await getUserGroups(session.user.id);
+        setUserGroups(groups.map(g => ({ id: g.id, name: g.name })));
+      }
+    };
+    loadGroups();
+  }, [session]);
+
   const formatGameDateTime = (date: string, time: string): string => {
-    // Parse as local date to avoid timezone shifts
     const [year, month, day] = date.split('-').map(Number);
-    const gameDate = new Date(year, month - 1, day); // month is 0-indexed
+    const gameDate = new Date(year, month - 1, day);
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -574,18 +484,23 @@ export default function GamesScreen() {
     const gameDateOnly = new Date(gameDate);
     gameDateOnly.setHours(0, 0, 0, 0);
     
-    if (gameDateOnly.getTime() === today.getTime()) {
-      return `Today ${time}`;
-    }
-    if (gameDateOnly.getTime() === tomorrow.getTime()) {
-      return `Tomorrow ${time}`;
-    }
+    if (gameDateOnly.getTime() === today.getTime()) return `Today, ${time}`;
+    if (gameDateOnly.getTime() === tomorrow.getTime()) return `Tomorrow, ${time}`;
     
     const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
-    return `${gameDate.toLocaleDateString('en-US', options)} ${time}`;
+    return `${gameDate.toLocaleDateString('en-US', options)}, ${time}`;
   };
 
-  // Show loading state while initializing
+  const formatSpread = (value: number): string => {
+    if (value > 0) return `+${value}`;
+    return value.toString();
+  };
+
+  const formatMoneyline = (value: number): string => {
+    if (value > 0) return `+${value}`;
+    return value.toString();
+  };
+
   if (isInitializing) {
     return (
       <SafeAreaView style={styles.container}>
@@ -600,14 +515,6 @@ export default function GamesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Games</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Text style={styles.helpIcon}>?</Text>
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <Text style={styles.calendarIcon}>📅</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView 
@@ -619,16 +526,10 @@ export default function GamesScreen() {
         {visibleWeeks.map(week => (
           <TouchableOpacity
             key={week}
-            style={[
-              styles.weekChip,
-              selectedWeek === week && styles.weekChipActive
-            ]}
+            style={[styles.weekChip, selectedWeek === week && styles.weekChipActive]}
             onPress={() => setSelectedWeek(week)}
           >
-            <Text style={[
-              styles.weekChipText,
-              selectedWeek === week && styles.weekChipTextActive
-            ]}>
+            <Text style={[styles.weekChipText, selectedWeek === week && styles.weekChipTextActive]}>
               {week}
             </Text>
           </TouchableOpacity>
@@ -644,16 +545,10 @@ export default function GamesScreen() {
         {sports.map(sport => (
           <TouchableOpacity
             key={sport}
-            style={[
-              styles.sportChip,
-              selectedSport === sport && styles.sportChipActive
-            ]}
+            style={[styles.sportChip, selectedSport === sport && styles.sportChipActive]}
             onPress={() => setSelectedSport(sport)}
           >
-            <Text style={[
-              styles.sportChipText,
-              selectedSport === sport && styles.sportChipTextActive
-            ]}>
+            <Text style={[styles.sportChipText, selectedSport === sport && styles.sportChipTextActive]}>
               {sport}
             </Text>
           </TouchableOpacity>
@@ -670,168 +565,166 @@ export default function GamesScreen() {
             const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
             const isLocked = timeToLock === 'LOCKED';
             
+            // Helper to check if a cell is selected (saved or pending)
+            const isCellSelected = (betType: string, side: string) => {
+              // Check pending picks first
+              const pending = pendingPicks.find(
+                p => p.gameId === game.originalId && p.betType === betType && p.side === side
+              );
+              if (pending) return 'pending';
+              
+              // Check saved picks
+              if (betType === 'spread' && game.selectedPick === side) return 'saved';
+              if (betType === 'total') {
+                if (side === 'over' && game.selectedOverUnderPick === 'over') return 'saved';
+                if (side === 'under' && game.selectedOverUnderPick === 'under') return 'saved';
+              }
+              return false;
+            };
+            
             return (
               <View key={game.id} style={[styles.gameCard, isLocked && styles.gameCardLocked]}>
-                <View style={styles.gameHeader}>
-                  <View>
-                    <Text style={styles.gameTitle}>
-                      {game.awayTeam} @ {game.homeTeam}
-                    </Text>
-                    <Text style={styles.gameInfo}>
-                      {game.league} • {formatGameDateTime(game.gameDate, game.gameTime)}
-                    </Text>
-                  </View>
-                  <View style={styles.lockTimeContainer}>
-                    <Text style={[styles.lockTime, getLockTimeStyle(timeToLock)]}>
-                      {isLocked ? '🔒 ' : '🕐 '}{timeToLock}
-                    </Text>
-                    {!isLocked && timeToLock.includes('m') && !timeToLock.includes('h') && (
-                      <Text style={styles.lockTimeSubtext}>Hurry!</Text>
-                    )}
-                  </View>
+                {/* Column Headers */}
+                <View style={styles.gridHeader}>
+                  <View style={styles.teamColumnHeader} />
+                  <Text style={styles.columnHeader}>SPREAD</Text>
+                  <Text style={styles.columnHeader}>TOTAL</Text>
+                  <Text style={styles.columnHeader}>WINNER</Text>
                 </View>
 
-                <View style={styles.pickOptions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickButton,
-                      game.selectedPick === 'away' && styles.pickButtonSelected,
-                      isLocked && styles.pickButtonLocked
-                    ]}
-                    onPress={() => !isLocked && handlePickSelection(game)}
-                    disabled={isLocked}
-                  >
-                    <Text style={[
-                      styles.pickButtonText,
-                      game.selectedPick === 'away' && styles.pickButtonTextSelected,
-                      isLocked && styles.pickButtonTextLocked
-                    ]}>
-                      {game.spread.away}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickButton,
-                      game.selectedPick === 'home' && styles.pickButtonSelected,
-                      isLocked && styles.pickButtonLocked
-                    ]}
-                    onPress={() => !isLocked && handlePickSelection(game)}
-                    disabled={isLocked}
-                  >
-                    <Text style={[
-                      styles.pickButtonText,
-                      game.selectedPick === 'home' && styles.pickButtonTextSelected,
-                      isLocked && styles.pickButtonTextLocked
-                    ]}>
-                      {game.spread.home}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-               {(game.selectedPick || game.selectedOverUnderPick) && !isLocked && (
-                <View style={styles.pickStatus}>
-                  <View style={styles.pickStatusLeft}>
-                    <Text style={styles.pickTypeLabel}>
-                      {game.pickType === 'solo' ? '🎯 Solo Pick' : '👥 Shared with The Syndicate'}
-                    </Text>
+                {/* Away Team Row */}
+                <View style={styles.gridRow}>
+                  <View style={styles.teamColumn}>
+                    <Text style={styles.teamName}>{game.awayTeam}</Text>
                   </View>
                   
-                  {/* Show Spread Pick */}
-                  {game.selectedPick && (
-                    <View style={styles.pickDetailRow}>
-                      <Text style={styles.pickDetailLabel}>Spread:</Text>
-                      <Text style={styles.pickDetailValue}>
-                        {game.selectedPick === 'home' ? game.spread.home : game.spread.away}
-                      </Text>
-                      {game.confidence && (
-                        game.confidence === 'Very High' ? (
-                          <Animated.View 
-                            style={[
-                              styles.confidenceBadge, 
-                              { 
-                                backgroundColor: getConfidenceColor(game.confidence),
-                                transform: [{ scale: pulseAnim }],
-                                shadowColor: '#00C7BE',
-                                shadowOffset: { width: 0, height: 0 },
-                                shadowOpacity: 0.8,
-                                shadowRadius: 10,
-                              }
-                            ]}
-                          >
-                            <Text style={styles.confidenceText}>✨ {game.confidence}</Text>
-                          </Animated.View>
-                        ) : (
-                          <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.confidence) }]}>
-                            <Text style={styles.confidenceText}>{game.confidence}</Text>
-                          </View>
-                        )
-                      )}
-                    </View>
-                  )}
-    
-    {/* Show Over/Under Pick */}
-    {game.selectedOverUnderPick && game.overUnder && (
-      <View style={styles.pickDetailRow}>
-        <Text style={styles.pickDetailLabel}>Total:</Text>
-        <Text style={styles.pickDetailValue}>
-          {game.selectedOverUnderPick === 'over' ? '⬆️' : '⬇️'} {game.selectedOverUnderPick.toUpperCase()} {game.overUnder}
-        </Text>
-        {game.overUnderConfidence && (
-          game.overUnderConfidence === 'Very High' ? (
-            <Animated.View 
-              style={[
-                styles.confidenceBadge, 
-                { 
-                  backgroundColor: getConfidenceColor(game.overUnderConfidence),
-                  transform: [{ scale: pulseAnim }],
-                  shadowColor: '#00C7BE',
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                }
-              ]}
-            >
-              <Text style={styles.confidenceText}>✨ {game.overUnderConfidence}</Text>
-            </Animated.View>
-          ) : (
-            <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(game.overUnderConfidence) }]}>
-              <Text style={styles.confidenceText}>{game.overUnderConfidence}</Text>
-            </View>
-          )
-        )}
-      </View>
-    )}
-    
-        {game.pickType === 'solo' ? (
-              <Text style={styles.soloText}>Personal tracking only</Text>
-            ) : (
-              <Text style={styles.groupsText}>Everyone can see your pick</Text>
-            )}
-          </View>
-        )}
-
-                {game.selectedPick && game.pickType === 'group' && !isLocked && (
-                 
-                  <TouchableOpacity 
-                    style={styles.viewDetailsButton}
-                    onPress={() => {
-                    console.log('Game ID:', game.originalId);
-                    handleViewDetails(game.originalId);
-                  }}
+                  {/* Away Spread */}
+                  <TouchableOpacity
+                    style={[
+                      styles.betCell,
+                      isCellSelected('spread', 'away') === 'pending' && styles.betCellPending,
+                      isCellSelected('spread', 'away') === 'saved' && styles.betCellSaved,
+                      isLocked && styles.betCellLocked
+                    ]}
+                    onPress={() => !isLocked && handleCellPress(game, 'spread', 'away')}
+                    disabled={isLocked}
                   >
-                    <Text style={styles.viewDetailsText}>See Everyone's Picks →</Text>
+                    <Text style={[styles.betLine, isCellSelected('spread', 'away') && styles.betLineSelected]}>
+                      {formatSpread(game.awaySpreadValue)}
+                    </Text>
+                    <Text style={[styles.betOdds, isCellSelected('spread', 'away') && styles.betOddsSelected]}>
+                      -110
+                    </Text>
                   </TouchableOpacity>
-                )}
 
-                {!game.selectedPick && !isLocked && (
-                  <Text style={styles.noPickText}>Tap to make your pick</Text>
-                )}
+                  {/* Over */}
+                  <TouchableOpacity
+                    style={[
+                      styles.betCell,
+                      isCellSelected('total', 'over') === 'pending' && styles.betCellPending,
+                      isCellSelected('total', 'over') === 'saved' && styles.betCellSaved,
+                      isLocked && styles.betCellLocked
+                    ]}
+                    onPress={() => !isLocked && handleCellPress(game, 'total', 'over')}
+                    disabled={isLocked}
+                  >
+                    <Text style={[styles.betLine, isCellSelected('total', 'over') && styles.betLineSelected]}>
+                      O {game.overUnder}
+                    </Text>
+                    <Text style={[styles.betOdds, isCellSelected('total', 'over') && styles.betOddsSelected]}>
+                      -110
+                    </Text>
+                  </TouchableOpacity>
 
-                {isLocked && !game.selectedPick && (
-                  <Text style={styles.lockedText}>
-                    No pick made - game has started
+                  {/* Away Moneyline */}
+                  <TouchableOpacity
+                    style={[
+                      styles.betCell,
+                      isCellSelected('moneyline', 'away') === 'pending' && styles.betCellPending,
+                      isCellSelected('moneyline', 'away') === 'saved' && styles.betCellSaved,
+                      isLocked && styles.betCellLocked
+                    ]}
+                    onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'away')}
+                    disabled={isLocked}
+                  >
+                    <Text style={[styles.betLine, isCellSelected('moneyline', 'away') && styles.betLineSelected]}>
+                      {formatMoneyline(game.awayMoneyline || -110)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Home Team Row */}
+                <View style={styles.gridRow}>
+                  <View style={styles.teamColumn}>
+                    <Text style={styles.teamName}>{game.homeTeam}</Text>
+                  </View>
+                  
+                  {/* Home Spread */}
+                  <TouchableOpacity
+                    style={[
+                      styles.betCell,
+                      isCellSelected('spread', 'home') === 'pending' && styles.betCellPending,
+                      isCellSelected('spread', 'home') === 'saved' && styles.betCellSaved,
+                      isLocked && styles.betCellLocked
+                    ]}
+                    onPress={() => !isLocked && handleCellPress(game, 'spread', 'home')}
+                    disabled={isLocked}
+                  >
+                    <Text style={[styles.betLine, isCellSelected('spread', 'home') && styles.betLineSelected]}>
+                      {formatSpread(game.homeSpreadValue)}
+                    </Text>
+                    <Text style={[styles.betOdds, isCellSelected('spread', 'home') && styles.betOddsSelected]}>
+                      -110
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Under */}
+                  <TouchableOpacity
+                    style={[
+                      styles.betCell,
+                      isCellSelected('total', 'under') === 'pending' && styles.betCellPending,
+                      isCellSelected('total', 'under') === 'saved' && styles.betCellSaved,
+                      isLocked && styles.betCellLocked
+                    ]}
+                    onPress={() => !isLocked && handleCellPress(game, 'total', 'under')}
+                    disabled={isLocked}
+                  >
+                    <Text style={[styles.betLine, isCellSelected('total', 'under') && styles.betLineSelected]}>
+                      U {game.overUnder}
+                    </Text>
+                    <Text style={[styles.betOdds, isCellSelected('total', 'under') && styles.betOddsSelected]}>
+                      -110
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Home Moneyline */}
+                  <TouchableOpacity
+                    style={[
+                      styles.betCell,
+                      isCellSelected('moneyline', 'home') === 'pending' && styles.betCellPending,
+                      isCellSelected('moneyline', 'home') === 'saved' && styles.betCellSaved,
+                      isLocked && styles.betCellLocked
+                    ]}
+                    onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'home')}
+                    disabled={isLocked}
+                  >
+                    <Text style={[styles.betLine, isCellSelected('moneyline', 'home') && styles.betLineSelected]}>
+                      {formatMoneyline(game.homeMoneyline || -110)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Game Info Footer */}
+                <View style={styles.gameFooter}>
+                  <Text style={styles.gameDateTime}>
+                    📅 {formatGameDateTime(game.gameDate, game.gameTime)}
                   </Text>
-                )}
+                  {isLocked ? (
+                    <Text style={styles.lockedBadge}>🔒 Locked</Text>
+                  ) : (
+                    <Text style={styles.timeToLock}>⏱ {timeToLock}</Text>
+                  )}
+                </View>
               </View>
             );
           })
@@ -842,99 +735,31 @@ export default function GamesScreen() {
           </View>
         )}
 
-        <View style={styles.helpBanner}>
-          <Text style={styles.helpTitle}>💡 How Lock Times Work</Text>
-          <Text style={styles.helpText}>
-            Picks lock when the game starts. Make your picks early to discuss with friends!
-          </Text>
-        </View>
-        
         {__DEV__ && (
-          <>
-            <TouchableOpacity 
-              onPress={autoPopulateWeek}
-              style={styles.devButton}
-            >
-              <Text style={styles.devButtonText}>
-                📥 Populate {selectedWeek} Games
-              </Text>
+          <View style={styles.devSection}>
+            <Text style={styles.devLabel}>🛠 Dev Tools</Text>
+            <TouchableOpacity onPress={autoPopulateWeek} style={styles.devButton}>
+              <Text style={styles.devButtonText}>📥 Populate {selectedWeek}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity 
-              onPress={autoResolveWeek}
-              style={[styles.devButton, { backgroundColor: '#007AFF' }]}
-            >
-              <Text style={styles.devButtonText}>
-                ✅ Resolve {selectedWeek} Games
-              </Text>
+            <TouchableOpacity onPress={autoResolveWeek} style={[styles.devButton, { backgroundColor: '#007AFF' }]}>
+              <Text style={styles.devButtonText}>✅ Resolve {selectedWeek}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity 
-              onPress={async () => {
-                Alert.alert(
-                  '🔄 Resolve All Past Weeks?',
-                  'This will re-resolve all weeks with corrected spread calculations. This may take a minute.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Resolve All',
-                      onPress: async () => {
-                        try {
-                          const { resolveAllPastWeeks } = await import('../data/resolution/resolveAllWeeks');
-                          const result = await resolveAllPastWeeks();
-                          if (result.success) {
-                            Alert.alert('✅ Success', `Resolved ${result.totalGamesResolved} games across ${result.weeksProcessed} weeks!`);
-                            loadGamesFromDatabase();
-                          }
-                        } catch (error) {
-                          Alert.alert('❌ Error', error.message);
-                        }
-                      }
-                    }
-                  ]
-                );
-              }}
-              style={[styles.devButton, { backgroundColor: '#FF9500' }]}
-            >
-              <Text style={styles.devButtonText}>
-                🔄 Resolve ALL Past Weeks
-              </Text>
+            <TouchableOpacity onPress={advanceToNextWeek} style={[styles.devButton, { backgroundColor: '#34C759' }]}>
+              <Text style={styles.devButtonText}>⏭️ Advance Week</Text>
             </TouchableOpacity>
-
-
-            <TouchableOpacity 
-              onPress={advanceToNextWeek}
-              style={[styles.devButton, { backgroundColor: '#34C759' }]}
-            >
-              <Text style={styles.devButtonText}>
-                ⏭️ Advance to Next Week
-              </Text>
-            </TouchableOpacity>
-          </>
+          </View>
         )}
-      
       </ScrollView>
-      {selectedGame && showPickModal && (
-        <PickModal
-          visible={showPickModal}
-          onClose={() => {
-            setShowPickModal(false);
-            setSelectedGame(null);
-          }}
-          onSubmit={handlePickSubmit}
-          game={{
-            homeTeam: selectedGame.homeTeam,
-            awayTeam: selectedGame.awayTeam,
-            spread: selectedGame.spread,
-            time: formatGameDateTime(selectedGame.gameDate, selectedGame.gameTime),
-            overUnder: selectedGame.overUnder, 
-          }}
-          currentPick={selectedGame.selectedPick || undefined}
-          currentOverUnderPick={selectedGame.selectedOverUnderPick || undefined}
 
-          groups={selectedGame.groups || []}
-        />
-      )}
+      {/* Picks Ticket */}
+      <PicksTicket
+        picks={pendingPicks}
+        onUpdatePick={handleUpdatePick}
+        onRemovePick={handleRemovePick}
+        onSave={handleSavePicks}
+        onClear={handleClearPicks}
+        userGroups={userGroups}
+      />
     </SafeAreaView>
   );
 }
@@ -945,36 +770,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 24,
     paddingBottom: 16,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  helpIcon: {
-    color: '#FFF',
-    fontSize: 12,
   },
   title: {
     color: '#FFF',
     fontSize: 28,
     fontWeight: 'bold',
-  },
-  calendarIcon: {
-    fontSize: 24,
   },
   weekFilter: {
     maxHeight: 40,
@@ -1032,174 +834,120 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 0,
-    paddingBottom: 100,
+    padding: 16,
+    paddingBottom: 180, // Extra space for picks ticket
   },
   gameCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 16,
     marginBottom: 16,
+    overflow: 'hidden',
   },
   gameCardLocked: {
-    opacity: 0.7,
-    borderWidth: 1,
-    borderColor: '#333',
+    opacity: 0.6,
   },
-  gameHeader: {
+  gridHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
-  gameTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  teamColumnHeader: {
+    flex: 1.5,
   },
-  gameInfo: {
+  columnHeader: {
+    flex: 1,
     color: '#8E8E93',
-    fontSize: 14,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  lockTimeContainer: {
-    alignItems: 'flex-end',
+  gridRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingVertical: 4,
   },
-  lockTime: {
-    fontSize: 14,
+  teamColumn: {
+    flex: 1.5,
+    paddingVertical: 12,
+  },
+  teamName: {
+    color: '#FFF',
+    fontSize: 15,
     fontWeight: '600',
   },
-  lockTimeNormal: {
-    color: '#34C759',
-  },
-  lockTimeWarning: {
-    color: '#FFCC00',
-  },
-  lockTimeUrgent: {
-    color: '#FF9500',
-  },
-  lockTimeLocked: {
-    color: '#FF3B30',
-  },
-  lockTimeSubtext: {
-    color: '#FF9500',
-    fontSize: 11,
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  pickOptions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  pickButton: {
+  betCell: {
     flex: 1,
     backgroundColor: '#2C2C2E',
-    paddingVertical: 12,
-    borderRadius: 8,
+    marginHorizontal: 4,
+    marginVertical: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
   },
-  pickButtonSelected: {
+  betCellPending: {
     backgroundColor: '#FF6B35',
+    borderWidth: 2,
+    borderColor: '#FF8F5C',
   },
-  pickButtonLocked: {
-    opacity: 0.5,
+  betCellSaved: {
+    backgroundColor: '#2D5A27',
+    borderWidth: 2,
+    borderColor: '#34C759',
   },
-  pickButtonText: {
+  betCellLocked: {
+    opacity: 0.4,
+  },
+  betLine: {
     color: '#FFF',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  pickButtonTextSelected: {
+  betLineSelected: {
     color: '#FFF',
   },
-  pickButtonTextLocked: {
-    color: '#8E8E93',
+  betOdds: {
+    color: '#9B8AFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
-  pickStatus: {
-    marginTop: 8,
-    paddingTop: 12,
+  betOddsSelected: {
+    color: '#FFD4C4',
+  },
+  gameFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: '#333',
   },
-  pickStatusLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  pickTypeLabel: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  confidenceBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidenceText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  groupsText: {
+  gameDateTime: {
     color: '#8E8E93',
     fontSize: 13,
   },
-  soloText: {
-    color: '#8E8E93',
+  timeToLock: {
+    color: '#34C759',
     fontSize: 13,
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
-  noPickText: {
-    color: '#8E8E93',
-    fontSize: 14,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  lockedText: {
+  lockedBadge: {
     color: '#FF3B30',
-    fontSize: 14,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  viewDetailsButton: {
-    marginTop: 12,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  viewDetailsText: {
-    color: '#FF6B35',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-  },
-  helpBanner: {
-    backgroundColor: 'rgba(255, 107, 53, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 53, 0.3)',
-  },
-  helpTitle: {
-    color: '#FF6B35',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  helpText: {
-    color: '#FFF',
-    fontSize: 14,
-    lineHeight: 20,
   },
   noGamesCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
     padding: 40,
-    marginBottom: 16,
     alignItems: 'center',
   },
   noGamesText: {
@@ -1214,14 +962,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  devSection: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    borderStyle: 'dashed',
+  },
+  devLabel: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
   devButton: {
     backgroundColor: '#FF6B35',
-    padding: 16,
-    margin: 16,
-    marginTop: 8,
+    padding: 12,
     borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#FFF',
+    marginBottom: 8,
   },
   devButtonText: {
     color: '#FFF',
@@ -1229,23 +989,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
-  pickDetailRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginTop: 8,
-  gap: 8,
-  },
-  pickDetailLabel: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontWeight: '600',
-    minWidth: 60,
-  },
-  pickDetailValue: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-
 });
