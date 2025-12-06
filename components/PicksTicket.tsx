@@ -13,6 +13,8 @@ import {
 export interface TicketPick {
   gameId: string;
   gameLabel: string;        // e.g., "SEA @ ATL"
+  homeTeam: string;         // e.g., "ATL"
+  awayTeam: string;         // e.g., "SEA"
   betType: 'spread' | 'total' | 'moneyline';
   side: 'home' | 'away' | 'over' | 'under';
   line: string;             // e.g., "-7.5" or "O 43.5"
@@ -132,13 +134,34 @@ export default function PicksTicket({
             >
               <View style={styles.ticketScrollContent}>
                 {/* Picks List */}
-                {picks.map((pick, index) => (
+                {picks.map((pick, index) => {
+                  // Determine which team is picked
+                  const pickedTeam = pick.side === 'home' ? pick.homeTeam : 
+                                     pick.side === 'away' ? pick.awayTeam : null;
+                  const isTotal = pick.betType === 'total';
+                  const opponent = pick.side === 'home' ? pick.awayTeam : pick.homeTeam;
+                  // @ when picking away team (playing at opponent), vs when picking home team
+                  const vsText = pick.side === 'away' ? '@' : 'vs';
+                  
+                  return (
                   <View key={`${pick.gameId}-${pick.betType}`} style={styles.pickItem}>
                     <View style={styles.pickRow}>
                       {/* Pick Info */}
                       <View style={styles.pickInfoCompact}>
-                        <Text style={styles.pickLine}>{pick.line}</Text>
-                        <Text style={styles.pickGame}>{pick.gameLabel}</Text>
+                        {isTotal ? (
+                          // For O/U picks: "O 43.5 SEA @ ATL"
+                          <>
+                            <Text style={styles.pickLine}>{pick.line}</Text>
+                            <Text style={styles.pickGame}>{pick.gameLabel}</Text>
+                          </>
+                        ) : (
+                          // For spread/ML: highlight picked team
+                          <>
+                            <Text style={styles.pickLineTeam}>{pickedTeam}</Text>
+                            <Text style={styles.pickLine}>{pick.line}</Text>
+                            <Text style={styles.pickGameVs}>{vsText} {opponent}</Text>
+                          </>
+                        )}
                       </View>
                       
                       {/* Confidence Selector */}
@@ -190,7 +213,8 @@ export default function PicksTicket({
                       </TouchableOpacity>
                     </View>
                   </View>
-                ))}
+                  );
+                })}
 
                 {/* Share Options */}
                 <View style={styles.shareSection}>
@@ -370,12 +394,22 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: 'bold',
-    marginRight: 8,
+    marginRight: 6,
+  },
+  pickLineTeam: {
+    color: '#FF6B35',
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginRight: 4,
   },
   pickGame: {
     color: '#8E8E93',
     fontSize: 13,
     flexShrink: 1,
+  },
+  pickGameVs: {
+    color: '#8E8E93',
+    fontSize: 13,
   },
   removeButton: {
     paddingLeft: 10,

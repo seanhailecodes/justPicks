@@ -370,6 +370,8 @@ export default function GamesScreen() {
       const newPick: TicketPick = {
         gameId: game.originalId!,
         gameLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+        homeTeam: game.homeTeam,
+        awayTeam: game.awayTeam,
         betType,
         side,
         line: getLineForPick(game, betType, side),
