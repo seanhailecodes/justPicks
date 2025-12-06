@@ -348,38 +348,40 @@ export default function GamesScreen() {
       return;
     }
 
-    // Check if this pick already exists in pending
-    const existingIndex = pendingPicks.findIndex(
-      p => p.gameId === game.originalId && p.betType === betType
-    );
+    setPendingPicks(prev => {
+      // Find existing pick with same gameId AND betType
+      const existingIndex = prev.findIndex(
+        p => p.gameId === game.originalId && p.betType === betType
+      );
 
-    if (existingIndex >= 0) {
-      // If same side, remove it (toggle off)
-      if (pendingPicks[existingIndex].side === side) {
-        setPendingPicks(prev => prev.filter((_, i) => i !== existingIndex));
+      if (existingIndex >= 0) {
+        // If same side, remove it (toggle off)
+        if (prev[existingIndex].side === side) {
+          return prev.filter((_, i) => i !== existingIndex);
+        } else {
+          // If different side (e.g. switching home to away), update it
+          return prev.map((p, i) => 
+            i === existingIndex 
+              ? { ...p, side, line: getLineForPick(game, betType, side) }
+              : p
+          );
+        }
       } else {
-        // If different side (e.g. switching home to away), update it
-        setPendingPicks(prev => prev.map((p, i) => 
-          i === existingIndex 
-            ? { ...p, side, line: getLineForPick(game, betType, side) }
-            : p
-        ));
+        // Add new pick
+        const newPick: TicketPick = {
+          gameId: game.originalId!,
+          gameLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+          homeTeam: game.homeTeam,
+          awayTeam: game.awayTeam,
+          betType,
+          side,
+          line: getLineForPick(game, betType, side),
+          odds: '-110',
+          confidence: 'Medium',
+        };
+        return [...prev, newPick];
       }
-    } else {
-      // Add new pick
-      const newPick: TicketPick = {
-        gameId: game.originalId!,
-        gameLabel: `${game.awayTeam} @ ${game.homeTeam}`,
-        homeTeam: game.homeTeam,
-        awayTeam: game.awayTeam,
-        betType,
-        side,
-        line: getLineForPick(game, betType, side),
-        odds: '-110',
-        confidence: 'Medium',
-      };
-      setPendingPicks(prev => [...prev, newPick]);
-    }
+    });
   };
 
   const getLineForPick = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: string): string => {
