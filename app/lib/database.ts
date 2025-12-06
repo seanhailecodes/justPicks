@@ -27,7 +27,7 @@ export interface UserGroup {
   activePicks: number;
   pendingPicks: number;
   // New performance metrics
-  rating: number; // Overall accuracy %
+  rating: number | null; // Overall accuracy %
   weekAccuracy: number | null; // Last week win % (null if no data)
   monthAccuracy: number | null; // Last month win % (null if no data)
   allTimeAccuracy: number | null; // All time win % (null if no data)
@@ -324,9 +324,9 @@ export function calculateConsensus(picks: PickWithUser[]): GameConsensus | null 
   };
 }
 
-// FIXED FUNCTION: Calculate group accuracy metrics across different time periods
+// Calculate group accuracy metrics from group_picks table only
 export async function getGroupAccuracy(groupId: string): Promise<{
-  rating: number;
+  rating: number | null;
   weekAccuracy: number | null;
   monthAccuracy: number | null;
   allTimeAccuracy: number | null;
@@ -337,15 +337,24 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   
-  // Get all group members
-  const { data: members } = await supabase
-    .from('group_members')
-    .select('user_id')
+  // Get all picks shared to this group (via group_picks junction table)
+  const { data: groupPicks, error: groupPicksError } = await supabase
+    .from('group_picks')
+    .select(`
+      pick_id,
+      shared_at,
+      picks (
+        id,
+        correct,
+        game_id
+      )
+    `)
     .eq('group_id', groupId);
     
-  if (!members?.length) {
+  if (groupPicksError) {
+    console.error('Error fetching group picks:', groupPicksError);
     return {
-      rating: 0,
+      rating: null,
       weekAccuracy: null,
       monthAccuracy: null,
       allTimeAccuracy: null,
@@ -354,19 +363,10 @@ export async function getGroupAccuracy(groupId: string): Promise<{
     };
   }
   
-  const memberIds = members.map(m => m.user_id);
-  
-  // Get all picks for group members that have been scored (correct is not null)
-  // We're NOT filtering by locked anymore since that field isn't being set properly
-  const { data: allPicks } = await supabase
-    .from('picks')
-    .select('*')
-    .in('user_id', memberIds)
-    .not('correct', 'is', null);
-    
-  if (!allPicks?.length) {
+  if (!groupPicks?.length) {
+    // No picks shared to this group yet
     return {
-      rating: 0,
+      rating: null,
       weekAccuracy: null,
       monthAccuracy: null,
       allTimeAccuracy: null,
@@ -375,8 +375,22 @@ export async function getGroupAccuracy(groupId: string): Promise<{
     };
   }
   
-  // Now get the game dates for these picks
-  const gameIds = [...new Set(allPicks.map(p => p.game_id))];
+  // Filter to only scored picks (correct is not null)
+  const scoredPicks = groupPicks.filter(gp => gp.picks?.correct !== null);
+  
+  if (!scoredPicks.length) {
+    return {
+      rating: null,
+      weekAccuracy: null,
+      monthAccuracy: null,
+      allTimeAccuracy: null,
+      totalPicks: groupPicks.length, // Show total picks even if not scored yet
+      trend: 'neutral'
+    };
+  }
+  
+  // Get game dates for time-based filtering
+  const gameIds = [...new Set(scoredPicks.map(p => p.picks?.game_id).filter(Boolean))];
   const { data: games } = await supabase
     .from('games')
     .select('id, game_date')
@@ -384,11 +398,11 @@ export async function getGroupAccuracy(groupId: string): Promise<{
     
   if (!games) {
     return {
-      rating: 0,
+      rating: null,
       weekAccuracy: null,
       monthAccuracy: null,
       allTimeAccuracy: null,
-      totalPicks: 0,
+      totalPicks: groupPicks.length,
       trend: 'neutral'
     };
   }
@@ -397,10 +411,10 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   const gameMap = new Map(games.map(g => [g.id, new Date(g.game_date)]));
   
   // Add game dates to picks
-  const picksWithDates = allPicks.map(pick => ({
-    ...pick,
-    gameDate: gameMap.get(pick.game_id)
-  })).filter(p => p.gameDate); // Only keep picks where we found the game
+  const picksWithDates = scoredPicks.map(gp => ({
+    correct: gp.picks?.correct,
+    gameDate: gameMap.get(gp.picks?.game_id)
+  })).filter(p => p.gameDate);
   
   // Helper to calculate accuracy for a set of picks
   const calculateAccuracy = (filteredPicks: any[]) => {
@@ -425,11 +439,11 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   }
   
   return {
-    rating: allTimeAccuracy || 0,
+    rating: allTimeAccuracy,
     weekAccuracy,
     monthAccuracy,
     allTimeAccuracy,
-    totalPicks: picksWithDates.length,
+    totalPicks: groupPicks.length,
     trend
   };
 }
