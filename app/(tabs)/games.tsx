@@ -427,12 +427,13 @@ export default function GamesScreen() {
 
         // Determine if it's a spread/moneyline pick (home/away) or O/U pick
         const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
+        const isTotal = pick.betType === 'total';
         
         const pickData = {
           game_id: pick.gameId,
-          pick: isSpreadOrML ? pick.side : null,
+          pick: pick.side,  // Always set - 'home', 'away', 'over', or 'under'
           team_picked: isSpreadOrML ? pick.side : null,
-          confidence: pick.confidence,
+          confidence: isSpreadOrML ? pick.confidence : 'Medium',  // Spread/ML confidence
           reasoning: '',
           pick_type: pickType,
           groups: groupIds,
@@ -440,8 +441,8 @@ export default function GamesScreen() {
             ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
             : 0,
           week: weekNumber,
-          overUnderPick: pick.betType === 'total' ? pick.side : null,
-          overUnderConfidence: pick.betType === 'total' ? pick.confidence : null,
+          overUnderPick: isTotal ? pick.side : null,
+          overUnderConfidence: isTotal ? pick.confidence : null,
         };
 
         await savePick(session.user.id, pickData);

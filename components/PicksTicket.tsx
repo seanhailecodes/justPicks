@@ -110,7 +110,7 @@ export default function PicksTicket({
               <Text style={styles.ticketIcon}>🎫</Text>
               <Text style={styles.pickCount}>{picks.length} Pick{picks.length !== 1 ? 's' : ''}</Text>
             </View>
-            <Text style={styles.expandText}>Tap to review ▲</Text>
+            <Text style={styles.expandText}>Review ▲</Text>
           </TouchableOpacity>
         )}
 
@@ -275,40 +275,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#FF6B35',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     marginHorizontal: 16,
     marginBottom: 90, // Above tab bar
-    borderRadius: 12,
+    borderRadius: 10,
     shadowColor: '#FF6B35',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   collapsedLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
   ticketIcon: {
-    fontSize: 20,
+    fontSize: 16,
+    marginRight: 8,
   },
   pickCount: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   expandText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 13,
     opacity: 0.9,
   },
   expandedTicket: {
     backgroundColor: '#1C1C1E',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 100, // Space for tab bar
+    paddingBottom: 20,
   },
   ticketHeader: {
     flexDirection: 'row',
@@ -462,7 +462,9 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
     borderTopWidth: 1,
     borderTopColor: '#333',
   },
