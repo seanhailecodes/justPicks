@@ -277,6 +277,7 @@ export const getUserPickHistory = async (userId: string) => {
 };
 
 // Updated savePick function that preserves existing pick data
+// Replace the existing savePick function in supabase.ts with this one
 
 export const savePick = async (userId: string, pickData: {
   game_id: string;
@@ -292,8 +293,6 @@ export const savePick = async (userId: string, pickData: {
   overUnderConfidence?: string | null;
 }): Promise<{ success: boolean; data?: any; error?: string }> => {
   try {
-    console.log('savePick called with:', { userId, pickData });
-
     // First, check if a pick already exists for this game
     const { data: existingPick, error: fetchError } = await supabase
       .from('picks')
@@ -339,14 +338,11 @@ export const savePick = async (userId: string, pickData: {
         payload.confidence = existingPick.confidence;
       } else {
         // No existing pick, need to set pick to something (required field)
-        // Use the O/U value as the pick since it's required
         payload.pick = pickData.overUnderPick;
         payload.team_picked = null;
         payload.confidence = pickData.overUnderConfidence || 'Medium';
       }
     }
-
-    console.log('Pick payload:', payload);
 
     let result;
     
@@ -372,38 +368,30 @@ export const savePick = async (userId: string, pickData: {
         .single();
     }
 
-    console.log('Supabase result:', result);
-
     if (result.error) {
-      console.error('Supabase error details:', result.error);
+      console.error('Supabase error:', result.error);
       return { success: false, error: result.error.message };
     }
 
-    // Handle group sharing if groups are selected
-    if (pickData.pick_type === 'group' && pickData.groups && pickData.groups.length > 0 && result.data) {
+    // Handle group sharing - batch insert all at once
+    if (pickData.pick_type === 'group' && pickData.groups?.length > 0 && result.data) {
       const pickId = result.data.id;
       
-      // Insert into group_picks for each selected group
-      for (const groupId of pickData.groups) {
-        // Check if already shared to this group
-        const { data: existing } = await supabase
-          .from('group_picks')
-          .select('id')
-          .eq('group_id', groupId)
-          .eq('pick_id', pickId)
-          .single();
-        
-        if (!existing) {
-          await supabase
-            .from('group_picks')
-            .insert({
-              group_id: groupId,
-              pick_id: pickId,
-              user_id: userId,
-              shared_at: new Date().toISOString()
-            });
-        }
-      }
+      // Build batch of group_picks to insert
+      const groupPicksToInsert = pickData.groups.map(groupId => ({
+        group_id: groupId,
+        pick_id: pickId,
+        user_id: userId,
+        shared_at: new Date().toISOString()
+      }));
+      
+      // Use upsert to handle duplicates gracefully
+      await supabase
+        .from('group_picks')
+        .upsert(groupPicksToInsert, { 
+          onConflict: 'group_id,pick_id',
+          ignoreDuplicates: true 
+        });
     }
 
     return { success: true, data: result.data };
