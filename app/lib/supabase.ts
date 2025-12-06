@@ -276,48 +276,85 @@ export const getUserPickHistory = async (userId: string) => {
   );
 };
 
-// Replace your existing savePick function with this:
+// Updated savePick function that preserves existing pick data
 
-export const savePick = async (userId: string, pickData: any) => {
-  console.log('savePick called with:', { userId, pickData }); // 👈 Debug log
-  
-  // First, check if a pick already exists for this user and game
-  const { data: existingPick, error: checkError } = await supabase
-    .from('picks')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('game_id', pickData.game_id)
-    .single();
+export const savePick = async (userId: string, pickData: {
+  game_id: string;
+  pick: string;
+  team_picked: string | null;
+  confidence: 'Low' | 'Medium' | 'High';
+  reasoning: string;
+  pick_type: 'solo' | 'group';
+  groups: string[];
+  spread_value: number | string;
+  week: number;
+  overUnderPick?: string | null;
+  overUnderConfidence?: string | null;
+}): Promise<{ success: boolean; data?: any; error?: string }> => {
+  try {
+    console.log('savePick called with:', { userId, pickData });
 
-  if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means no rows found
-    return { success: false, error: checkError };
-  }
+    // First, check if a pick already exists for this game
+    const { data: existingPick, error: fetchError } = await supabase
+      .from('picks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('game_id', pickData.game_id)
+      .single();
 
-  let result;
-  
-    const pickPayload = {
-      pick: pickData.pick,  // 👈 Use pickData.pick directly
-      team_picked: pickData.team_picked || pickData.pick,  // 👈 Fallback to pick if team_picked not provided
-      confidence: pickData.confidence || 'Medium',
+    // Determine if this is a spread/ML pick or O/U pick
+    const isSpreadOrML = pickData.pick === 'home' || pickData.pick === 'away';
+    const isOverUnder = pickData.overUnderPick === 'over' || pickData.overUnderPick === 'under';
+
+    // Build the payload, preserving existing values for the other pick type
+    let payload: any = {
+      user_id: userId,
+      game_id: pickData.game_id,
+      pick_type: pickData.pick_type,
       reasoning: pickData.reasoning || '',
-      pick_type: pickData.pick_type || 'solo',
-      week: pickData.week,
       season: 2025,
-      // ⭐ NEW: Add over/under pick support
-      over_under_pick: pickData.overUnderPick || null,
-      over_under_confidence: pickData.overUnderConfidence || null,
+      week: pickData.week,
     };
-    
-    console.log('Pick payload:', pickPayload); // 👈 Debug log
 
-    if (existingPick) {
+    if (isSpreadOrML) {
+      // Saving a spread/ML pick - preserve existing O/U data
+      payload.pick = pickData.pick;
+      payload.team_picked = pickData.team_picked;
+      payload.confidence = pickData.confidence;
+      
+      // Preserve existing O/U pick if it exists
+      if (existingPick) {
+        payload.over_under_pick = existingPick.over_under_pick;
+        payload.over_under_confidence = existingPick.over_under_confidence;
+      }
+    } else if (isOverUnder) {
+      // Saving an O/U pick - preserve existing spread/ML data
+      payload.over_under_pick = pickData.overUnderPick;
+      payload.over_under_confidence = pickData.overUnderConfidence;
+      
+      // Preserve existing spread pick if it exists
+      if (existingPick) {
+        payload.pick = existingPick.pick;
+        payload.team_picked = existingPick.team_picked;
+        payload.confidence = existingPick.confidence;
+      } else {
+        // No existing pick, need to set pick to something (required field)
+        // Use the O/U value as the pick since it's required
+        payload.pick = pickData.overUnderPick;
+        payload.team_picked = null;
+        payload.confidence = pickData.overUnderConfidence || 'Medium';
+      }
+    }
+
+    console.log('Pick payload:', payload);
+
+    let result;
+    
+    if (existingPick && !fetchError) {
       // Update existing pick
       result = await supabase
         .from('picks')
-        .update({ 
-          ...pickPayload,
-          updated_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('id', existingPick.id)
         .select()
         .single();
@@ -325,27 +362,56 @@ export const savePick = async (userId: string, pickData: any) => {
       // Insert new pick
       result = await supabase
         .from('picks')
-        .insert({ 
-          user_id: userId, 
-          game_id: pickData.game_id,
-          ...pickPayload,
+        .insert({
+          ...payload,
           correct: null,
-          over_under_correct: null,  // ⭐ NEW: Initialize over/under correctness
+          over_under_correct: null,
           created_at: new Date().toISOString()
         })
         .select()
         .single();
     }
 
-    console.log('Supabase result:', result); // 👈 Debug log
+    console.log('Supabase result:', result);
 
     if (result.error) {
-      console.error('Supabase error details:', result.error); // 👈 Debug log
-      return { success: false, error: result.error };
+      console.error('Supabase error details:', result.error);
+      return { success: false, error: result.error.message };
     }
-    
+
+    // Handle group sharing if groups are selected
+    if (pickData.pick_type === 'group' && pickData.groups && pickData.groups.length > 0 && result.data) {
+      const pickId = result.data.id;
+      
+      // Insert into group_picks for each selected group
+      for (const groupId of pickData.groups) {
+        // Check if already shared to this group
+        const { data: existing } = await supabase
+          .from('group_picks')
+          .select('id')
+          .eq('group_id', groupId)
+          .eq('pick_id', pickId)
+          .single();
+        
+        if (!existing) {
+          await supabase
+            .from('group_picks')
+            .insert({
+              group_id: groupId,
+              pick_id: pickId,
+              user_id: userId,
+              shared_at: new Date().toISOString()
+            });
+        }
+      }
+    }
+
     return { success: true, data: result.data };
-  };
+  } catch (error) {
+    console.error('Error in savePick:', error);
+    return { success: false, error: String(error) };
+  }
+};
 // ========== GROUPS FUNCTIONS ==========
 
 export const getGroups = async () => {
