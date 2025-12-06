@@ -420,48 +420,50 @@ export default function GamesScreen() {
       return;
     }
 
-    setIsLoading(true);
     const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
 
-    try {
-      // Save each pick
-      for (const pick of picks) {
-        const game = games.find(g => g.originalId === pick.gameId);
-        if (!game) continue;
+    // Build all pick data first
+    const pickPromises = picks.map(pick => {
+      const game = games.find(g => g.originalId === pick.gameId);
+      if (!game) return null;
 
-        // Determine if it's a spread/moneyline pick (home/away) or O/U pick
-        const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
-        const isTotal = pick.betType === 'total';
-        
-        const pickData = {
-          game_id: pick.gameId,
-          pick: pick.side,  // Always set - 'home', 'away', 'over', or 'under'
-          team_picked: isSpreadOrML ? pick.side : null,
-          confidence: isSpreadOrML ? pick.confidence : 'Medium',  // Spread/ML confidence
-          reasoning: '',
-          pick_type: pickType,
-          groups: groupIds,
-          spread_value: pick.betType === 'spread' 
-            ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
-            : 0,
-          week: weekNumber,
-          overUnderPick: isTotal ? pick.side : null,
-          overUnderConfidence: isTotal ? pick.confidence : null,
-        };
-
-        await savePick(session.user.id, pickData);
-      }
-
-      // Clear pending picks and refresh
-      setPendingPicks([]);
-      await refreshUserPicks();
+      const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
+      const isTotal = pick.betType === 'total';
       
-      Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved successfully!`);
+      const pickData = {
+        game_id: pick.gameId,
+        pick: pick.side,
+        team_picked: isSpreadOrML ? pick.side : null,
+        confidence: isSpreadOrML ? pick.confidence : 'Medium',
+        reasoning: '',
+        pick_type: pickType,
+        groups: groupIds,
+        spread_value: pick.betType === 'spread' 
+          ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
+          : 0,
+        week: weekNumber,
+        overUnderPick: isTotal ? pick.side : null,
+        overUnderConfidence: isTotal ? pick.confidence : null,
+      };
+
+      return savePick(session.user.id, pickData);
+    }).filter(Boolean);
+
+    try {
+      // Save all picks in parallel - wait for completion
+      await Promise.all(pickPromises);
+      
+      // Clear pending picks after confirmed save
+      setPendingPicks([]);
+      
+      // Show success
+      Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved!`);
+      
+      // Refresh UI in background
+      refreshUserPicks();
     } catch (error) {
       console.error('Error saving picks:', error);
-      alert('Error saving picks');
-    } finally {
-      setIsLoading(false);
+      Alert.alert('❌ Error', 'Failed to save picks. Please try again.');
     }
   };
 
