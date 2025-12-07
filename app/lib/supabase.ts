@@ -291,6 +291,17 @@ export const savePick = async (userId: string, pickData: {
   week: number;
   overUnderPick?: string | null;
   overUnderConfidence?: string | null;
+  spread_line_at_pick?: number | null;
+  total_line_at_pick?: number | null;
+  time_before_game_minutes?: number | null;
+  picked_at_time?: string | null;
+  picked_day_of_week?: string | null;
+  spread_size?: number | null;
+  spread_category?: string | null;
+  picked_favorite?: boolean | null;
+  picked_team?: string | null;
+  opponent_team?: string | null;
+  pick_source?: string | null;
 }): Promise<{ success: boolean; data?: any; error?: string }> => {
   try {
     // First, check if a pick already exists for this game
@@ -320,6 +331,11 @@ export const savePick = async (userId: string, pickData: {
       payload.pick = pickData.pick;
       payload.team_picked = pickData.team_picked;
       payload.confidence = pickData.confidence;
+      payload.spread_size = pickData.spread_size ?? null;
+      payload.spread_category = pickData.spread_category ?? null;
+      payload.picked_favorite = pickData.picked_favorite ?? null;
+      payload.picked_team = pickData.picked_team ?? null;
+      payload.opponent_team = pickData.opponent_team ?? null;
       
       // Preserve existing O/U pick if it exists
       if (existingPick) {
