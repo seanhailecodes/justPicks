@@ -488,7 +488,7 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
       pick: pick.side,
       team_picked: isSpreadOrML ? pick.side : null,
       confidence: isSpreadOrML ? pick.confidence : 'Medium',
-      reasoning: '',
+      reasoning: pick.notes || '',
       pick_type: pickType,
       groups: groupIds,
       spread_value: pick.betType === 'spread' 

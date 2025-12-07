@@ -20,6 +20,9 @@ export default function GroupSettingsScreen() {
   const [group, setGroup] = useState<GroupDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (groupId) {
@@ -29,6 +32,15 @@ export default function GroupSettingsScreen() {
 
   const loadGroupDetails = async () => {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in');
+        router.back();
+        return;
+      }
+      setCurrentUserId(user.id);
+
       // Get group info
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
@@ -37,6 +49,16 @@ export default function GroupSettingsScreen() {
         .single();
 
       if (groupError) throw groupError;
+
+      // Check if current user is owner
+      const { data: membership } = await supabase
+        .from('group_members')
+        .select('role')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .single();
+
+      setIsOwner(membership?.role === 'primary_owner');
 
       // Count total members
       const { count: memberCount } = await supabase
@@ -64,6 +86,45 @@ export default function GroupSettingsScreen() {
     }
   };
 
+  const handleLeaveGroup = () => {
+    Alert.alert(
+      'Leave Group',
+      `Are you sure you want to leave "${groupName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: confirmLeave,
+        },
+      ]
+    );
+  };
+
+  const confirmLeave = async () => {
+    if (!currentUserId) return;
+
+    setLeaving(true);
+
+    try {
+      const { error } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', currentUserId);
+
+      if (error) throw error;
+
+      Alert.alert('Left Group', `You have left "${groupName}".`);
+      router.replace('/(tabs)/groups');
+    } catch (error) {
+      console.error('Error leaving group:', error);
+      Alert.alert('Error', 'Failed to leave group. Please try again.');
+    } finally {
+      setLeaving(false);
+    }
+  };
+
   const handleDeleteGroup = () => {
     Alert.alert(
       'Delete Group',
@@ -84,14 +145,17 @@ export default function GroupSettingsScreen() {
   };
 
   const confirmDelete = async () => {
-    if (!group) return;
+    if (!group || !currentUserId) return;
+
+    // Double-check ownership
+    if (!isOwner) {
+      Alert.alert('Error', 'Only the group owner can delete this group.');
+      return;
+    }
 
     setDeleting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       // Check if there are any admins
       const { data: admins, error: adminsError } = await supabase
         .from('group_members')
@@ -116,7 +180,7 @@ export default function GroupSettingsScreen() {
           .from('group_members')
           .delete()
           .eq('group_id', groupId)
-          .eq('user_id', user.id);
+          .eq('user_id', currentUserId);
 
         if (removeError) throw removeError;
 
@@ -126,7 +190,13 @@ export default function GroupSettingsScreen() {
         );
       } else {
         // No admins - delete the entire group
-        // First delete all group members
+        // First delete all group picks
+        await supabase
+          .from('group_picks')
+          .delete()
+          .eq('group_id', groupId);
+
+        // Delete all group members
         const { error: membersError } = await supabase
           .from('group_members')
           .delete()
@@ -228,13 +298,6 @@ export default function GroupSettingsScreen() {
             </Text>
           </View>
 
-          {group.invite_code && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Invite Code</Text>
-              <Text style={[styles.infoValue, styles.codeText]}>{group.invite_code}</Text>
-            </View>
-          )}
-
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Created</Text>
             <Text style={styles.infoValue}>
@@ -243,24 +306,45 @@ export default function GroupSettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.dangerZone}>
-          <Text style={styles.dangerTitle}>Danger Zone</Text>
-          <Text style={styles.dangerDescription}>
-            {group.adminCount > 0
-              ? 'Deleting will transfer ownership to the first admin and remove you from the group.'
-              : 'Deleting this group will permanently remove it for all members. This action cannot be undone.'}
-          </Text>
-          
-          <TouchableOpacity 
-            style={[styles.deleteButton, deleting && styles.deleteButtonDisabled]}
-            onPress={handleDeleteGroup}
-            disabled={deleting}
-          >
-            <Text style={styles.deleteButtonText}>
-              {deleting ? 'Deleting...' : '🗑️ Delete Group'}
+        {/* Owner-only: Delete Group */}
+        {isOwner ? (
+          <View style={styles.dangerZone}>
+            <Text style={styles.dangerTitle}>Danger Zone</Text>
+            <Text style={styles.dangerDescription}>
+              {group.adminCount > 0
+                ? 'Deleting will transfer ownership to the first admin and remove you from the group.'
+                : 'Deleting this group will permanently remove it for all members. This action cannot be undone.'}
             </Text>
-          </TouchableOpacity>
-        </View>
+            
+            <TouchableOpacity 
+              style={[styles.deleteButton, deleting && styles.buttonDisabled]}
+              onPress={handleDeleteGroup}
+              disabled={deleting}
+            >
+              <Text style={styles.deleteButtonText}>
+                {deleting ? 'Deleting...' : '🗑️ Delete Group'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* Non-owner: Leave Group */
+          <View style={styles.leaveSection}>
+            <Text style={styles.leaveSectionTitle}>Membership</Text>
+            <Text style={styles.leaveDescription}>
+              Leave this group to stop receiving picks and updates from its members.
+            </Text>
+            
+            <TouchableOpacity 
+              style={[styles.leaveButton, leaving && styles.buttonDisabled]}
+              onPress={handleLeaveGroup}
+              disabled={leaving}
+            >
+              <Text style={styles.leaveButtonText}>
+                {leaving ? 'Leaving...' : '👋 Leave Group'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -359,13 +443,43 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  deleteButtonDisabled: {
-    opacity: 0.5,
-  },
   deleteButtonText: {
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  leaveSection: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  leaveSectionTitle: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  leaveDescription: {
+    color: '#8E8E93',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  leaveButton: {
+    backgroundColor: '#FF9500',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  leaveButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   errorText: {
     color: '#FF3B30',
