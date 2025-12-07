@@ -5,6 +5,7 @@ import {
   ScrollView, 
   StyleSheet, 
   Text, 
+  TextInput,
   TouchableOpacity, 
   View,
   Dimensions 
@@ -20,6 +21,7 @@ export interface TicketPick {
   line: string;             // e.g., "-7.5" or "O 43.5"
   odds: string;             // e.g., "-110"
   confidence: 'Low' | 'Medium' | 'High';
+  notes?: string;           // Optional notes/reasoning
 }
 
 interface UserGroup {
@@ -89,6 +91,10 @@ export default function PicksTicket({
     onUpdatePick(gameId, betType, { confidence });
   };
 
+  const handleNotesChange = (gameId: string, betType: string, notes: string) => {
+    onUpdatePick(gameId, betType, { notes });
+  };
+
   const handleSave = () => {
     onSave(picks, selectedGroups, pickType);
     setExpanded(false);
@@ -152,6 +158,7 @@ export default function PicksTicket({
               style={styles.ticketScrollView}
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
             >
               <View style={styles.ticketScrollContent}>
                 {/* Picks List */}
@@ -233,6 +240,16 @@ export default function PicksTicket({
                         <Text style={styles.removeText}>✕</Text>
                       </TouchableOpacity>
                     </View>
+                    
+                    {/* Notes Input */}
+                    <TextInput
+                      style={styles.notesInput}
+                      placeholder="Add note (optional)..."
+                      placeholderTextColor="rgba(255,255,255,0.3)"
+                      value={pick.notes || ''}
+                      onChangeText={(text) => handleNotesChange(pick.gameId, pick.betType, text)}
+                      maxLength={200}
+                    />
                   </View>
                   );
                 })}
@@ -500,6 +517,17 @@ const styles = StyleSheet.create({
   },
   confidenceTextActive: {
     color: '#FFF',
+  },
+  notesInput: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    color: '#FFF',
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   shareSection: {
     marginTop: 16,
