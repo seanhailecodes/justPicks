@@ -9,7 +9,11 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserPicks, savePick, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
 import { getUserGroups } from '../lib/database';
-
+import { 
+  trackGameView, 
+  trackAddedToTicket, 
+  trackRemovedFromTicket,
+} from '../lib/ai-data-helpers';
 
 // Type definitions
 interface GameSpread {
@@ -348,6 +352,12 @@ export default function GamesScreen() {
       return;
     }
 
+    // Track game view (first interaction with this game)
+    if (session?.user?.id && game.originalId) {
+      const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
+      trackGameView(session.user.id, game.originalId, weekNumber);
+    }
+
     setPendingPicks(prev => {
       // Find existing pick with same gameId AND betType
       const existingIndex = prev.findIndex(
@@ -357,6 +367,10 @@ export default function GamesScreen() {
       if (existingIndex >= 0) {
         // If same side, remove it (toggle off)
         if (prev[existingIndex].side === side) {
+          // Track removal from ticket
+          if (session?.user?.id && game.originalId) {
+            trackRemovedFromTicket(session.user.id, game.originalId);
+          }
           return prev.filter((_, i) => i !== existingIndex);
         } else {
           // If different side (e.g. switching home to away), update it
@@ -367,7 +381,11 @@ export default function GamesScreen() {
           );
         }
       } else {
-        // Add new pick
+        // Add new pick - track added to ticket
+        if (session?.user?.id && game.originalId) {
+          trackAddedToTicket(session.user.id, game.originalId);
+        }
+        
         const newPick: TicketPick = {
           gameId: game.originalId!,
           gameLabel: `${game.awayTeam} @ ${game.homeTeam}`,
@@ -381,9 +399,8 @@ export default function GamesScreen() {
         };
         return [...prev, newPick];
       }
-    });
-  };
-
+  });
+};
   const getLineForPick = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: string): string => {
     if (betType === 'spread') {
       if (side === 'home') return formatSpread(game.homeSpreadValue);
@@ -414,58 +431,103 @@ export default function GamesScreen() {
     setPendingPicks([]);
   };
 
-  const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType: 'solo' | 'group') => {
-    if (!session?.user?.id) {
-      alert('Please log in to make picks');
-      return;
-    }
+const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType: 'solo' | 'group') => {
+  if (!session?.user?.id) {
+    alert('Please log in to make picks');
+    return;
+  }
 
-    const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
+  const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
+  const now = new Date();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const pickedDayOfWeek = days[now.getDay()];
 
-    // Build all pick data first
-    const pickPromises = picks.map(pick => {
-      const game = games.find(g => g.originalId === pick.gameId);
-      if (!game) return null;
+  const pickPromises = picks.map(async (pick) => {
+    const game = games.find(g => g.originalId === pick.gameId);
+    if (!game) return null;
 
-      const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
-      const isTotal = pick.betType === 'total';
-      
-      const pickData = {
-        game_id: pick.gameId,
-        pick: pick.side,
-        team_picked: isSpreadOrML ? pick.side : null,
-        confidence: isSpreadOrML ? pick.confidence : 'Medium',
-        reasoning: '',
-        pick_type: pickType,
-        groups: groupIds,
-        spread_value: pick.betType === 'spread' 
-          ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
-          : 0,
-        week: weekNumber,
-        overUnderPick: isTotal ? pick.side : null,
-        overUnderConfidence: isTotal ? pick.confidence : null,
-      };
-
-      return savePick(session.user.id, pickData);
-    }).filter(Boolean);
-
+    const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
+    const isTotal = pick.betType === 'total';
+    
+    // Calculate timing context safely
+    let timeBeforeGame = 0;
+    let pickedAtTime = 'early_week';
     try {
-      // Save all picks in parallel - wait for completion
-      await Promise.all(pickPromises);
-      
-      // Clear pending picks after confirmed save
-      setPendingPicks([]);
-      
-      // Show success
-      Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved!`);
-      
-      // Refresh UI in background
-      refreshUserPicks();
-    } catch (error) {
-      console.error('Error saving picks:', error);
-      Alert.alert('❌ Error', 'Failed to save picks. Please try again.');
+      const timeMatch = game.gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1]);
+        const min = parseInt(timeMatch[2]);
+        const period = timeMatch[3].toUpperCase();
+        if (period === 'PM' && hour !== 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+        const gameDateTime = new Date(`${game.gameDate}T${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:00`);
+        timeBeforeGame = Math.max(0, Math.floor((gameDateTime.getTime() - now.getTime()) / (1000 * 60)));
+        
+        const hoursBeforeGame = timeBeforeGame / 60;
+        if (hoursBeforeGame < 4) pickedAtTime = 'game_day';
+        else if (hoursBeforeGame < 48) pickedAtTime = 'mid_week';
+      }
+    } catch (e) {
+      // Keep defaults if parsing fails
     }
-  };
+    
+    // Determine spread size category
+    const spreadSize = Math.abs(game.homeSpreadValue || 0);
+    let spreadCategory = 'medium';
+    if (spreadSize <= 1) spreadCategory = 'pk';
+    else if (spreadSize <= 3) spreadCategory = 'small';
+    else if (spreadSize > 7) spreadCategory = 'large';
+    
+    // Determine if picking favorite
+    const pickedFavorite = pick.side === 'home' 
+      ? (game.homeSpreadValue || 0) < 0 
+      : (game.awaySpreadValue || 0) < 0;
+
+    const pickData = {
+      game_id: pick.gameId,
+      pick: pick.side,
+      team_picked: isSpreadOrML ? pick.side : null,
+      confidence: isSpreadOrML ? pick.confidence : 'Medium',
+      reasoning: '',
+      pick_type: pickType,
+      groups: groupIds,
+      spread_value: pick.betType === 'spread' 
+        ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
+        : 0,
+      week: weekNumber,
+      overUnderPick: isTotal ? pick.side : null,
+      overUnderConfidence: isTotal ? pick.confidence : null,
+      
+      // AI Context fields
+      spread_line_at_pick: game.homeSpreadValue,
+      total_line_at_pick: game.overUnder,
+      time_before_game_minutes: timeBeforeGame,
+      picked_at_time: pickedAtTime,
+      picked_day_of_week: pickedDayOfWeek,
+      spread_size: spreadSize,
+      spread_category: spreadCategory,
+      picked_favorite: isSpreadOrML ? pickedFavorite : null,
+      picked_team: isSpreadOrML 
+        ? (pick.side === 'home' ? game.homeTeam : game.awayTeam) 
+        : null,
+      opponent_team: isSpreadOrML 
+        ? (pick.side === 'home' ? game.awayTeam : game.homeTeam) 
+        : null,
+    };
+
+    return savePick(session.user.id, pickData);
+  });
+
+  try {
+    await Promise.all(pickPromises);
+    setPendingPicks([]);
+    Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved!`);
+    refreshUserPicks();
+  } catch (error) {
+    console.error('Error saving picks:', error);
+    Alert.alert('❌ Error', 'Failed to save picks. Please try again.');
+  }
+};
 
   // Load user groups when session is available
   useEffect(() => {
