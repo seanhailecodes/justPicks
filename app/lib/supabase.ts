@@ -312,7 +312,12 @@ export const savePick = async (userId: string, pickData: {
       .select('*')
       .eq('user_id', userId)
       .eq('game_id', pickData.game_id)
-      .single();
+      .maybeSingle();
+
+    // If fetch error (e.g., multiple rows exist), log it
+    if (fetchError) {
+      console.warn('Fetch existing pick warning:', fetchError);
+    }
 
     // Determine if this is a spread/ML pick or O/U pick
     const isSpreadOrML = pickData.pick === 'home' || pickData.pick === 'away';
@@ -364,7 +369,7 @@ export const savePick = async (userId: string, pickData: {
 
     let result;
     
-    if (existingPick && !fetchError) {
+    if (existingPick) {
       // Update existing pick
       result = await supabase
         .from('picks')
@@ -373,15 +378,15 @@ export const savePick = async (userId: string, pickData: {
         .select()
         .single();
     } else {
-      // Insert new pick
+      // Insert new pick (use upsert to handle race conditions)
       result = await supabase
         .from('picks')
-        .insert({
+        .upsert({
           ...payload,
           correct: null,
           over_under_correct: null,
           created_at: new Date().toISOString()
-        })
+        }, { onConflict: 'user_id,game_id' })
         .select()
         .single();
     }
