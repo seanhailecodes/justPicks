@@ -345,7 +345,7 @@ export default function GamesScreen() {
     }
   };
 
-  const handleCellPress = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: 'home' | 'away' | 'over' | 'under') => {
+  const handleCellPress = (game: Game, betType: 'spread' | 'total', side: 'home' | 'away' | 'over' | 'under') => {
     const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
     if (timeToLock === 'LOCKED') {
       alert('This game has already started. Picks are locked.');
@@ -401,7 +401,7 @@ export default function GamesScreen() {
       }
   });
 };
-  const getLineForPick = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: string): string => {
+  const getLineForPick = (game: Game, betType: 'spread' | 'total', side: string): string => {
     if (betType === 'spread') {
       if (side === 'home') return formatSpread(game.homeSpreadValue);
       return formatSpread(game.awaySpreadValue);
@@ -410,9 +410,7 @@ export default function GamesScreen() {
       if (side === 'over') return `O ${game.overUnder}`;
       return `U ${game.overUnder}`;
     }
-    // moneyline
-    if (side === 'home') return formatMoneyline(game.homeMoneyline || -110);
-    return formatMoneyline(game.awayMoneyline || -110);
+    return '';
   };
 
   const handleUpdatePick = (gameId: string, betType: string, updates: Partial<TicketPick>) => {
@@ -446,7 +444,7 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
     const game = games.find(g => g.originalId === pick.gameId);
     if (!game) return null;
 
-    const isSpreadOrML = pick.betType === 'spread' || pick.betType === 'moneyline';
+    const isSpread = pick.betType === 'spread';
     const isTotal = pick.betType === 'total';
     
     // Calculate timing context safely
@@ -486,8 +484,8 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
     const pickData = {
       game_id: pick.gameId,
       pick: pick.side,
-      team_picked: isSpreadOrML ? pick.side : null,
-      confidence: isSpreadOrML ? pick.confidence : 'Medium',
+      team_picked: isSpread ? pick.side : null,
+      confidence: isSpread ? pick.confidence : 'Medium',
       reasoning: pick.notes || '',
       pick_type: pickType,
       groups: groupIds,
@@ -506,11 +504,11 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
       picked_day_of_week: pickedDayOfWeek,
       spread_size: spreadSize,
       spread_category: spreadCategory,
-      picked_favorite: isSpreadOrML ? pickedFavorite : null,
-      picked_team: isSpreadOrML 
+      picked_favorite: isSpread ? pickedFavorite : null,
+      picked_team: isSpread 
         ? (pick.side === 'home' ? game.homeTeam : game.awayTeam) 
         : null,
-      opponent_team: isSpreadOrML 
+      opponent_team: isSpread 
         ? (pick.side === 'home' ? game.awayTeam : game.homeTeam) 
         : null,
     };
@@ -658,7 +656,7 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
                   <View style={styles.teamColumnHeader} />
                   <Text style={styles.columnHeader}>SPREAD</Text>
                   <Text style={styles.columnHeader}>TOTAL</Text>
-                  <Text style={styles.columnHeader}>WINNER</Text>
+                  <Text style={styles.columnHeader}>ML</Text>
                 </View>
 
                 {/* Away Team Row */}
@@ -705,21 +703,12 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
                     </Text>
                   </TouchableOpacity>
 
-                  {/* Away Moneyline */}
-                  <TouchableOpacity
-                    style={[
-                      styles.betCell,
-                      isCellSelected('moneyline', 'away') === 'pending' && styles.betCellPending,
-                      isCellSelected('moneyline', 'away') === 'saved' && styles.betCellSaved,
-                      isLocked && styles.betCellLocked
-                    ]}
-                    onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'away')}
-                    disabled={isLocked}
-                  >
-                    <Text style={[styles.betLine, isCellSelected('moneyline', 'away') && styles.betLineSelected]}>
+                  {/* Away Moneyline - Display Only */}
+                  <View style={[styles.betCell, styles.betCellDisabled]}>
+                    <Text style={styles.betLineDisabled}>
                       {formatMoneyline(game.awayMoneyline || -110)}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Home Team Row */}
@@ -766,21 +755,12 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
                     </Text>
                   </TouchableOpacity>
 
-                  {/* Home Moneyline */}
-                  <TouchableOpacity
-                    style={[
-                      styles.betCell,
-                      isCellSelected('moneyline', 'home') === 'pending' && styles.betCellPending,
-                      isCellSelected('moneyline', 'home') === 'saved' && styles.betCellSaved,
-                      isLocked && styles.betCellLocked
-                    ]}
-                    onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'home')}
-                    disabled={isLocked}
-                  >
-                    <Text style={[styles.betLine, isCellSelected('moneyline', 'home') && styles.betLineSelected]}>
+                  {/* Home Moneyline - Display Only */}
+                  <View style={[styles.betCell, styles.betCellDisabled]}>
+                    <Text style={styles.betLineDisabled}>
                       {formatMoneyline(game.homeMoneyline || -110)}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Game Info Footer */}
@@ -972,6 +952,10 @@ const styles = StyleSheet.create({
   betCellLocked: {
     opacity: 0.4,
   },
+  betCellDisabled: {
+    backgroundColor: '#1C1C1E',
+    opacity: 0.6,
+  },
   betLine: {
     color: '#FFF',
     fontSize: 14,
@@ -980,6 +964,12 @@ const styles = StyleSheet.create({
   },
   betLineSelected: {
     color: '#FFF',
+  },
+  betLineDisabled: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   betOdds: {
     color: '#9B8AFF',

@@ -129,6 +129,8 @@ export const populateWeekGames = async (weekNumber: number, games: any[]) => {
       home_spread: getSpreadValue(game.spread.home),
       away_spread: getSpreadValue(game.spread.away),
       over_under_line: game.overUnder || null,
+      home_moneyline: game.moneyline?.home || null,
+      away_moneyline: game.moneyline?.away || null,
       league: 'NFL',
       game_date: gameDateTime,
       locked: false,
@@ -815,4 +817,3 @@ export const getUserProfile = async (userId: string) => {
     };
   }
 };
-
