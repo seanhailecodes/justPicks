@@ -21,7 +21,8 @@ export default function GroupSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
+  const [canDeleteGroup, setCanDeleteGroup] = useState(false);
+  const [isOnlyMember, setIsOnlyMember] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,8 +59,6 @@ export default function GroupSettingsScreen() {
         .eq('user_id', user.id)
         .single();
 
-      setIsOwner(membership?.role === 'primary_owner');
-
       // Count total members
       const { count: memberCount } = await supabase
         .from('group_members')
@@ -72,6 +71,12 @@ export default function GroupSettingsScreen() {
         .select('*', { count: 'exact', head: true })
         .eq('group_id', groupId)
         .eq('role', 'admin');
+
+      // User can delete if they're the owner OR the only member left
+      const isOwner = membership?.role === 'primary_owner';
+      const onlyMember = memberCount === 1;
+      setCanDeleteGroup(isOwner || onlyMember);
+      setIsOnlyMember(onlyMember);
 
       setGroup({
         ...groupData,
@@ -147,9 +152,9 @@ export default function GroupSettingsScreen() {
   const confirmDelete = async () => {
     if (!group || !currentUserId) return;
 
-    // Double-check ownership
-    if (!isOwner) {
-      Alert.alert('Error', 'Only the group owner can delete this group.');
+    // Double-check permission
+    if (!canDeleteGroup) {
+      Alert.alert('Error', 'You do not have permission to delete this group.');
       return;
     }
 
@@ -306,14 +311,16 @@ export default function GroupSettingsScreen() {
           </View>
         </View>
 
-        {/* Owner-only: Delete Group */}
-        {isOwner ? (
+        {/* Owner or only member: Delete Group */}
+        {canDeleteGroup ? (
           <View style={styles.dangerZone}>
             <Text style={styles.dangerTitle}>Danger Zone</Text>
             <Text style={styles.dangerDescription}>
-              {group.adminCount > 0
-                ? 'Deleting will transfer ownership to the first admin and remove you from the group.'
-                : 'Deleting this group will permanently remove it for all members. This action cannot be undone.'}
+              {isOnlyMember
+                ? 'You are the only member. Deleting this group will permanently remove it. This action cannot be undone.'
+                : group.adminCount > 0
+                  ? 'Deleting will transfer ownership to the first admin and remove you from the group.'
+                  : 'Deleting this group will permanently remove it for all members. This action cannot be undone.'}
             </Text>
             
             <TouchableOpacity 

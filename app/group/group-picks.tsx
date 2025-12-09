@@ -742,6 +742,11 @@ export default function GroupPicksScreen() {
                               </View>
                             )}
                           </View>
+                          {pick.reasoning && pick.reasoning.trim() !== '' && (
+                            <View style={styles.reasoningContainer}>
+                              <Text style={styles.reasoningText}>💬 {pick.reasoning}</Text>
+                            </View>
+                          )}
                         </View>
                       ))
                     ) : (
@@ -1003,6 +1008,18 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+  },
+  reasoningContainer: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#3C3C3E',
+  },
+  reasoningText: {
+    color: '#8E8E93',
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
   noPicksText: {
     color: '#8E8E93',
