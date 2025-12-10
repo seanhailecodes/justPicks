@@ -197,6 +197,7 @@ export default function GroupsScreen() {
       });
 
       if (functionError) throw functionError;
+      if (data?.error) throw new Error(data.error); 
 
       Alert.alert(
         '📧 Invite Sent!',
