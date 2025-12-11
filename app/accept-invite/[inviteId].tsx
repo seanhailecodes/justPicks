@@ -117,7 +117,7 @@ export default function AcceptInviteScreen() {
   const handleSignUp = () => {
     // Store invite ID for after signup
     setPendingInvite(inviteId!);
-    router.push('/(auth)/signup');
+    router.push('/(auth)/login?mode=signup');
   };
 
   const handleLogin = () => {
