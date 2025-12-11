@@ -50,16 +50,11 @@ export default function AcceptInviteScreen() {
       // First load invite details (no auth required)
       const { data: inviteData, error: inviteError } = await supabase
         .from('group_invites')
-        .select(`
-          id,
-          group_id,
-          status,
-          expires_at,
-          groups (name),
-          profiles!group_invites_invited_by_fkey (display_name, username)
-        `)
+        .select('id, group_id, status, expires_at, invited_by')
         .eq('id', inviteId)
         .single();
+
+      console.log('Invite query result:', inviteData, inviteError);
 
       if (inviteError || !inviteData) {
         setError('Invite not found or has expired.');
@@ -81,11 +76,25 @@ export default function AcceptInviteScreen() {
         return;
       }
 
+      // Get group name separately
+      const { data: groupData } = await supabase
+        .from('groups')
+        .select('name')
+        .eq('id', inviteData.group_id)
+        .single();
+
+      // Get inviter name separately
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_name, username')
+        .eq('id', inviteData.invited_by)
+        .single();
+
       setInvite({
         id: inviteData.id,
         group_id: inviteData.group_id,
-        group_name: (inviteData.groups as any)?.name || 'Unknown Group',
-        inviter_name: (inviteData.profiles as any)?.display_name || (inviteData.profiles as any)?.username || 'Someone',
+        group_name: groupData?.name || 'Unknown Group',
+        inviter_name: profileData?.display_name || profileData?.username || 'Someone',
         status: inviteData.status,
         expires_at: inviteData.expires_at,
       });
