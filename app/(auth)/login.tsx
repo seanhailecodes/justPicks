@@ -3,6 +3,14 @@ import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
+// Helper to get pending invite from localStorage
+const getPendingInvite = () => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    return localStorage.getItem('pendingInvite');
+  }
+  return null;
+};
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,7 +22,7 @@ export default function LoginScreen() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        router.replace('/(tabs)/home');
+        handlePostAuthRedirect();
       }
     };
     checkSession();
@@ -24,12 +32,21 @@ export default function LoginScreen() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        router.replace('/(tabs)/home');
+        handlePostAuthRedirect();
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const handlePostAuthRedirect = () => {
+    const pendingInvite = getPendingInvite();
+    if (pendingInvite) {
+      router.replace(`/accept-invite/${pendingInvite}`);
+    } else {
+      router.replace('/(tabs)/home');
+    }
+  };
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -45,7 +62,9 @@ export default function LoginScreen() {
         email: email.trim(),
         password: password,
         options: {
-          emailRedirectTo: 'justpicks://auth/callback',
+          emailRedirectTo: Platform.OS === 'web' 
+            ? `${window.location.origin}/callback`
+            : 'justpicks://auth/callback',
         }
       });
 
@@ -69,6 +88,7 @@ export default function LoginScreen() {
       if (error) {
         Alert.alert('Error', error.message);
       }
+      // onAuthStateChange will handle redirect
     }
 
     setLoading(false);
@@ -81,7 +101,9 @@ export default function LoginScreen() {
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'justpicks://reset-password',
+      redirectTo: Platform.OS === 'web'
+        ? `${window.location.origin}/reset-password`
+        : 'justpicks://reset-password',
     });
 
     if (error) {

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 interface InviteDetails {
@@ -12,6 +12,26 @@ interface InviteDetails {
   expires_at: string;
 }
 
+// Helper to store/retrieve pending invite
+const setPendingInvite = (inviteId: string) => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    localStorage.setItem('pendingInvite', inviteId);
+  }
+};
+
+export const getPendingInvite = () => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    return localStorage.getItem('pendingInvite');
+  }
+  return null;
+};
+
+export const clearPendingInvite = () => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    localStorage.removeItem('pendingInvite');
+  }
+};
+
 export default function AcceptInviteScreen() {
   const { inviteId } = useLocalSearchParams<{ inviteId: string }>();
   const [loading, setLoading] = useState(true);
@@ -19,26 +39,15 @@ export default function AcceptInviteScreen() {
   const [invite, setInvite] = useState<InviteDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    checkAuthAndLoadInvite();
+    loadInviteAndCheckAuth();
   }, [inviteId]);
 
-  const checkAuthAndLoadInvite = async () => {
+  const loadInviteAndCheckAuth = async () => {
     try {
-      // Check if user is logged in
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        // Store invite ID and redirect to login
-        // After login, user should be redirected back here
-        router.replace(`/(auth)/login?redirect=/accept-invite/${inviteId}`);
-        return;
-      }
-
-      setCurrentUserId(user.id);
-
-      // Load invite details
+      // First load invite details (no auth required)
       const { data: inviteData, error: inviteError } = await supabase
         .from('group_invites')
         .select(`
@@ -80,12 +89,32 @@ export default function AcceptInviteScreen() {
         status: inviteData.status,
         expires_at: inviteData.expires_at,
       });
+
+      // Then check if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        setCurrentUserId(user.id);
+        setIsLoggedIn(true);
+      }
     } catch (err) {
       console.error('Error loading invite:', err);
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSignUp = () => {
+    // Store invite ID for after signup
+    setPendingInvite(inviteId!);
+    router.push('/(auth)/signup');
+  };
+
+  const handleLogin = () => {
+    // Store invite ID for after login
+    setPendingInvite(inviteId!);
+    router.push('/(auth)/login');
   };
 
   const handleAccept = async () => {
@@ -102,8 +131,8 @@ export default function AcceptInviteScreen() {
         .single();
 
       if (existingMember) {
-        setError('You are already a member of this group!');
-        setAccepting(false);
+        // Already a member, just go to the group
+        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
         return;
       }
 
@@ -126,6 +155,9 @@ export default function AcceptInviteScreen() {
 
       if (updateError) throw updateError;
 
+      // Clear pending invite
+      clearPendingInvite();
+
       // Navigate to the group
       router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
     } catch (err) {
@@ -139,12 +171,15 @@ export default function AcceptInviteScreen() {
     if (!invite) return;
 
     try {
-      await supabase
-        .from('group_invites')
-        .update({ status: 'declined' })
-        .eq('id', invite.id);
-
-      router.replace('/(tabs)/groups');
+      if (isLoggedIn) {
+        await supabase
+          .from('group_invites')
+          .update({ status: 'declined' })
+          .eq('id', invite.id);
+      }
+      
+      clearPendingInvite();
+      router.replace(isLoggedIn ? '/(tabs)/groups' : '/');
     } catch (err) {
       console.error('Error declining invite:', err);
     }
@@ -169,9 +204,11 @@ export default function AcceptInviteScreen() {
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
             style={styles.button}
-            onPress={() => router.replace('/(tabs)/groups')}
+            onPress={() => router.replace(isLoggedIn ? '/(tabs)/groups' : '/')}
           >
-            <Text style={styles.buttonText}>Go to Groups</Text>
+            <Text style={styles.buttonText}>
+              {isLoggedIn ? 'Go to Groups' : 'Go Home'}
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -191,25 +228,52 @@ export default function AcceptInviteScreen() {
           
           <Text style={styles.groupName}>{invite?.group_name}</Text>
 
-          <View style={styles.buttons}>
-            <TouchableOpacity 
-              style={[styles.button, styles.acceptButton, accepting && styles.buttonDisabled]}
-              onPress={handleAccept}
-              disabled={accepting}
-            >
-              <Text style={styles.buttonText}>
-                {accepting ? 'Joining...' : 'Accept & Join'}
-              </Text>
-            </TouchableOpacity>
+          {isLoggedIn ? (
+            // Logged in - show accept/decline
+            <View style={styles.buttons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.acceptButton, accepting && styles.buttonDisabled]}
+                onPress={handleAccept}
+                disabled={accepting}
+              >
+                <Text style={styles.buttonText}>
+                  {accepting ? 'Joining...' : 'Accept & Join'}
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.button, styles.declineButton]}
-              onPress={handleDecline}
-              disabled={accepting}
-            >
-              <Text style={styles.declineButtonText}>Decline</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity 
+                style={[styles.button, styles.declineButton]}
+                onPress={handleDecline}
+                disabled={accepting}
+              >
+                <Text style={styles.declineButtonText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            // Not logged in - show signup/login
+            <View style={styles.buttons}>
+              <TouchableOpacity 
+                style={[styles.button, styles.acceptButton]}
+                onPress={handleSignUp}
+              >
+                <Text style={styles.buttonText}>Sign Up to Join</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.button, styles.secondaryButton]}
+                onPress={handleLogin}
+              >
+                <Text style={styles.secondaryButtonText}>Already have an account? Log In</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.button, styles.declineButton]}
+                onPress={handleDecline}
+              >
+                <Text style={styles.declineButtonText}>No thanks</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -279,6 +343,9 @@ const styles = StyleSheet.create({
   acceptButton: {
     backgroundColor: '#FF6B35',
   },
+  secondaryButton: {
+    backgroundColor: '#2C2C2E',
+  },
   declineButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
@@ -291,6 +358,10 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  secondaryButtonText: {
+    color: '#FFF',
+    fontSize: 14,
   },
   declineButtonText: {
     color: '#8E8E93',
