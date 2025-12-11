@@ -1,7 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+
+// Helper to get pending invite from localStorage
+const getPendingInvite = () => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    return localStorage.getItem('pendingInvite');
+  }
+  return null;
+};
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -25,11 +33,11 @@ export default function AuthCallback() {
             return;
           }
 
-          // After successful verification, check session
+          // After successful verification, check for pending invite
           const { data: { session } } = await supabase.auth.getSession();
           
           if (session) {
-            router.replace('/(tabs)');
+            handlePostAuthRedirect();
             return;
           }
         }
@@ -52,13 +60,22 @@ export default function AuthCallback() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
-          router.replace('/(tabs)');
+          handlePostAuthRedirect();
         } else {
           router.replace('/(auth)/login');
         }
       } catch (error) {
         console.error('Callback error:', error);
         router.replace('/(auth)/login');
+      }
+    };
+
+    const handlePostAuthRedirect = () => {
+      const pendingInvite = getPendingInvite();
+      if (pendingInvite) {
+        router.replace(`/accept-invite/${pendingInvite}`);
+      } else {
+        router.replace('/(tabs)');
       }
     };
 
