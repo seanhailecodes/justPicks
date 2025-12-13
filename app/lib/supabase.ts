@@ -396,25 +396,38 @@ export const savePick = async (userId: string, pickData: {
       return { success: false, error: result.error.message };
     }
 
-    // Handle group sharing - batch insert all at once
-    if (pickData.pick_type === 'group' && pickData.groups?.length > 0 && result.data) {
+    // Auto-share pick to ALL groups the user belongs to
+    if (result.data) {
       const pickId = result.data.id;
       
-      // Build batch of group_picks to insert
-      const groupPicksToInsert = pickData.groups.map(groupId => ({
-        group_id: groupId,
-        pick_id: pickId,
-        user_id: userId,
-        shared_at: new Date().toISOString()
-      }));
+      // Get all groups the user is a member of
+      const { data: userGroups, error: groupsError } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', userId);
       
-      // Use upsert to handle duplicates gracefully
-      await supabase
-        .from('group_picks')
-        .upsert(groupPicksToInsert, { 
-          onConflict: 'group_id,pick_id',
-          ignoreDuplicates: true 
-        });
+      if (!groupsError && userGroups && userGroups.length > 0) {
+        // Build batch of group_picks to insert for ALL user's groups
+        const groupPicksToInsert = userGroups.map(membership => ({
+          group_id: membership.group_id,
+          pick_id: pickId,
+          user_id: userId,
+          shared_at: new Date().toISOString()
+        }));
+        
+        // Use upsert to handle duplicates gracefully
+        const { error: shareError } = await supabase
+          .from('group_picks')
+          .upsert(groupPicksToInsert, { 
+            onConflict: 'group_id,pick_id',
+            ignoreDuplicates: true 
+          });
+        
+        if (shareError) {
+          console.warn('Error auto-sharing pick to groups:', shareError);
+          // Don't fail the whole operation if sharing fails
+        }
+      }
     }
 
     return { success: true, data: result.data };
