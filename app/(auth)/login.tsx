@@ -11,12 +11,24 @@ const getPendingInvite = () => {
   return null;
 };
 
+// Web-compatible alert
+const showAlert = (title: string, message: string, setMessage: (msg: { type: 'success' | 'error'; text: string } | null) => void, onOk?: () => void) => {
+  if (Platform.OS === 'web') {
+    const type = title.toLowerCase().includes('error') ? 'error' : 'success';
+    setMessage({ type, text: message });
+    if (onOk) setTimeout(onOk, 2000);
+  } else {
+    Alert.alert(title, message, onOk ? [{ text: 'OK', onPress: onOk }] : undefined);
+  }
+};
+
 export default function LoginScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(mode === 'signup');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -50,8 +62,10 @@ export default function LoginScreen() {
   };
 
   const handleAuth = async () => {
+    setMessage(null);
+    
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      showAlert('Error', 'Please enter both email and password', setMessage);
       return;
     }
 
@@ -70,13 +84,14 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        Alert.alert('Error', error.message);
+        showAlert('Error', error.message, setMessage);
       } else {
         // Don't try to auto-login, just tell them to check email
-        Alert.alert(
+        showAlert(
           'Check your email!', 
           'We sent you a verification link. Click it to activate your account.',
-          [{ text: 'OK', onPress: () => setIsSignUp(false) }]
+          setMessage,
+          () => setIsSignUp(false)
         );
       }
     } else {
@@ -87,7 +102,7 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        Alert.alert('Error', error.message);
+        showAlert('Error', error.message, setMessage);
       }
       // onAuthStateChange will handle redirect
     }
@@ -96,21 +111,27 @@ export default function LoginScreen() {
   };
 
   const handlePasswordReset = async () => {
+    setMessage(null);
+    
     if (!email.trim()) {
-      Alert.alert('Enter Email', 'Please enter your email address first, then tap Reset Password.');
+      showAlert('Enter Email', 'Please enter your email address above, then tap Forgot Password.', setMessage);
       return;
     }
 
+    setLoading(true);
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: Platform.OS === 'web'
         ? `${window.location.origin}/reset-password`
         : 'justpicks://reset-password',
     });
 
+    setLoading(false);
+
     if (error) {
-      Alert.alert('Error', error.message);
+      showAlert('Error', error.message, setMessage);
     } else {
-      Alert.alert('Check your email', 'Password reset link sent!');
+      showAlert('Check Your Email', `We've sent a password reset link to ${email.trim()}. Please check your inbox and spam folder.`, setMessage);
     }
   };
 
@@ -121,6 +142,17 @@ export default function LoginScreen() {
         style={styles.content}
       >
         <Text style={styles.title}>Welcome to JustPicks</Text>
+        
+        {message && (
+          <View style={[styles.messageBox, message.type === 'error' ? styles.errorBox : styles.successBox]}>
+            <Text style={[styles.messageText, message.type === 'error' ? styles.errorText : styles.successText]}>
+              {message.text}
+            </Text>
+            <TouchableOpacity onPress={() => setMessage(null)} style={styles.dismissButton}>
+              <Text style={styles.dismissText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         
         <Text style={styles.subtitle}>
           {isSignUp ? 'Create your account' : 'Sign in to continue'}
@@ -222,6 +254,41 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
+  },
+  messageBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 16,
+  },
+  errorBox: {
+    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  successBox: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    borderWidth: 1,
+    borderColor: '#34C759',
+  },
+  messageText: {
+    flex: 1,
+    fontSize: 14,
+  },
+  errorText: {
+    color: '#FF6B6B',
+  },
+  successText: {
+    color: '#34C759',
+  },
+  dismissButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  dismissText: {
+    color: '#8E8E93',
+    fontSize: 16,
   },
   subtitle: {
     color: '#8E8E93',
