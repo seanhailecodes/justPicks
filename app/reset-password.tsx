@@ -9,36 +9,57 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Check if we have a valid session from the reset link
-    const checkSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error || !session) {
-          setError('Invalid or expired reset link. Please request a new one.');
-        }
-      } catch (err) {
-        setError('Something went wrong. Please try again.');
-      } finally {
+    // Listen for PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth event:', event);
+      
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the recovery link and Supabase exchanged the token
+        setReady(true);
+        setInitializing(false);
+      } else if (event === 'SIGNED_IN' && session) {
+        // Already signed in, check if this is from a recovery flow
+        setReady(true);
         setInitializing(false);
       }
+    });
+
+    // Also check if we already have a session (in case the event already fired)
+    const checkExistingSession = async () => {
+      // Give Supabase a moment to process the URL hash
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        setReady(true);
+      } else {
+        setError('Invalid or expired reset link. Please request a new one.');
+      }
+      setInitializing(false);
     };
 
-    // Handle the hash fragment from the reset link (web only)
     if (Platform.OS === 'web') {
+      // Check for hash in URL (Supabase sends tokens in hash)
       const hash = window.location.hash;
-      if (hash) {
-        // Supabase handles the token exchange automatically
-        // Just wait a moment for it to process
-        setTimeout(checkSession, 1000);
+      if (hash && hash.includes('type=recovery')) {
+        // Let onAuthStateChange handle it, but set a timeout fallback
+        setTimeout(() => {
+          if (initializing) {
+            checkExistingSession();
+          }
+        }, 3000);
       } else {
-        checkSession();
+        checkExistingSession();
       }
     } else {
-      checkSession();
+      checkExistingSession();
     }
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleResetPassword = async () => {
@@ -67,11 +88,17 @@ export default function ResetPasswordScreen() {
       if (error) {
         Alert.alert('Error', error.message);
       } else {
-        Alert.alert(
-          'Password Updated!',
-          'Your password has been successfully reset.',
-          [{ text: 'OK', onPress: () => router.replace('/(tabs)/home') }]
-        );
+        if (Platform.OS === 'web') {
+          // Show inline message for web
+          alert('Password updated successfully!');
+          router.replace('/(tabs)/home');
+        } else {
+          Alert.alert(
+            'Password Updated!',
+            'Your password has been successfully reset.',
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/home') }]
+          );
+        }
       }
     } catch (err) {
       Alert.alert('Error', 'Failed to reset password. Please try again.');
@@ -103,6 +130,17 @@ export default function ResetPasswordScreen() {
           >
             <Text style={styles.buttonText}>Back to Login</Text>
           </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#FF6B35" />
+          <Text style={styles.loadingText}>Preparing password reset...</Text>
         </View>
       </SafeAreaView>
     );
