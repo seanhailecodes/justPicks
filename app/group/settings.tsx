@@ -91,19 +91,17 @@ export default function GroupSettingsScreen() {
     }
   };
 
-  const handleLeaveGroup = () => {
-    Alert.alert(
-      'Leave Group',
-      `Are you sure you want to leave "${groupName}"?`,
-      [
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${title}\n\n${message}`)) {
+        onConfirm();
+      }
+    } else {
+      Alert.alert(title, message, [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Leave',
-          style: 'destructive',
-          onPress: confirmLeave,
-        },
-      ]
-    );
+        { text: 'Confirm', style: 'destructive', onPress: onConfirm },
+      ]);
+    }
   };
 
   const confirmLeave = async () => {
@@ -131,22 +129,20 @@ export default function GroupSettingsScreen() {
   };
 
   const handleDeleteGroup = () => {
-    Alert.alert(
-      'Delete Group',
-      `Are you sure you want to delete "${groupName}"?\n\n${
-        (group?.adminCount || 0) > 0
-          ? 'The first admin will become the new owner.'
-          : 'This action cannot be undone and will delete the group for all members.'
-      }`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: confirmDelete,
-        },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Are you sure you want to delete "${groupName}"?`)) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Group',
+        `Are you sure you want to delete "${groupName}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+    }
   };
 
   const confirmDelete = async () => {
