@@ -69,8 +69,8 @@ interface SportConfig {
 const SPORTS: SportConfig[] = [
   { key: 'nfl', label: 'NFL', emoji: '🏈', league: 'NFL', enabled: true },
   { key: 'nba', label: 'NBA', emoji: '🏀', league: 'NBA', enabled: true },
+  { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: true },
   { key: 'ncaaf', label: 'NCAAF', emoji: '🏈', league: 'NCAAF', enabled: false },
-  { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: false },
   { key: 'nhl', label: 'NHL', emoji: '🏒', league: 'NHL', enabled: false },
   { key: 'mlb', label: 'MLB', emoji: '⚾', league: 'MLB', enabled: false },
 ];
