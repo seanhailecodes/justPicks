@@ -116,6 +116,22 @@ const groupGamesByDate = (games: Game[]): Map<string, Game[]> => {
   return groups;
 };
 
+// Team display component - shows logo if available, otherwise just code
+const TeamDisplay = ({ logo, code, name }: { logo?: string; code?: string; name: string }) => (
+  <View style={styles.teamInfo}>
+    {logo ? (
+      <Image 
+        source={{ uri: logo }} 
+        style={styles.teamLogo}
+        resizeMode="contain"
+      />
+    ) : null}
+    <Text style={styles.teamName}>
+      {code || name}
+    </Text>
+  </View>
+);
+
 export default function GamesScreen() {
   const router = useRouter();
   const [selectedSport, setSelectedSport] = useState<SportConfig>(SPORTS[0]);
@@ -691,7 +707,6 @@ export default function GamesScreen() {
               {dateGames.map(game => {
                 const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
                 const isLocked = timeToLock === 'LOCKED';
-                const showLogos = game.homeTeamLogo && game.awayTeamLogo;
                 
                 // Helper to check if a cell is selected (saved or pending)
                 const isCellSelected = (betType: string, side: string) => {
@@ -723,18 +738,11 @@ export default function GamesScreen() {
                     {/* Away Team Row */}
                     <View style={styles.gridRow}>
                       <View style={styles.teamColumn}>
-                        <View style={styles.teamInfo}>
-                          {showLogos && (
-                            <Image 
-                              source={{ uri: game.awayTeamLogo }} 
-                              style={styles.teamLogo}
-                              resizeMode="contain"
-                            />
-                          )}
-                          <Text style={styles.teamName}>
-                            {game.awayTeamCode || game.awayTeam}
-                          </Text>
-                        </View>
+                        <TeamDisplay 
+                          logo={game.awayTeamLogo} 
+                          code={game.awayTeamCode} 
+                          name={game.awayTeam} 
+                        />
                       </View>
                       
                       {/* Away Spread */}
@@ -786,18 +794,11 @@ export default function GamesScreen() {
                     {/* Home Team Row */}
                     <View style={styles.gridRow}>
                       <View style={styles.teamColumn}>
-                        <View style={styles.teamInfo}>
-                          {showLogos && (
-                            <Image 
-                              source={{ uri: game.homeTeamLogo }} 
-                              style={styles.teamLogo}
-                              resizeMode="contain"
-                            />
-                          )}
-                          <Text style={styles.teamName}>
-                            {game.homeTeamCode || game.homeTeam}
-                          </Text>
-                        </View>
+                        <TeamDisplay 
+                          logo={game.homeTeamLogo} 
+                          code={game.homeTeamCode} 
+                          name={game.homeTeam} 
+                        />
                       </View>
                       
                       {/* Home Spread */}
