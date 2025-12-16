@@ -1,56 +1,131 @@
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
+const SPORTS = [
+  { id: 'nfl', label: '🏈 NFL', league: 'NFL' },
+  { id: 'nba', label: '🏀 NBA', league: 'NBA' },
+  { id: 'ncaaf', label: '🏈 NCAAF', league: 'NCAAF', disabled: true },
+  { id: 'ncaab', label: '🏀 NCAAB', league: 'NCAAB', disabled: true },
+];
+
+const TIME_PERIODS = [
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'season', label: 'Season' },
+  { key: 'all', label: 'All Time' }
+];
+
+interface LeaderboardPlayer {
+  userId: string;
+  name: string;
+  accuracy: number;
+  wins: number;
+  losses: number;
+  total: number;
+  rank: number;
+  isYou: boolean;
+}
+
+interface UserGroup {
+  id: string;
+  name: string;
+}
+
 export default function LeaderboardScreen() {
-  const [timeframe, setTimeframe] = useState('week'); // 'week', 'month', 'all'
-  const [selectedGroup, setSelectedGroup] = useState('all'); // 'all' or specific group
-  const [leaderboardData, setLeaderboardData] = useState({
-    week: [],
-    month: [],
-    all: []
-  });
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const router = useRouter();
+  const [selectedSport, setSelectedSport] = useState(SPORTS[0]);
+  const [timeframe, setTimeframe] = useState<'week' | 'month' | 'season' | 'all'>('week');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardPlayer[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    loadUserGroups();
+  }, [selectedSport]);
+
+  useEffect(() => {
     fetchLeaderboardData();
-  }, [timeframe, selectedGroup]);
+  }, [selectedSport, timeframe, selectedGroupId]);
+
+  const loadUserGroups = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setCurrentUserId(user.id);
+
+    const { data: memberships } = await supabase
+      .from('group_members')
+      .select('group_id, groups(id, name, sport)')
+      .eq('user_id', user.id);
+
+    const groups: UserGroup[] = [];
+    memberships?.forEach(m => {
+      const group = m.groups as any;
+      if (group && (group.sport === selectedSport.id || !group.sport)) {
+        groups.push({ id: group.id, name: group.name });
+      }
+    });
+
+    setUserGroups(groups);
+    setSelectedGroupId(null);
+  };
 
   const fetchLeaderboardData = async () => {
     setLoading(true);
-    
-    // Get current user
+
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setCurrentUserId(user.id);
+    if (user) setCurrentUserId(user.id);
+
+    let gamesQuery = supabase
+      .from('games')
+      .select('id')
+      .eq('league', selectedSport.league);
+
+    if (timeframe === 'season') {
+      gamesQuery = gamesQuery.eq('season', 2025);
     }
 
-    // Build date filter based on timeframe
-    let dateFilter = new Date();
-    if (timeframe === 'week') {
-      dateFilter.setDate(dateFilter.getDate() - 7);
-    } else if (timeframe === 'month') {
-      dateFilter.setMonth(dateFilter.getMonth() - 1);
-    } else {
-      dateFilter = null; // All time
+    const { data: games } = await gamesQuery;
+    const gameIds = games?.map(g => g.id) || [];
+
+    if (gameIds.length === 0) {
+      setLeaderboardData([]);
+      setLoading(false);
+      return;
     }
 
-    // Fetch all picks
-    let query = supabase
+    let picksQuery = supabase
       .from('picks')
-      .select('user_id, correct, created_at');
-    
-    if (dateFilter) {
-      query = query.gte('created_at', dateFilter.toISOString());
+      .select('user_id, correct, created_at')
+      .in('game_id', gameIds)
+      .not('correct', 'is', null);
+
+    const now = new Date();
+    if (timeframe === 'week') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      picksQuery = picksQuery.gte('created_at', weekAgo.toISOString());
+    } else if (timeframe === 'month') {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      picksQuery = picksQuery.gte('created_at', monthAgo.toISOString());
     }
 
-    if (selectedGroup !== 'all') {
-      // Add group filter if needed
-      // query = query.contains('groups', [selectedGroup]);
+    if (selectedGroupId) {
+      const { data: members } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .eq('group_id', selectedGroupId);
+
+      const groupMemberIds = members?.map(m => m.user_id) || [];
+      if (groupMemberIds.length > 0) {
+        picksQuery = picksQuery.in('user_id', groupMemberIds);
+      }
     }
 
-    const { data: picks, error } = await query;
+    const { data: picks, error } = await picksQuery;
 
     if (error) {
       console.error('Error fetching picks:', error);
@@ -58,266 +133,242 @@ export default function LeaderboardScreen() {
       return;
     }
 
-    // Process picks by user
-    const userStats = {};
+    const userStats: Record<string, { wins: number; losses: number }> = {};
+
     picks?.forEach(pick => {
       if (!userStats[pick.user_id]) {
-        userStats[pick.user_id] = {
-          userId: pick.user_id,
-          correct: 0,
-          wrong: 0,
-          pending: 0,
-          total: 0,
-          streak: 0
-        };
+        userStats[pick.user_id] = { wins: 0, losses: 0 };
       }
-      
-      userStats[pick.user_id].total++;
       if (pick.correct === true) {
-        userStats[pick.user_id].correct++;
+        userStats[pick.user_id].wins++;
       } else if (pick.correct === false) {
-        userStats[pick.user_id].wrong++;
-      } else {
-        userStats[pick.user_id].pending++;
+        userStats[pick.user_id].losses++;
       }
     });
 
-    // Fetch user emails from auth.users
     const userIds = Object.keys(userStats);
-    const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
-    
-    // If admin API doesn't work, fetch from a view or use current user's email
-    let userEmails = {};
-    if (usersError || !users) {
-      // For current user, we already have their email
-      if (user) {
-        userEmails[user.id] = user.email;
-      }
-      // For others, we'll show "Player" for now
-    } else {
-      users.forEach(u => {
-        userEmails[u.id] = u.email;
+    let profileMap: Record<string, string> = {};
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, username')
+        .in('id', userIds);
+
+      profiles?.forEach(p => {
+        profileMap[p.id] = p.display_name || p.username || 'Player';
       });
     }
 
-    // Calculate rankings and format data
-    const leaderboard = Object.values(userStats).map(stats => {
-      const completed = stats.correct + stats.wrong;
-      const accuracy = completed > 0 ? Math.round((stats.correct / completed) * 100) : 0;
-      
-      // Extract name from email or use default
-      let displayName = 'Player';
-      const email = userEmails[stats.userId];
-      if (email) {
-        displayName = email.split('@')[0];
-        displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
-      }
-      
+    const leaderboard: LeaderboardPlayer[] = Object.entries(userStats).map(([userId, stats]) => {
+      const total = stats.wins + stats.losses;
+      const accuracy = total > 0 ? Math.round((stats.wins / total) * 100) : 0;
+
       return {
-        userId: stats.userId,
-        name: displayName,
-        accuracy: accuracy,
-        wins: stats.correct,
-        total: completed,
-        pending: stats.pending,
-        streak: 0, // You'd need to calculate this from consecutive wins
-        tier: getTier(accuracy),
-        isYou: stats.userId === user?.id
+        userId,
+        name: profileMap[userId] || 'Player',
+        accuracy,
+        wins: stats.wins,
+        losses: stats.losses,
+        total,
+        rank: 0,
+        isYou: userId === user?.id
       };
     });
 
-    // Sort by accuracy and assign ranks
     leaderboard.sort((a, b) => {
-      // Sort by accuracy first, then by total picks as tiebreaker
-      if (b.accuracy === a.accuracy) {
-        return b.total - a.total;
-      }
+      if (b.accuracy === a.accuracy) return b.wins - a.wins;
       return b.accuracy - a.accuracy;
     });
-    
+
     leaderboard.forEach((player, index) => {
       player.rank = index + 1;
     });
 
-    // Update state for current timeframe
-    setLeaderboardData(prev => ({
-      ...prev,
-      [timeframe]: leaderboard
-    }));
-    
+    setLeaderboardData(leaderboard);
     setLoading(false);
   };
 
-  const getTier = (accuracy) => {
-    if (accuracy >= 80) return 'Diamond';
-    if (accuracy >= 70) return 'Gold';
-    if (accuracy >= 60) return 'Silver';
-    return 'Bronze';
-  };
-
-  const getTierColor = (tier) => {
-    switch (tier) {
-      case 'Diamond': return '#00D4FF';
-      case 'Gold': return '#FFD700';
-      case 'Silver': return '#C0C0C0';
-      case 'Bronze': return '#CD7F32';
-      default: return '#8E8E93';
-    }
-  };
-
-  const getRankEmoji = (rank) => {
+  const getRankDisplay = (rank: number) => {
     switch (rank) {
       case 1: return '🥇';
       case 2: return '🥈';
       case 3: return '🥉';
-      default: return '';
+      default: return `#${rank}`;
     }
   };
 
-  const groups = ['All Friends', 'Work Friends', 'Family Picks', 'College Buddies'];
-  const currentData = leaderboardData[timeframe] || [];
-  const yourStats = currentData.find(p => p.isYou);
+  const getAccuracyColor = (accuracy: number) => {
+    if (accuracy >= 70) return '#34C759';
+    if (accuracy >= 55) return '#FF9500';
+    return '#FF3B30';
+  };
+
+  const yourStats = leaderboardData.find(p => p.isYou);
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Leaderboard</Text>
+      <Text style={styles.title}>Leaderboard</Text>
+
+      {/* Sport Tabs */}
+      <View style={styles.filterSection}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.chipContainer}>
+            {SPORTS.map(sport => (
+              <TouchableOpacity
+                key={sport.id}
+                style={[
+                  styles.chip,
+                  selectedSport.id === sport.id && styles.chipActive,
+                  sport.disabled && styles.chipDisabled
+                ]}
+                onPress={() => !sport.disabled && setSelectedSport(sport)}
+                disabled={sport.disabled}
+              >
+                <Text style={[
+                  styles.chipText,
+                  selectedSport.id === sport.id && styles.chipTextActive,
+                  sport.disabled && styles.chipTextDisabled
+                ]}>
+                  {sport.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       </View>
 
-      {/* Group Filter */}
-      <ScrollView 
-        horizontal 
-        style={styles.groupFilter}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.groupFilterContent}
-      >
-        {groups.map((group, index) => (
+      {/* Group Filter - only show if user has groups */}
+      {userGroups.length > 0 && (
+        <View style={styles.filterSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.chipContainer}>
+              <TouchableOpacity
+                style={[styles.chip, !selectedGroupId && styles.chipActive]}
+                onPress={() => setSelectedGroupId(null)}
+              >
+                <Text style={[styles.chipText, !selectedGroupId && styles.chipTextActive]}>
+                  Everyone
+                </Text>
+              </TouchableOpacity>
+
+              {userGroups.map(group => (
+                <TouchableOpacity
+                  key={group.id}
+                  style={[styles.chip, selectedGroupId === group.id && styles.chipActive]}
+                  onPress={() => setSelectedGroupId(group.id)}
+                >
+                  <Text style={[styles.chipText, selectedGroupId === group.id && styles.chipTextActive]}>
+                    {group.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Time Period */}
+      <View style={styles.timeRow}>
+        {TIME_PERIODS.map(period => (
           <TouchableOpacity
-            key={group}
-            style={[
-              styles.groupChip,
-              selectedGroup === (index === 0 ? 'all' : group) && styles.groupChipActive
-            ]}
-            onPress={() => setSelectedGroup(index === 0 ? 'all' : group)}
+            key={period.key}
+            style={[styles.timeChip, timeframe === period.key && styles.timeChipActive]}
+            onPress={() => setTimeframe(period.key as any)}
           >
-            <Text style={[
-              styles.groupChipText,
-              selectedGroup === (index === 0 ? 'all' : group) && styles.groupChipTextActive
-            ]}>
-              {group}
+            <Text style={[styles.timeChipText, timeframe === period.key && styles.timeChipTextActive]}>
+              {period.label}
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
-
-      {/* Timeframe Selector */}
-      <View style={styles.timeframeContainer}>
-        {['week', 'month', 'all'].map(period => (
-          <TouchableOpacity
-            key={period}
-            style={[styles.timeframeButton, timeframe === period && styles.timeframeButtonActive]}
-            onPress={() => setTimeframe(period)}
-          >
-            <Text style={[styles.timeframeText, timeframe === period && styles.timeframeTextActive]}>
-              {period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'All Time'}
-            </Text>
-          </TouchableOpacity>
-        ))}
       </View>
 
-      <ScrollView 
+      {/* Content */}
+      <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading rankings...</Text>
+          <View style={styles.centered}>
+            <Text style={styles.mutedText}>Loading rankings...</Text>
           </View>
         ) : (
           <>
-            {/* Your Stats Card */}
             {yourStats && (
               <View style={styles.yourStatsCard}>
-                <Text style={styles.yourStatsTitle}>Your Performance</Text>
                 <View style={styles.yourStatsRow}>
                   <View style={styles.yourStatItem}>
-                    <Text style={styles.yourStatValue}>#{yourStats.rank}</Text>
+                    <Text style={styles.yourStatValue}>{getRankDisplay(yourStats.rank)}</Text>
                     <Text style={styles.yourStatLabel}>Rank</Text>
                   </View>
                   <View style={styles.yourStatItem}>
-                    <Text style={styles.yourStatValue}>{yourStats.accuracy}%</Text>
+                    <Text style={[styles.yourStatValue, { color: getAccuracyColor(yourStats.accuracy) }]}>
+                      {yourStats.accuracy}%
+                    </Text>
                     <Text style={styles.yourStatLabel}>Accuracy</Text>
                   </View>
                   <View style={styles.yourStatItem}>
-                    <Text style={styles.yourStatValue}>{yourStats.streak} 🔥</Text>
-                    <Text style={styles.yourStatLabel}>Streak</Text>
+                    <Text style={styles.yourStatValue}>{yourStats.wins}-{yourStats.losses}</Text>
+                    <Text style={styles.yourStatLabel}>Record</Text>
                   </View>
                 </View>
               </View>
             )}
 
-            {/* Leaderboard List */}
-            {currentData.length === 0 ? (
-              <View style={styles.emptyContainer}>
+            {leaderboardData.length === 0 ? (
+              <View style={styles.centered}>
                 <Text style={styles.emptyText}>No picks yet for this period</Text>
+                <Text style={styles.mutedText}>
+                  Make some {selectedSport.league} picks to appear here!
+                </Text>
+                <TouchableOpacity 
+                  style={styles.makePicksButton}
+                  onPress={() => router.push('/(tabs)/games')}
+                >
+                  <Text style={styles.makePicksText}>Make Picks</Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              currentData.map((player, index) => (
-                <TouchableOpacity 
-                  key={`${player.userId}-${index}`} 
+              leaderboardData.map((player) => (
+                <View
+                  key={player.userId}
                   style={[styles.playerCard, player.isYou && styles.playerCardYou]}
                 >
-                  <View style={styles.rankContainer}>
-                    {player.rank <= 3 ? (
-                      <Text style={styles.rankEmoji}>{getRankEmoji(player.rank)}</Text>
-                    ) : (
-                      <Text style={styles.rankNumber}>#{player.rank}</Text>
-                    )}
-                  </View>
-
+                  <Text style={[styles.rank, player.rank <= 3 && styles.rankTop]}>
+                    {getRankDisplay(player.rank)}
+                  </Text>
                   <View style={styles.playerInfo}>
-                    <View style={styles.playerHeader}>
-                      <Text style={[styles.playerName, player.isYou && styles.playerNameYou]}>
-                        {player.isYou ? 'You' : player.name}
-                      </Text>
-                      <View style={[styles.tierBadge, { backgroundColor: getTierColor(player.tier) }]}>
-                        <Text style={styles.tierText}>{player.tier}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.playerStats}>
-                      {player.wins}/{player.total} picks ({player.accuracy}%)
+                    <Text style={[styles.playerName, player.isYou && styles.playerNameYou]}>
+                      {player.isYou ? 'You' : player.name}
                     </Text>
+                    <Text style={styles.playerRecord}>{player.wins}-{player.losses}</Text>
                   </View>
-
-                  <View style={styles.streakContainer}>
-                    {player.streak > 0 && (
-                      <>
-                        <Text style={styles.streakNumber}>{player.streak}</Text>
-                        <Text style={styles.streakEmoji}>🔥</Text>
-                      </>
-                    )}
-                  </View>
-                </TouchableOpacity>
+                  <Text style={[styles.accuracy, { color: getAccuracyColor(player.accuracy) }]}>
+                    {player.accuracy}%
+                  </Text>
+                </View>
               ))
             )}
 
-            {/* Stats Summary */}
-            {currentData.length > 0 && (
+            {leaderboardData.length > 0 && (
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Group Average</Text>
-                <View style={styles.summaryStats}>
+                <View style={styles.summaryRow}>
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryValue}>
-                      {Math.round(currentData.reduce((acc, p) => acc + p.accuracy, 0) / currentData.length) || 0}%
-                    </Text>
-                    <Text style={styles.summaryLabel}>Avg Accuracy</Text>
+                    <Text style={styles.summaryValue}>{leaderboardData.length}</Text>
+                    <Text style={styles.summaryLabel}>Players</Text>
                   </View>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryValue}>
-                      {currentData.reduce((acc, p) => acc + p.total, 0)}
+                      {leaderboardData.reduce((acc, p) => acc + p.total, 0)}
                     </Text>
-                    <Text style={styles.summaryLabel}>Total Picks</Text>
+                    <Text style={styles.summaryLabel}>Picks</Text>
+                  </View>
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>
+                      {Math.round(leaderboardData.reduce((acc, p) => acc + p.accuracy, 0) / leaderboardData.length) || 0}%
+                    </Text>
+                    <Text style={styles.summaryLabel}>Avg</Text>
                   </View>
                 </View>
               </View>
@@ -334,64 +385,70 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  header: {
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
   title: {
     color: '#FFF',
     fontSize: 28,
     fontWeight: 'bold',
-  },
-  groupFilter: {
-    maxHeight: 50,
-    marginTop: 16,
-  },
-  groupFilterContent: {
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  groupChip: {
-    backgroundColor: '#2C2C2E',
     paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  filterSection: {
+    height: 44,
+    marginBottom: 4,
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 44,
+  },
+  chip: {
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 18,
     marginRight: 8,
   },
-  groupChipActive: {
+  chipActive: {
     backgroundColor: '#FF6B35',
   },
-  groupChipText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
+  chipDisabled: {
+    opacity: 0.4,
   },
-  groupChipTextActive: {
-    color: '#FFF',
-  },
-  timeframeContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 8,
-  },
-  timeframeButton: {
-    flex: 1,
-    paddingVertical: 10,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  timeframeButtonActive: {
-    backgroundColor: '#FF6B35',
-  },
-  timeframeText: {
+  chipText: {
     color: '#8E8E93',
     fontSize: 14,
     fontWeight: '600',
   },
-  timeframeTextActive: {
+  chipTextActive: {
+    color: '#FFF',
+  },
+  chipTextDisabled: {
+    color: '#8E8E93',
+  },
+  timeRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  timeChip: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timeChipActive: {
+    backgroundColor: '#FF6B35',
+  },
+  timeChipText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  timeChipTextActive: {
     color: '#FFF',
   },
   content: {
@@ -401,35 +458,40 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
-  loadingContainer: {
+  centered: {
     padding: 40,
     alignItems: 'center',
   },
-  loadingText: {
+  mutedText: {
     color: '#8E8E93',
-    fontSize: 16,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
+    fontSize: 14,
+    textAlign: 'center',
   },
   emptyText: {
-    color: '#8E8E93',
+    color: '#FFF',
     fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  makePicksButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  makePicksText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   yourStatsCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 2,
     borderColor: '#FF6B35',
-  },
-  yourStatsTitle: {
-    color: '#FF6B35',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 12,
   },
   yourStatsRow: {
     flexDirection: 'row',
@@ -440,96 +502,65 @@ const styles = StyleSheet.create({
   },
   yourStatValue: {
     color: '#FFF',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
   },
   yourStatLabel: {
     color: '#8E8E93',
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 4,
   },
   playerCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
   },
   playerCardYou: {
     borderWidth: 1,
     borderColor: '#FF6B35',
   },
-  rankContainer: {
+  rank: {
     width: 40,
-    alignItems: 'center',
-  },
-  rankEmoji: {
-    fontSize: 24,
-  },
-  rankNumber: {
     color: '#8E8E93',
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  rankTop: {
+    fontSize: 22,
   },
   playerInfo: {
     flex: 1,
-    marginLeft: 12,
-  },
-  playerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+    marginLeft: 8,
   },
   playerName: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 8,
+    fontSize: 15,
+    fontWeight: '600',
   },
   playerNameYou: {
     color: '#FF6B35',
   },
-  tierBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  tierText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  playerStats: {
+  playerRecord: {
     color: '#8E8E93',
-    fontSize: 14,
+    fontSize: 13,
+    marginTop: 2,
   },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  streakNumber: {
-    color: '#FF6B35',
-    fontSize: 18,
+  accuracy: {
+    fontSize: 17,
     fontWeight: 'bold',
-    marginRight: 4,
-  },
-  streakEmoji: {
-    fontSize: 16,
+    marginLeft: 8,
   },
   summaryCard: {
     backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 8,
   },
-  summaryTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  summaryStats: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
   },
@@ -538,12 +569,12 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     color: '#FF6B35',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   summaryLabel: {
     color: '#8E8E93',
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 11,
+    marginTop: 2,
   },
 });

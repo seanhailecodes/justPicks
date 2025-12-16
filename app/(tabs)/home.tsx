@@ -34,8 +34,8 @@ const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {
 // Fallback emojis when logos aren't available
 const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
   nfl: '🏈',
-  ncaaf: '🏈',
   nba: '🏀',
+  ncaaf: '🏈',
   ncaab: '🏀',
   wnba: '🏀',
   mlb: '⚾',
@@ -52,8 +52,8 @@ const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
 // Sports available in the app (add more as you expand)
 const AVAILABLE_SPORTS: { sport: Sport; enabled: boolean }[] = [
   { sport: 'nfl', enabled: true },
+  { sport: 'nba', enabled: true },
   { sport: 'ncaaf', enabled: false },
-  { sport: 'nba', enabled: false },
   { sport: 'ncaab', enabled: false },
   { sport: 'soccer_epl', enabled: false },
   { sport: 'ufc', enabled: false },
@@ -269,15 +269,28 @@ export default function HomeScreen() {
 
   const loadUpcomingGames = async () => {
     if (!userId) return;
-
+        console.log('Loading upcoming games for:', selectedSport);
     try {
+    const now = new Date();
+    
+    // Map sport to league
+    const leagueMap: Record<string, string> = {
+      'nfl': 'NFL',
+      'nba': 'NBA',
+      'ncaaf': 'NCAAF',
+      'ncaab': 'NCAAB',
+    };
+    
+    const league = leagueMap[selectedSport] || 'NFL';
+
       // Get games for current week (for NFL) or upcoming games
       const { data: games } = await supabase
         .from('games')
         .select('*')
-        .eq('week', currentWeek)
+        .eq('league', league) 
         .eq('season', 2025)
         .eq('locked', false)
+        .gte('game_date', now.toISOString()) 
         .order('game_date', { ascending: true })
         .limit(5);
 
@@ -296,17 +309,25 @@ export default function HomeScreen() {
 
       const pickedGameIds = new Set(userPicks?.map(p => p.game_id) || []);
 
-      const transformedGames: UpcomingGame[] = games.map(game => ({
+       const transformedGames: UpcomingGame[] = games.map(game => {
+      // Parse as UTC
+      const dateStr = game.game_date.endsWith('Z') 
+        ? game.game_date 
+        : game.game_date.replace(' ', 'T') + 'Z';
+      const gameDateTime = new Date(dateStr);
+      
+      return {
         id: game.id,
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        gameDate: formatGameDate(game.game_date),
-        gameTime: formatGameTime(game.game_date),
+        homeTeam: game.home_team_code || game.home_team,
+        awayTeam: game.away_team_code || game.away_team,
+        gameDate: formatGameDate(gameDateTime),
+        gameTime: formatGameTime(gameDateTime),
         timeToLock: getTimeToLock(game.game_date),
         userHasPicked: pickedGameIds.has(game.id),
         spread: game.home_spread,
         overUnder: game.over_under_line
-      }));
+      };
+    });
 
       setUpcomingGames(transformedGames);
     } catch (error) {
@@ -323,10 +344,9 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  // Helper functions
-  const formatGameDate = (dateStr: string): string => {
+    // Helper functions
+  const formatGameDate = (date: Date): string => {
     try {
-      const date = new Date(dateStr);
       const today = new Date();
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -336,16 +356,15 @@ export default function HomeScreen() {
       } else if (date.toDateString() === tomorrow.toDateString()) {
         return 'Tomorrow';
       }
-      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     } catch {
       return 'TBD';
     }
   };
 
-  const formatGameTime = (dateStr: string): string => {
+  const formatGameTime = (date: Date): string => {
     try {
-      const date = new Date(dateStr);
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     } catch {
       return 'TBD';
     }

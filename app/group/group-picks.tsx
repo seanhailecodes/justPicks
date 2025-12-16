@@ -38,9 +38,11 @@ export default function GroupPicksScreen() {
   // Group info (including sport)
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
 
-  // Existing state
+  // NFL week state
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+
+  // Shared state
   const [gamesData, setGamesData] = useState<any[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ export default function GroupPicksScreen() {
     fetchGroupInfo();
   }, [groupId]);
 
-  // Load current week from database on mount
+  // Load current week from database on mount (for NFL)
   useEffect(() => {
     const loadCurrentWeek = async () => {
       const { data } = await supabase
@@ -100,7 +102,6 @@ export default function GroupPicksScreen() {
         .single();
       
       if (data?.current_week) {
-        console.log('Setting week to:', data.current_week);
         setCurrentWeekNumber(data.current_week);
         setSelectedWeek(data.current_week);
         
@@ -118,64 +119,73 @@ export default function GroupPicksScreen() {
     loadCurrentWeek();
   }, []);
 
-  // Only load when selectedWeek is set
+  // Load games when sport/week changes
   useEffect(() => {
-    if (selectedWeek !== null) {
-      loadGamesAndPicks();
+    if (groupInfo) {
+      if (groupInfo.sport === 'nfl' && selectedWeek !== null) {
+        loadGamesAndPicks();
+      } else if (groupInfo.sport === 'nba') {
+        loadGamesAndPicks();
+      }
     }
-  }, [selectedWeek]);
+  }, [groupInfo, selectedWeek]);
 
   const loadGamesAndPicks = async () => {
-    console.log('Loading games for week:', selectedWeek);
+    if (!groupInfo) return;
+    
+    setLoading(true);
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (!user) {
-        console.log('No authenticated user found');
         setLoading(false);
         return;
       }
 
       setCurrentUserId(user.id);
 
-      // FIRST: Get group members so we only show their picks
+      // Get group members
       const { data: groupMembers, error: membersError } = await supabase
         .from('group_members')
         .select('user_id')
         .eq('group_id', groupId);
 
-      if (membersError) {
-        console.error('Error fetching group members:', membersError);
-      }
-
       const memberIds = groupMembers?.map(m => m.user_id) || [];
-      const memberCount = memberIds.length;
-      setGroupMemberCount(memberCount);
-      console.log('Group members:', memberCount);
+      setGroupMemberCount(memberIds.length);
 
       if (memberIds.length === 0) {
-        console.log('No members in group');
         setGamesData([]);
         setFriendPicksByGame({});
         setLoading(false);
         return;
       }
 
-      const { data: games, error: gamesError } = await supabase
+      // Build games query based on sport
+      let gamesQuery = supabase
         .from('games')
         .select('*')
-        .eq('week', selectedWeek)
-        .eq('season', 2025)
+        .eq('league', groupInfo.sport.toUpperCase())
         .order('game_date', { ascending: true });
 
-      if (gamesError) {
-        console.error('Error fetching games:', gamesError);
-        setLoading(false);
-        return;
+      if (groupInfo.sport === 'nfl') {
+        // NFL: Filter by week
+        gamesQuery = gamesQuery
+          .eq('week', selectedWeek)
+          .eq('season', 2025);
+      } else {
+        // NBA: Get games from last 7 days + next 3 days
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const threeDaysAhead = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+        
+        gamesQuery = gamesQuery
+          .gte('game_date', weekAgo.toISOString())
+          .lte('game_date', threeDaysAhead.toISOString());
       }
 
-      if (!games || games.length === 0) {
-        console.log('No games found for week', selectedWeek);
+      const { data: games, error: gamesError } = await gamesQuery;
+
+      if (gamesError || !games || games.length === 0) {
         setGamesData([]);
         setFriendPicksByGame({});
         setLoading(false);
@@ -192,27 +202,23 @@ export default function GroupPicksScreen() {
         overUnder: game.over_under_line,
         time: formatGameTime(game.game_date),
         date: formatGameDate(game.game_date),
+        dateGroup: getDateGroup(game.game_date),
         timeToLock: getTimeToLock(game.game_date),
-        locked: game.locked
+        locked: game.locked,
+        gameStatus: game.game_status
       }));
 
       setGamesData(transformedGames);
 
       const gameIds = games.map(g => g.id);
       
-      // FIXED: Only get picks from GROUP MEMBERS
+      // Get picks from group members only
       const { data: picks, error: picksError } = await supabase
         .from('picks')
         .select('*')
         .in('game_id', gameIds)
-        .in('user_id', memberIds)  // <-- Filter by group membership!
+        .in('user_id', memberIds)
         .order('created_at', { ascending: false });
-
-      if (picksError) {
-        console.error('Error fetching picks:', picksError);
-      }
-
-      console.log('Picks from group members:', picks?.length || 0);
 
       let pickWithUsernames = picks || [];
       if (picks && picks.length > 0) {
@@ -288,6 +294,27 @@ export default function GroupPicksScreen() {
     }
   };
 
+  const getDateGroup = (dateStr: string): string => {
+    try {
+      const gameDate = new Date(dateStr);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const gameDateOnly = gameDate.toDateString();
+      
+      if (gameDateOnly === today.toDateString()) return 'Today';
+      if (gameDateOnly === tomorrow.toDateString()) return 'Tomorrow';
+      if (gameDateOnly === yesterday.toDateString()) return 'Yesterday';
+      
+      return gameDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    } catch {
+      return 'TBD';
+    }
+  };
+
   const getTimeToLock = (dateStr: string): string => {
     try {
       const gameDate = new Date(dateStr);
@@ -350,12 +377,11 @@ export default function GroupPicksScreen() {
   };
 
   const getConsensusColor = (percentage: number, isUnanimous: boolean = false) => {
-    // Heat Scale: Cool → Warm based on agreement level
-    if (isUnanimous) return '#34C759';        // Bright Green - all members agree
-    if (percentage === 100) return '#FFD700'; // Gold - 100% but not all members yet
-    if (percentage >= 70) return '#FF9500';   // Orange - strong consensus
-    if (percentage >= 55) return '#5A7BA8';   // Muted Blue - leaning
-    return '#4B5563';                          // Gray - split
+    if (isUnanimous) return '#34C759';
+    if (percentage === 100) return '#FFD700';
+    if (percentage >= 70) return '#FF9500';
+    if (percentage >= 55) return '#5A7BA8';
+    return '#4B5563';
   };
 
   const calculateGameConsensus = (picks: FriendPick[], totalMembers: number) => {
@@ -378,7 +404,6 @@ export default function GroupPicksScreen() {
     const homePercentage = Math.round((homeScore / totalPicks) * 100);
     const awayPercentage = 100 - homePercentage;
     
-    // Unanimous requires: ALL members picked AND all agree
     const allMembersPicked = totalPicks >= totalMembers;
     const allAgree = homePercentage === 100 || awayPercentage === 100;
     const isUnanimous = allMembersPicked && allAgree && totalMembers > 1;
@@ -418,7 +443,6 @@ export default function GroupPicksScreen() {
     const overPercentage = Math.round((overCount / totalPicks) * 100);
     const underPercentage = 100 - overPercentage;
     
-    // Unanimous requires: ALL members picked O/U AND all agree
     const allMembersPicked = totalPicks >= totalMembers;
     const allAgree = overPercentage === 100 || underPercentage === 100;
     const isUnanimous = allMembersPicked && allAgree && totalMembers > 1;
@@ -435,6 +459,25 @@ export default function GroupPicksScreen() {
       consensusStrength: winningPercentage,
       consensusColor: getConsensusColor(winningPercentage, isUnanimous),
     };
+  };
+
+  // Group games by date for NBA
+  const gamesByDate = gamesData.reduce((acc, game) => {
+    const group = game.dateGroup;
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(game);
+    return acc;
+  }, {} as Record<string, typeof gamesData>);
+
+  const getSportLabel = () => {
+    return groupInfo?.sport?.toUpperCase() || 'NFL';
+  };
+
+  const getHeaderSubtitle = () => {
+    if (groupInfo?.sport === 'nba') {
+      return 'Recent & Upcoming';
+    }
+    return `Week ${selectedWeek}`;
   };
 
   if (loading) {
@@ -471,18 +514,244 @@ export default function GroupPicksScreen() {
     );
   };
 
+  const renderGameCard = (game: any) => {
+    const gamePicks = friendPicksByGame[game.id] || [];
+    const spreadConsensus = calculateGameConsensus(gamePicks, groupMemberCount);
+    const ouConsensus = calculateOUConsensus(gamePicks, groupMemberCount);
+    
+    return (
+      <View key={game.id} style={styles.gameSection}>
+        {/* Game Header */}
+        <TouchableOpacity 
+          style={styles.gameHeader}
+          onPress={() => router.push(`/game/${game.id}`)}
+        >
+          <View>
+            <Text style={styles.gameTitle}>
+              {game.awayTeamShort} @ {game.homeTeamShort}
+            </Text>
+            <Text style={styles.gameTime}>{game.date} • {game.time}</Text>
+          </View>
+          <View style={styles.gameHeaderRight}>
+            {game.gameStatus === 'final' ? (
+              <Text style={styles.finalText}>FINAL</Text>
+            ) : (
+              <Text style={styles.lockTime}>⏰ {game.timeToLock}</Text>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Spread Section */}
+        <View style={styles.pickSection}>
+          <Text style={styles.pickTypeLabel}>SPREAD</Text>
+          
+          {spreadConsensus && (
+            <>
+              {spreadConsensus.isUnanimous ? (
+                <Animated.View 
+                  style={[
+                    styles.consensusBar,
+                    styles.unanimousBar,
+                    { transform: [{ scale: pulseAnim }] }
+                  ]}
+                >
+                  <View style={[styles.barFill, { backgroundColor: spreadConsensus.consensusColor }]}>
+                    <Text style={styles.barText}>
+                      ⭐ {spreadConsensus.recommendation === 'away' 
+                        ? `${game.awayTeamShort} ${game.spread.away}` 
+                        : `${game.homeTeamShort} ${game.spread.home}`} - UNANIMOUS
+                    </Text>
+                  </View>
+                </Animated.View>
+              ) : (
+                <View style={styles.consensusBar}>
+                  <View 
+                    style={[
+                      styles.barFill,
+                      { 
+                        backgroundColor: spreadConsensus.awayPercentage > spreadConsensus.homePercentage 
+                          ? spreadConsensus.consensusColor 
+                          : '#2C2C2E',
+                        flex: spreadConsensus.awayPercentage || 1 
+                      }
+                    ]}
+                  >
+                    {spreadConsensus.awayPercentage > 0 && (
+                      <Text style={styles.barText}>
+                        {game.awayTeamShort} {game.spread.away}
+                      </Text>
+                    )}
+                  </View>
+                  <View 
+                    style={[
+                      styles.barFill,
+                      { 
+                        backgroundColor: spreadConsensus.homePercentage > spreadConsensus.awayPercentage 
+                          ? spreadConsensus.consensusColor 
+                          : '#2C2C2E',
+                        flex: spreadConsensus.homePercentage || 1 
+                      }
+                    ]}
+                  >
+                    {spreadConsensus.homePercentage > 0 && (
+                      <Text style={styles.barText}>
+                        {game.homeTeamShort} {game.spread.home}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
+              <Text style={styles.consensusText}>
+                {spreadConsensus.awayPicks} - {spreadConsensus.homePicks} • {spreadConsensus.consensusStrength}% consensus
+              </Text>
+            </>
+          )}
+          
+          {!spreadConsensus && (
+            <Text style={styles.noPicksText}>No spread picks yet</Text>
+          )}
+        </View>
+
+        {/* O/U Section */}
+        {game.overUnder && (
+          <View style={styles.pickSection}>
+            <Text style={styles.pickTypeLabel}>OVER/UNDER {game.overUnder}</Text>
+            
+            {ouConsensus && (
+              <>
+                {ouConsensus.isUnanimous ? (
+                  <Animated.View 
+                    style={[
+                      styles.consensusBar,
+                      styles.unanimousBar,
+                      { transform: [{ scale: pulseAnim }] }
+                    ]}
+                  >
+                    <View style={[styles.barFill, { backgroundColor: ouConsensus.consensusColor }]}>
+                      <Text style={styles.barText}>
+                        ⭐ {ouConsensus.recommendation === 'over' ? 'OVER' : 'UNDER'} {game.overUnder} - UNANIMOUS
+                      </Text>
+                    </View>
+                  </Animated.View>
+                ) : (
+                  <View style={styles.consensusBar}>
+                    <View 
+                      style={[
+                        styles.barFill,
+                        { 
+                          backgroundColor: ouConsensus.overPercentage > ouConsensus.underPercentage 
+                            ? ouConsensus.consensusColor 
+                            : '#2C2C2E',
+                          flex: ouConsensus.overPercentage || 1 
+                        }
+                      ]}
+                    >
+                      {ouConsensus.overPercentage > 0 && (
+                        <Text style={styles.barText}>
+                          OVER {game.overUnder}
+                        </Text>
+                      )}
+                    </View>
+                    <View 
+                      style={[
+                        styles.barFill,
+                        { 
+                          backgroundColor: ouConsensus.underPercentage > ouConsensus.overPercentage 
+                            ? ouConsensus.consensusColor 
+                            : '#2C2C2E',
+                          flex: ouConsensus.underPercentage || 1 
+                        }
+                      ]}
+                    >
+                      {ouConsensus.underPercentage > 0 && (
+                        <Text style={styles.barText}>
+                          UNDER {game.overUnder}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+                <Text style={styles.consensusText}>
+                  {ouConsensus.overPicks} over - {ouConsensus.underPicks} under • {ouConsensus.consensusStrength}% consensus
+                </Text>
+              </>
+            )}
+            
+            {!ouConsensus && (
+              <Text style={styles.noPicksText}>No O/U picks yet</Text>
+            )}
+          </View>
+        )}
+
+        {/* Top Picks Details */}
+        <View style={styles.picksContainer}>
+          {gamePicks.length > 0 ? (
+            gamePicks.slice(0, 3).map((pick) => (
+              <View key={pick.id} style={styles.miniPickCard}>
+                <View style={styles.miniPickHeader}>
+                  <Text style={[
+                    styles.miniUsername,
+                    pick.username === 'You' && styles.miniUsernameYou
+                  ]}>
+                    {pick.username}
+                  </Text>
+                </View>
+                <View style={styles.miniPickDetails}>
+                  <View style={styles.pickDetail}>
+                    <Text style={styles.miniPickChoice}>
+                      {pick.pick === 'home' ? game.homeTeamShort : game.awayTeamShort} {pick.pick === 'home' ? game.spread.home : game.spread.away}
+                    </Text>
+                    <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.confidence) }]} />
+                  </View>
+                  {pick.overUnderPick && (
+                    <View style={styles.pickDetail}>
+                      <Text style={styles.miniPickChoice}>
+                        {pick.overUnderPick.toUpperCase()} {game.overUnder}
+                      </Text>
+                      <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.overUnderConfidence || '') }]} />
+                    </View>
+                  )}
+                </View>
+                {pick.reasoning && pick.reasoning.trim() !== '' && (
+                  <View style={styles.reasoningContainer}>
+                    <Text style={styles.reasoningText}>💬 {pick.reasoning}</Text>
+                  </View>
+                )}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noPicksText}>No picks yet for this game</Text>
+          )}
+          
+          {gamePicks.length > 3 && (
+            <TouchableOpacity 
+              style={styles.viewMoreButton}
+              onPress={() => router.push(`/game/${game.id}`)}
+            >
+              <Text style={styles.viewMoreText}>
+                View all {gamePicks.length} picks →
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER - Generic "Our Picks" with week */}
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Our Picks</Text>
-          <Text style={styles.headerSubtitle}>Week {selectedWeek}</Text>
+          <Text style={styles.headerSubtitle}>{getHeaderSubtitle()}</Text>
         </View>
-        <View style={styles.headerRight} />
+        <View style={styles.sportBadge}>
+          <Text style={styles.sportBadgeText}>{getSportLabel()}</Text>
+        </View>
       </View>
 
       {/* TAB BAR */}
@@ -492,7 +761,7 @@ export default function GroupPicksScreen() {
           onPress={() => setActiveTab('picks')}
         >
           <Text style={[styles.tabButtonText, activeTab === 'picks' && styles.tabButtonTextActive]}>
-            This Week's Picks
+            {groupInfo?.sport === 'nba' ? 'Recent Picks' : "This Week's Picks"}
           </Text>
         </TouchableOpacity>
         
@@ -509,38 +778,39 @@ export default function GroupPicksScreen() {
       {/* PICKS TAB CONTENT */}
       {activeTab === 'picks' && (
         <>
-          {/* Group Name Row for This Week's Picks */}
+          {/* Group Name Row */}
           <View style={styles.groupNameRow}>
             <Text style={styles.groupNameText}>{groupInfo?.name || groupName}</Text>
           </View>
 
-          {/* Week Selector */}
-          <ScrollView 
-            ref={weekScrollViewRef}
-            horizontal 
-            style={styles.weekSelector}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.weekSelectorContent}
-            scrollEnabled={true}
-          >
-            {Array.from({ length: 18 }, (_, i) => i + 1).map((weekNum) => (
-              <TouchableOpacity
-                key={weekNum}
-                style={[
-                  styles.weekChip,
-                  selectedWeek === weekNum && styles.weekChipActive
-                ]}
-                onPress={() => setSelectedWeek(weekNum)}
-              >
-                <Text style={[
-                  styles.weekChipText,
-                  selectedWeek === weekNum && styles.weekChipTextActive
-                ]}>
-                  Week {weekNum}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {/* Week Selector - NFL Only */}
+          {groupInfo?.sport === 'nfl' && (
+            <ScrollView 
+              ref={weekScrollViewRef}
+              horizontal 
+              style={styles.weekSelector}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.weekSelectorContent}
+            >
+              {Array.from({ length: 18 }, (_, i) => i + 1).map((weekNum) => (
+                <TouchableOpacity
+                  key={weekNum}
+                  style={[
+                    styles.weekChip,
+                    selectedWeek === weekNum && styles.weekChipActive
+                  ]}
+                  onPress={() => setSelectedWeek(weekNum)}
+                >
+                  <Text style={[
+                    styles.weekChipText,
+                    selectedWeek === weekNum && styles.weekChipTextActive
+                  ]}>
+                    Week {weekNum}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           {/* Games List */}
           <ScrollView 
@@ -548,233 +818,42 @@ export default function GroupPicksScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {gamesData.map(game => {
-              const gamePicks = friendPicksByGame[game.id] || [];
-              const spreadConsensus = calculateGameConsensus(gamePicks, groupMemberCount);
-              const ouConsensus = calculateOUConsensus(gamePicks, groupMemberCount);
-              
-              return (
-                <View key={game.id} style={styles.gameSection}>
-                  {/* Game Header */}
-                  <TouchableOpacity 
-                    style={styles.gameHeader}
-                    onPress={() => router.push(`/game/${game.id}`)}
-                  >
-                    <View>
-                      <Text style={styles.gameTitle}>
-                        {game.awayTeamShort} @ {game.homeTeamShort}
-                      </Text>
-                      <Text style={styles.gameTime}>{game.date} • {game.time}</Text>
-                    </View>
-                    <View style={styles.gameHeaderRight}>
-                      <Text style={styles.lockTime}>⏰ {game.timeToLock}</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {/* Spread Section */}
-                  <View style={styles.pickSection}>
-                    <Text style={styles.pickTypeLabel}>SPREAD</Text>
-                    
-                    {spreadConsensus && (
-                      <>
-                        {spreadConsensus.isUnanimous ? (
-                          <Animated.View 
-                            style={[
-                              styles.consensusBar,
-                              styles.unanimousBar,
-                              { transform: [{ scale: pulseAnim }] }
-                            ]}
-                          >
-                            <View style={[styles.barFill, { backgroundColor: spreadConsensus.consensusColor }]}>
-                              <Text style={styles.barText}>
-                                ⭐ {spreadConsensus.recommendation === 'away' 
-                                  ? `${game.awayTeamShort} ${game.spread.away}` 
-                                  : `${game.homeTeamShort} ${game.spread.home}`} - UNANIMOUS
-                              </Text>
-                            </View>
-                          </Animated.View>
-                        ) : (
-                          <View style={styles.consensusBar}>
-                            <View 
-                              style={[
-                                styles.barFill,
-                                { 
-                                  backgroundColor: spreadConsensus.awayPercentage > spreadConsensus.homePercentage 
-                                    ? spreadConsensus.consensusColor 
-                                    : '#2C2C2E',
-                                  flex: spreadConsensus.awayPercentage || 1 
-                                }
-                              ]}
-                            >
-                              {spreadConsensus.awayPercentage > 0 && (
-                                <Text style={styles.barText}>
-                                  {game.awayTeamShort} {game.spread.away}
-                                </Text>
-                              )}
-                            </View>
-                            <View 
-                              style={[
-                                styles.barFill,
-                                { 
-                                  backgroundColor: spreadConsensus.homePercentage > spreadConsensus.awayPercentage 
-                                    ? spreadConsensus.consensusColor 
-                                    : '#2C2C2E',
-                                  flex: spreadConsensus.homePercentage || 1 
-                                }
-                              ]}
-                            >
-                              {spreadConsensus.homePercentage > 0 && (
-                                <Text style={styles.barText}>
-                                  {game.homeTeamShort} {game.spread.home}
-                                </Text>
-                              )}
-                            </View>
-                          </View>
-                        )}
-                        <Text style={styles.consensusText}>
-                          {spreadConsensus.awayPicks} - {spreadConsensus.homePicks} • {spreadConsensus.consensusStrength}% consensus
-                        </Text>
-                      </>
-                    )}
-                    
-                    {!spreadConsensus && (
-                      <Text style={styles.noPicksText}>No spread picks yet</Text>
-                    )}
-                  </View>
-
-                  {/* O/U Section */}
-                  {game.overUnder && (
-                    <View style={styles.pickSection}>
-                      <Text style={styles.pickTypeLabel}>OVER/UNDER {game.overUnder}</Text>
-                      
-                      {ouConsensus && (
-                        <>
-                          {ouConsensus.isUnanimous ? (
-                            <Animated.View 
-                              style={[
-                                styles.consensusBar,
-                                styles.unanimousBar,
-                                { transform: [{ scale: pulseAnim }] }
-                              ]}
-                            >
-                              <View style={[styles.barFill, { backgroundColor: ouConsensus.consensusColor }]}>
-                                <Text style={styles.barText}>
-                                  ⭐ {ouConsensus.recommendation === 'over' ? 'OVER' : 'UNDER'} {game.overUnder} - UNANIMOUS
-                                </Text>
-                              </View>
-                            </Animated.View>
-                          ) : (
-                            <View style={styles.consensusBar}>
-                              <View 
-                                style={[
-                                  styles.barFill,
-                                  { 
-                                    backgroundColor: ouConsensus.overPercentage > ouConsensus.underPercentage 
-                                      ? ouConsensus.consensusColor 
-                                      : '#2C2C2E',
-                                    flex: ouConsensus.overPercentage || 1 
-                                  }
-                                ]}
-                              >
-                                {ouConsensus.overPercentage > 0 && (
-                                  <Text style={styles.barText}>
-                                    OVER {game.overUnder}
-                                  </Text>
-                                )}
-                              </View>
-                              <View 
-                                style={[
-                                  styles.barFill,
-                                  { 
-                                    backgroundColor: ouConsensus.underPercentage > ouConsensus.overPercentage 
-                                      ? ouConsensus.consensusColor 
-                                      : '#2C2C2E',
-                                    flex: ouConsensus.underPercentage || 1 
-                                  }
-                                ]}
-                              >
-                                {ouConsensus.underPercentage > 0 && (
-                                  <Text style={styles.barText}>
-                                    UNDER {game.overUnder}
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-                          )}
-                          <Text style={styles.consensusText}>
-                            {ouConsensus.overPicks} over - {ouConsensus.underPicks} under • {ouConsensus.consensusStrength}% consensus
-                          </Text>
-                        </>
-                      )}
-                      
-                      {!ouConsensus && (
-                        <Text style={styles.noPicksText}>No O/U picks yet</Text>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Top Picks Details */}
-                  <View style={styles.picksContainer}>
-                    {gamePicks.length > 0 ? (
-                      gamePicks.slice(0, 3).map((pick) => (
-                        <View key={pick.id} style={styles.miniPickCard}>
-                          <View style={styles.miniPickHeader}>
-                            <Text style={[
-                              styles.miniUsername,
-                              pick.username === 'You' && styles.miniUsernameYou
-                            ]}>
-                              {pick.username}
-                            </Text>
-                          </View>
-                          <View style={styles.miniPickDetails}>
-                            <View style={styles.pickDetail}>
-                              <Text style={styles.miniPickChoice}>
-                                {pick.pick === 'home' ? game.homeTeamShort : game.awayTeamShort} {pick.pick === 'home' ? game.spread.home : game.spread.away}
-                              </Text>
-                              <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.confidence) }]} />
-                            </View>
-                            {pick.overUnderPick && (
-                              <View style={styles.pickDetail}>
-                                <Text style={styles.miniPickChoice}>
-                                  {pick.overUnderPick.toUpperCase()} {game.overUnder}
-                                </Text>
-                                <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.overUnderConfidence || '') }]} />
-                              </View>
-                            )}
-                          </View>
-                          {pick.reasoning && pick.reasoning.trim() !== '' && (
-                            <View style={styles.reasoningContainer}>
-                              <Text style={styles.reasoningText}>💬 {pick.reasoning}</Text>
-                            </View>
-                          )}
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.noPicksText}>No picks yet for this game</Text>
-                    )}
-                    
-                    {gamePicks.length > 3 && (
-                      <TouchableOpacity 
-                        style={styles.viewMoreButton}
-                        onPress={() => router.push(`/game/${game.id}`)}
-                      >
-                        <Text style={styles.viewMoreText}>
-                          View all {gamePicks.length} picks →
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+            {groupInfo?.sport === 'nba' ? (
+              // NBA: Group by date
+              Object.entries(gamesByDate).map(([dateGroup, games]) => (
+                <View key={dateGroup}>
+                  <Text style={styles.dateGroupHeader}>{dateGroup}</Text>
+                  {(games as any[]).map(game => renderGameCard(game))}
                 </View>
-              );
-            })}
+              ))
+            ) : (
+              // NFL: Flat list
+              gamesData.map(game => renderGameCard(game))
+            )}
+
+            {gamesData.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No games found</Text>
+                <TouchableOpacity 
+                  style={styles.makePicksButton}
+                  onPress={() => router.push('/(tabs)/games')}
+                >
+                  <Text style={styles.makePicksText}>Make Picks</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Summary Stats */}
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Week {selectedWeek} Summary</Text>
-              <Text style={styles.summaryText}>
-                {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
-              </Text>
-            </View>
+            {gamesData.length > 0 && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryTitle}>
+                  {groupInfo?.sport === 'nba' ? 'Recent Activity' : `Week ${selectedWeek} Summary`}
+                </Text>
+                <Text style={styles.summaryText}>
+                  {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </>
       )}
@@ -827,8 +906,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  headerRight: {
-    width: 48,
+  sportBadge: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sportBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   tabBar: {
     flexDirection: 'row',
@@ -891,6 +978,13 @@ const styles = StyleSheet.create({
   weekChipTextActive: {
     color: '#FFF',
   },
+  dateGroupHeader: {
+    color: '#FF6B35',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   content: {
     flex: 1,
   },
@@ -927,6 +1021,11 @@ const styles = StyleSheet.create({
     color: '#FF9500',
     fontSize: 11,
     marginBottom: 4,
+  },
+  finalText: {
+    color: '#34C759',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   pickSection: {
     padding: 12,
@@ -1058,11 +1157,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 40,
   },
   emptyText: {
     color: '#8E8E93',
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  makePicksButton: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  makePicksText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
