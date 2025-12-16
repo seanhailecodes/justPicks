@@ -11,6 +11,14 @@ const getPendingInvite = () => {
   return null;
 };
 
+// Helper to get pending group code from localStorage
+const getPendingGroupCode = () => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    return localStorage.getItem('pendingGroupCode');
+  }
+  return null;
+};
+
 export default function AuthCallback() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -72,8 +80,14 @@ export default function AuthCallback() {
 
     const handlePostAuthRedirect = () => {
       const pendingInvite = getPendingInvite();
+      const pendingGroupCode = getPendingGroupCode();
+      
       if (pendingInvite) {
+        // Old invite system (by invite ID)
         router.replace(`/accept-invite/${pendingInvite}`);
+      } else if (pendingGroupCode) {
+        // New system - join by group code (will auto-join)
+        router.replace(`/join/${pendingGroupCode}`);
       } else {
         router.replace('/(tabs)');
       }
