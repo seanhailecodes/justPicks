@@ -144,6 +144,7 @@ export default function GamesScreen() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [pendingPicks, setPendingPicks] = useState<TicketPick[]>([]);
   const [userGroups, setUserGroups] = useState<{id: string; name: string}[]>([]);
+  const [hasLoadedInitialSport, setHasLoadedInitialSport] = useState(false);
 
   // Get grouped games
   const groupedGames = groupGamesByDate(games);
@@ -390,14 +391,26 @@ export default function GamesScreen() {
 
   // Reload games when sport changes
   useEffect(() => {
-    if (!isInitializing) {
+    if (!isInitializing && hasLoadedInitialSport) {
       if (session?.user) {
         loadUserPicks(session.user.id);
       } else {
         loadGamesFromDatabase();
       }
     }
-  }, [selectedSport, session, isInitializing]);
+  }, [selectedSport]);
+
+  // Initial load when session is ready
+  useEffect(() => {
+    if (!isInitializing && !hasLoadedInitialSport) {
+      setHasLoadedInitialSport(true);
+      if (session?.user) {
+        loadUserPicks(session.user.id);
+      } else {
+        loadGamesFromDatabase();
+      }
+    }
+  }, [isInitializing, session]);
 
   const getTimeToLock = (gameDate: string, gameTime: string): string => {
     try {
