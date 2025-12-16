@@ -70,76 +70,76 @@ Deno.serve(async (req) => {
     const completedGames = scoresData.filter((game: any) => game.completed === true && game.scores);
     console.log(`${completedGames.length} completed games with scores`);
 
-    // Get unresolved NFL games from database
+    // Build lookup map: team codes -> scores
+    const scoresMap = new Map<string, { homeScore: number; awayScore: number; homeTeam: string; awayTeam: string }>();
+    
+    for (const game of completedGames) {
+      const homeCode = TEAM_NAME_TO_CODE[game.home_team];
+      const awayCode = TEAM_NAME_TO_CODE[game.away_team];
+      
+      if (!homeCode || !awayCode) continue;
+      
+      const homeScoreData = game.scores.find((s: any) => s.name === game.home_team);
+      const awayScoreData = game.scores.find((s: any) => s.name === game.away_team);
+      
+      if (!homeScoreData || !awayScoreData) continue;
+      
+      // Key by both team codes for lookup
+      const key = `${awayCode}_${homeCode}`;
+      scoresMap.set(key, {
+        homeScore: parseInt(homeScoreData.score),
+        awayScore: parseInt(awayScoreData.score),
+        homeTeam: homeCode,
+        awayTeam: awayCode
+      });
+    }
+
+    console.log(`Built scores map with ${scoresMap.size} games`);
+
+    // STEP 1: Update any games that need scores
     const { data: unresolvedGames, error: gamesError } = await supabase
       .from("games")
       .select("*")
       .eq("league", "NFL")
-      .eq("game_status", "pending")
-      .not("home_spread", "is", null);
+      .is("home_score", null);
 
-    if (gamesError) {
-      throw gamesError;
-    }
-
-    console.log(`Found ${unresolvedGames?.length || 0} unresolved games in database`);
+    if (gamesError) throw gamesError;
 
     let gamesResolved = 0;
-    let picksResolved = 0;
 
     for (const dbGame of unresolvedGames || []) {
-      // Find matching game from API using team codes
-      const apiGame = completedGames.find((ag: any) => {
-        const apiHomeCode = TEAM_NAME_TO_CODE[ag.home_team];
-        const apiAwayCode = TEAM_NAME_TO_CODE[ag.away_team];
-        
-        return (
-          (dbGame.home_team === apiHomeCode || dbGame.home_team === ag.home_team) &&
-          (dbGame.away_team === apiAwayCode || dbGame.away_team === ag.away_team)
-        );
-      });
-
-      if (!apiGame) {
-        console.log(`No score found for: ${dbGame.away_team} @ ${dbGame.home_team}`);
+      // Extract team codes from game
+      const homeCode = dbGame.home_team_code || dbGame.home_team;
+      const awayCode = dbGame.away_team_code || dbGame.away_team;
+      const key = `${awayCode}_${homeCode}`;
+      
+      const scores = scoresMap.get(key);
+      if (!scores) {
+        console.log(`No score found for: ${awayCode} @ ${homeCode}`);
         continue;
       }
 
-      // Extract scores
-      const homeScoreData = apiGame.scores.find((s: any) => s.name === apiGame.home_team);
-      const awayScoreData = apiGame.scores.find((s: any) => s.name === apiGame.away_team);
-
-      if (!homeScoreData || !awayScoreData) {
-        console.log(`Missing score data for: ${dbGame.away_team} @ ${dbGame.home_team}`);
-        continue;
-      }
-
-      const homeScore = parseInt(homeScoreData.score);
-      const awayScore = parseInt(awayScoreData.score);
-
-      console.log(`Resolving: ${dbGame.away_team} ${awayScore} @ ${dbGame.home_team} ${homeScore}`);
+      const homeSpread = parseFloat(dbGame.home_spread) || 0;
+      const homeWithSpread = scores.homeScore + homeSpread;
+      const totalPoints = scores.homeScore + scores.awayScore;
+      const overUnderLine = parseFloat(dbGame.over_under_line) || null;
 
       // Calculate spread result
-      const homeSpread = dbGame.home_spread;
-      const homeWithSpread = homeScore + homeSpread;
-      
       let homeCovered: boolean | null = null;
       let awayCovered: boolean | null = null;
       let spreadPush = false;
 
-      if (homeWithSpread > awayScore) {
+      if (homeWithSpread > scores.awayScore) {
         homeCovered = true;
         awayCovered = false;
-      } else if (homeWithSpread < awayScore) {
+      } else if (homeWithSpread < scores.awayScore) {
         homeCovered = false;
         awayCovered = true;
       } else {
         spreadPush = true;
       }
 
-      // Calculate over/under result
-      const totalPoints = homeScore + awayScore;
-      const overUnderLine = dbGame.over_under_line;
-      
+      // Calculate over/under
       let wentOver: boolean | null = null;
       let totalPush = false;
 
@@ -153,12 +153,13 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update game in database
+      console.log(`Updating game: ${awayCode} ${scores.awayScore} @ ${homeCode} ${scores.homeScore}`);
+
       const { error: updateError } = await supabase
         .from("games")
         .update({
-          home_score: homeScore,
-          away_score: awayScore,
+          home_score: scores.homeScore,
+          away_score: scores.awayScore,
           game_status: "final",
           locked: true,
           home_covered: homeCovered,
@@ -171,93 +172,89 @@ Deno.serve(async (req) => {
         })
         .eq("id", dbGame.id);
 
-      if (updateError) {
-        console.error(`Error updating game ${dbGame.id}:`, updateError);
-        continue;
+      if (!updateError) gamesResolved++;
+    }
+
+    // STEP 2: Grade ALL ungraded picks for games that have scores
+    // This catches any picks that weren't graded before
+    const { data: ungradedPicks, error: picksError } = await supabase
+      .from("picks")
+      .select("*, games!inner(id, home_score, away_score, home_spread, over_under_line, game_status)")
+      .is("correct", null)
+      .not("games.home_score", "is", null);
+
+    if (picksError) {
+      console.error("Error fetching ungraded picks:", picksError);
+    }
+
+    console.log(`Found ${ungradedPicks?.length || 0} ungraded picks to process`);
+
+    let picksResolved = 0;
+
+    for (const pick of ungradedPicks || []) {
+      const game = pick.games;
+      if (!game || game.home_score === null) continue;
+
+      const homeSpread = parseFloat(game.home_spread) || 0;
+      const homeWithSpread = game.home_score + homeSpread;
+      const totalPoints = game.home_score + game.away_score;
+      const overUnderLine = parseFloat(game.over_under_line) || null;
+
+      // Determine spread result
+      let homeCovered: boolean | null = null;
+      let awayCovered: boolean | null = null;
+      let spreadPush = false;
+
+      if (homeWithSpread > game.away_score) {
+        homeCovered = true;
+        awayCovered = false;
+      } else if (homeWithSpread < game.away_score) {
+        homeCovered = false;
+        awayCovered = true;
+      } else {
+        spreadPush = true;
       }
 
-      gamesResolved++;
-
-      // Now resolve picks for this game
-      const { data: picks, error: picksError } = await supabase
-        .from("picks")
-        .select("*")
-        .eq("game_id", dbGame.id)
-        .is("correct", null);
-
-      if (picksError) {
-        console.error(`Error fetching picks for game ${dbGame.id}:`, picksError);
-        continue;
-      }
-
-      for (const pick of picks || []) {
-        let spreadCorrect: boolean | null = null;
-        let ouCorrect: boolean | null = null;
-
-        // Grade spread pick
-        if (pick.pick === "home" || pick.pick === "away") {
-          if (spreadPush) {
-            spreadCorrect = null; // Push = no result
-          } else if (pick.pick === "home") {
-            spreadCorrect = homeCovered;
-          } else {
-            spreadCorrect = awayCovered;
-          }
+      // Grade spread pick
+      let spreadCorrect: boolean | null = null;
+      if (pick.pick === "home" || pick.pick === "away") {
+        if (spreadPush) {
+          spreadCorrect = null;
+        } else if (pick.pick === "home") {
+          spreadCorrect = homeCovered;
+        } else {
+          spreadCorrect = awayCovered;
         }
+      }
 
-        // Grade over/under pick
-        if (pick.over_under_pick === "over" || pick.over_under_pick === "under") {
+      // Grade over/under pick
+      let ouCorrect: boolean | null = null;
+      if (pick.over_under_pick === "over" || pick.over_under_pick === "under") {
+        if (overUnderLine) {
+          const totalPush = totalPoints === overUnderLine;
           if (totalPush) {
             ouCorrect = null;
           } else if (pick.over_under_pick === "over") {
-            ouCorrect = wentOver;
+            ouCorrect = totalPoints > overUnderLine;
           } else {
-            ouCorrect = wentOver === false;
+            ouCorrect = totalPoints < overUnderLine;
           }
         }
-
-        const { error: pickUpdateError } = await supabase
-          .from("picks")
-          .update({
-            correct: spreadCorrect,
-            over_under_correct: ouCorrect,
-          })
-          .eq("id", pick.id);
-
-        if (!pickUpdateError) {
-          picksResolved++;
-        }
       }
-    }
 
-    // Check if we should advance the week
-    if (gamesResolved > 0) {
-      const { data: appState } = await supabase
-        .from("app_state")
-        .select("current_week")
-        .single();
+      const { error: pickUpdateError } = await supabase
+        .from("picks")
+        .update({
+          correct: spreadCorrect,
+          over_under_correct: ouCorrect,
+        })
+        .eq("id", pick.id);
 
-      const currentWeek = appState?.current_week || 15;
-
-      // Check if all games in current week are resolved
-      const { data: remainingGames } = await supabase
-        .from("games")
-        .select("id")
-        .eq("league", "NFL")
-        .eq("week", currentWeek)
-        .eq("season", 2025)
-        .eq("game_status", "pending");
-
-      if (!remainingGames || remainingGames.length === 0) {
-        // All games resolved, advance week
-        const nextWeek = currentWeek + 1;
-        if (nextWeek <= 18) {
-          await supabase
-            .from("app_state")
-            .update({ current_week: nextWeek, updated_at: new Date().toISOString() })
-            .eq("id", 1);
-          console.log(`Advanced to week ${nextWeek}`);
-        }
+      if (!pickUpdateError) {
+        picksResolved++;
+        console.log(`Graded pick ${pick.id}: spread=${spreadCorrect}, o/u=${ouCorrect}`);
+      } else {
+        console.error(`Error grading pick ${pick.id}:`, pickUpdateError);
       }
     }
 
