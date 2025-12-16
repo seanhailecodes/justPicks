@@ -402,6 +402,9 @@ export default function HomeScreen() {
     router.replace('/(auth)/login');
   };
 
+  // Get the current sport emoji for Quick Actions
+  const currentSportEmoji = SPORT_EMOJIS[selectedSport] || '🏈';
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -557,7 +560,7 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>
               {sportConfig.scheduleModel === 'week' ? `Week ${currentWeek} Games` : 'Upcoming Games'}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/games')}>
+            <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/games', params: { sport: selectedSport } })}>
               <Text style={styles.sectionAction}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -599,15 +602,15 @@ export default function HomeScreen() {
           <View style={styles.quickActionsRow}>
             <TouchableOpacity
               style={styles.quickActionCard}
-              onPress={() => router.push('/(tabs)/games')}
+              onPress={() => router.push({ pathname: '/(tabs)/games', params: { sport: selectedSport } })}
             >
-              <Text style={styles.quickActionEmoji}>🏈</Text>
+              <Text style={styles.quickActionEmoji}>{currentSportEmoji}</Text>
               <Text style={styles.quickActionTitle}>Make Picks</Text>
               <Text style={styles.quickActionSub}>View today's games</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickActionCard}
-              onPress={() => router.push('/(tabs)/leaderboard')}
+              onPress={() => router.push({ pathname: '/(tabs)/leaderboard', params: { sport: selectedSport } })}
             >
               <Text style={styles.quickActionEmoji}>🏆</Text>
               <Text style={styles.quickActionTitle}>Leaderboard</Text>
