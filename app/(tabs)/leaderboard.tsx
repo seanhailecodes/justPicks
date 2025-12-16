@@ -107,10 +107,10 @@ export default function LeaderboardScreen() {
     const now = new Date();
     if (timeframe === 'week') {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      picksQuery = picksQuery.gte('created_at', weekAgo.toISOString());
+      gamesQuery = picksQuery.gte('created_at', weekAgo.toISOString());
     } else if (timeframe === 'month') {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      picksQuery = picksQuery.gte('created_at', monthAgo.toISOString());
+      gamesQuery = picksQuery.gte('created_at', monthAgo.toISOString());
     }
 
     if (selectedGroupId) {
