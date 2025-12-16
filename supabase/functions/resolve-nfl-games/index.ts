@@ -175,16 +175,32 @@ Deno.serve(async (req) => {
       if (!updateError) gamesResolved++;
     }
 
-    // STEP 2: Grade ALL ungraded picks for games that have scores
-    // This catches any picks that weren't graded before
+    // STEP 2: Get all games with scores (to grade picks)
+    const { data: resolvedGames, error: resolvedGamesError } = await supabase
+      .from("games")
+      .select("*")
+      .eq("league", "NFL")
+      .not("home_score", "is", null);
+
+    if (resolvedGamesError) throw resolvedGamesError;
+
+    // Build a map of game data for quick lookup
+    const gamesMap = new Map<string, any>();
+    for (const game of resolvedGames || []) {
+      gamesMap.set(game.id, game);
+    }
+
+    console.log(`Found ${gamesMap.size} resolved games in database`);
+
+    // STEP 3: Get all ungraded picks
     const { data: ungradedPicks, error: picksError } = await supabase
       .from("picks")
-      .select("*, games!inner(id, home_score, away_score, home_spread, over_under_line, game_status)")
-      .is("correct", null)
-      .not("games.home_score", "is", null);
+      .select("*")
+      .is("correct", null);
 
     if (picksError) {
       console.error("Error fetching ungraded picks:", picksError);
+      throw picksError;
     }
 
     console.log(`Found ${ungradedPicks?.length || 0} ungraded picks to process`);
@@ -192,8 +208,13 @@ Deno.serve(async (req) => {
     let picksResolved = 0;
 
     for (const pick of ungradedPicks || []) {
-      const game = pick.games;
-      if (!game || game.home_score === null) continue;
+      // Look up the game for this pick
+      const game = gamesMap.get(pick.game_id);
+      
+      if (!game || game.home_score === null) {
+        // Game not resolved yet, skip
+        continue;
+      }
 
       const homeSpread = parseFloat(game.home_spread) || 0;
       const homeWithSpread = game.home_score + homeSpread;
