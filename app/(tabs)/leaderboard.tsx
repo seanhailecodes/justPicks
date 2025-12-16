@@ -80,14 +80,25 @@ export default function LeaderboardScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) setCurrentUserId(user.id);
 
+    // Build games query with time filter FIRST
     let gamesQuery = supabase
       .from('games')
       .select('id')
       .eq('league', selectedSport.league);
 
-    if (timeframe === 'season') {
+    const now = new Date();
+
+    // Apply time filter to games based on game_date
+    if (timeframe === 'week') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      gamesQuery = gamesQuery.gte('game_date', weekAgo.toISOString());
+    } else if (timeframe === 'month') {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      gamesQuery = gamesQuery.gte('game_date', monthAgo.toISOString());
+    } else if (timeframe === 'season') {
       gamesQuery = gamesQuery.eq('season', 2025);
     }
+    // 'all' time has no filter
 
     const { data: games } = await gamesQuery;
     const gameIds = games?.map(g => g.id) || [];
@@ -98,20 +109,12 @@ export default function LeaderboardScreen() {
       return;
     }
 
+    // Get picks for those filtered games
     let picksQuery = supabase
       .from('picks')
       .select('user_id, correct, created_at')
       .in('game_id', gameIds)
       .not('correct', 'is', null);
-
-    const now = new Date();
-    if (timeframe === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      gamesQuery = picksQuery.gte('created_at', weekAgo.toISOString());
-    } else if (timeframe === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      gamesQuery = picksQuery.gte('created_at', monthAgo.toISOString());
-    }
 
     if (selectedGroupId) {
       const { data: members } = await supabase
