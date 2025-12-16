@@ -20,9 +20,9 @@ import { Sport, getSportConfig } from '../../services/pickrating';
 const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {
   // Uncomment these as you add logo files to assets/images/
   // nfl: require('../../assets/images/nfl.png'),
+  // ncaab: require('../../assets/images/ncaab.png'),
   // ncaaf: require('../../assets/images/ncaaf.png'),
   // nba: require('../../assets/images/nba.png'),
-  // ncaab: require('../../assets/images/ncaab.png'),
   // wnba: require('../../assets/images/wnba.png'),
   // mlb: require('../../assets/images/mlb.png'),
   // nhl: require('../../assets/images/nhl.png'),
@@ -53,8 +53,8 @@ const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
 const AVAILABLE_SPORTS: { sport: Sport; enabled: boolean }[] = [
   { sport: 'nfl', enabled: true },
   { sport: 'nba', enabled: true },
+  { sport: 'ncaab', enabled: true },
   { sport: 'ncaaf', enabled: false },
-  { sport: 'ncaab', enabled: false },
   { sport: 'soccer_epl', enabled: false },
   { sport: 'ufc', enabled: false },
   { sport: 'pga', enabled: false },
