@@ -412,12 +412,15 @@ export default function GroupsScreen() {
           </View>
         )}
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>🎯 About Syndicate Picks</Text>
-          <Text style={styles.infoText}>
-            This is your default group with all your friends. Make picks on games and see how you stack up against everyone!
-          </Text>
-        </View>
+       <View style={styles.infoCard}>
+        <Text style={styles.infoTitle}>🎯 Get Started</Text>
+        <Text style={styles.infoText}>
+          1. Create a group or browse public ones{'\n'}
+          2. Invite friends to join your group{'\n'}
+          3. Make picks & share them with friends{'\n'}
+          4. See who has the best record!
+        </Text>
+      </View>
       </ScrollView>
 
       <Modal

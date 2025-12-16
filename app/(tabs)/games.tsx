@@ -5,7 +5,7 @@ import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserPicks, savePick, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
 import { getUserGroups } from '../lib/database';
@@ -25,9 +25,14 @@ interface Game {
   id: number;
   homeTeam: string;
   awayTeam: string;
+  homeTeamCode?: string;
+  awayTeamCode?: string;
+  homeTeamLogo?: string;
+  awayTeamLogo?: string;
   league: string;
   gameDate: string;
   gameTime: string;
+  gameDateTimeLocal: Date;
   spread: GameSpread;
   homeSpreadValue: number;
   awaySpreadValue: number;
@@ -52,10 +57,68 @@ interface PickData {
   type: 'solo' | 'group';
 }
 
+// Sport configuration
+interface SportConfig {
+  key: string;
+  label: string;
+  emoji: string;
+  league: string;
+  enabled: boolean;
+}
+
+const SPORTS: SportConfig[] = [
+  { key: 'nfl', label: 'NFL', emoji: '🏈', league: 'NFL', enabled: true },
+  { key: 'nba', label: 'NBA', emoji: '🏀', league: 'NBA', enabled: true },
+  { key: 'ncaaf', label: 'NCAAF', emoji: '🏈', league: 'NCAAF', enabled: false },
+  { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: false },
+  { key: 'nhl', label: 'NHL', emoji: '🏒', league: 'NHL', enabled: false },
+  { key: 'mlb', label: 'MLB', emoji: '⚾', league: 'MLB', enabled: false },
+];
+
+// Helper to ensure date string is treated as UTC
+const toUTCDateString = (dateStr: string): string => {
+  if (!dateStr) return '';
+  return dateStr.endsWith('Z') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
+};
+
+// Group games by date label
+const groupGamesByDate = (games: Game[]): Map<string, Game[]> => {
+  const groups = new Map<string, Game[]>();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  games.forEach(game => {
+    const gameDate = new Date(game.gameDateTimeLocal);
+    gameDate.setHours(0, 0, 0, 0);
+    
+    let label: string;
+    if (gameDate.getTime() === today.getTime()) {
+      label = 'Today';
+    } else if (gameDate.getTime() === tomorrow.getTime()) {
+      label = 'Tomorrow';
+    } else {
+      label = gameDate.toLocaleDateString(undefined, { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+
+    if (!groups.has(label)) {
+      groups.set(label, []);
+    }
+    groups.get(label)!.push(game);
+  });
+
+  return groups;
+};
+
 export default function GamesScreen() {
   const router = useRouter();
-  const [selectedSport, setSelectedSport] = useState('Football');
-  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
+  const [selectedSport, setSelectedSport] = useState<SportConfig>(SPORTS[0]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
   const [session, setSession] = useState<Session | null>(null);
@@ -66,20 +129,21 @@ export default function GamesScreen() {
   const [pendingPicks, setPendingPicks] = useState<TicketPick[]>([]);
   const [userGroups, setUserGroups] = useState<{id: string; name: string}[]>([]);
 
-  const sports = ['Football', 'Basketball', 'College', 'Other'];
+  // Get grouped games
+  const groupedGames = groupGamesByDate(games);
 
   const autoResolveWeek = async () => {
-    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+    if (!currentWeekNumber) return;
     
-    if (!hasScoresForWeek(weekNumber)) {
-      alert(`❌ No scores file found for Week ${weekNumber}.`);
+    if (!hasScoresForWeek(currentWeekNumber)) {
+      alert(`❌ No scores file found for Week ${currentWeekNumber}.`);
       return;
     }
     
-    const scores = getWeekScores(weekNumber);
+    const scores = getWeekScores(currentWeekNumber);
     
     if (!scores || scores.length === 0) {
-      alert(`❌ Week ${weekNumber} scores are empty.`);
+      alert(`❌ Week ${currentWeekNumber} scores are empty.`);
       return;
     }
     
@@ -87,7 +151,7 @@ export default function GamesScreen() {
       const result = await resolveWeekFromScores(scores);
       
       if (result.success) {
-        alert(`✅ Successfully resolved ${result.gamesResolved} games for Week ${weekNumber}!`);
+        alert(`✅ Successfully resolved ${result.gamesResolved} games for Week ${currentWeekNumber}!`);
         loadGamesFromDatabase();
       } else {
         alert(`❌ Error resolving games. Check console for details.`);
@@ -119,7 +183,7 @@ export default function GamesScreen() {
             if (result.success) {
               Alert.alert('✅ Success', `Advanced to Week ${nextWeek}!`);
               setCurrentWeekNumber(nextWeek);
-              setSelectedWeek(`Week ${nextWeek}`);
+              loadGamesFromDatabase();
             } else {
               Alert.alert('❌ Error', result.error || 'Failed to update week');
             }
@@ -129,31 +193,25 @@ export default function GamesScreen() {
     );
   };
 
-  const allWeeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12', 'Week 13', 'Week 14', 'Week 15', 'Week 16', 'Week 17', 'Week 18'];
-  const visibleWeeks = allWeeks.filter(week => {
-    const weekNum = parseInt(week.replace('Week ', ''));
-    return weekNum >= (currentWeekNumber || 12) - 1;
-  });
-
   const autoPopulateWeek = async () => {
-    const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+    if (!currentWeekNumber) return;
     
-    if (!hasScheduleForWeek(weekNumber)) {
-      alert(`❌ No schedule file found for Week ${weekNumber}.`);
+    if (!hasScheduleForWeek(currentWeekNumber)) {
+      alert(`❌ No schedule file found for Week ${currentWeekNumber}.`);
       return;
     }
     
-    const schedule = getWeekSchedule(weekNumber);
+    const schedule = getWeekSchedule(currentWeekNumber);
     
     if (schedule.length === 0) {
-      alert(`❌ Week ${weekNumber} schedule is empty.`);
+      alert(`❌ Week ${currentWeekNumber} schedule is empty.`);
       return;
     }
 
-    const result = await populateWeekGames(weekNumber, schedule);
+    const result = await populateWeekGames(currentWeekNumber, schedule);
     
     if (result.success) {
-      alert(`✅ Successfully populated ${result.count} games for Week ${weekNumber}!`);
+      alert(`✅ Successfully populated ${result.count} games for Week ${currentWeekNumber}!`);
       loadGamesFromDatabase();
     } else {
       alert(`❌ Error: ${result.error}`);
@@ -162,8 +220,8 @@ export default function GamesScreen() {
 
   const loadUserPicks = async (userId: string) => {
     try {
-      const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
-      const result = await getUserPicks(userId, weekNumber);
+      // Load all picks for this user (we'll filter by game later)
+      const result = await getUserPicks(userId, null);
       
       const picksMap = new Map();
       
@@ -198,14 +256,18 @@ export default function GamesScreen() {
 
   const loadGamesFromDatabase = async (picksToUse?: Map<string, any>) => {
     try {
-      const weekNumber = parseInt(selectedWeek.replace('Week ', ''));
+      const now = new Date();
       
-      const { data: dbGames, error } = await supabase
+      let query = supabase
         .from('games')
         .select('*')
-        .eq('week', weekNumber)
-        .eq('season', 2025)
-        .order('game_date', { ascending: true });
+        .eq('league', selectedSport.league)
+        .eq('locked', false)
+        .gte('game_date', now.toISOString())
+        .order('game_date', { ascending: true })
+        .limit(50); // Get next 50 upcoming games
+
+      const { data: dbGames, error } = await query;
 
       if (error) {
         console.error('Error loading games:', error);
@@ -219,44 +281,52 @@ export default function GamesScreen() {
 
       const picks = picksToUse || userPicks;
 
-      const transformedGames: Game[] = (dbGames || []).map((dbGame, index) => ({
-        id: index + 1,
-        homeTeam: dbGame.home_team,
-        awayTeam: dbGame.away_team,
-        league: 'NFL',
-        gameDate: dbGame.game_date.split('T')[0],
-        gameTime: (() => {
-          try {
-            const gameDate = new Date(dbGame.game_date);
-            if (isNaN(gameDate.getTime())) return "TBD";
-            return gameDate.toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true,
-              timeZone: 'America/New_York'
-            });
-          } catch (error) {
-            return "TBD";
-          }
-        })(),
-        spread: {
-          home: `${dbGame.home_team} ${dbGame.home_spread > 0 ? '+' : ''}${dbGame.home_spread}`,
-          away: `${dbGame.away_team} ${dbGame.away_spread > 0 ? '+' : ''}${dbGame.away_spread}`,
-        },
-        homeSpreadValue: dbGame.home_spread,
-        awaySpreadValue: dbGame.away_spread,
-        overUnder: dbGame.over_under_line ?? undefined,
-        homeMoneyline: dbGame.home_moneyline ?? -110,
-        awayMoneyline: dbGame.away_moneyline ?? -110,
-        selectedPick: picks.get(dbGame.id)?.pick || null,
-        selectedOverUnderPick: picks.get(dbGame.id)?.overUnderPick || null,
-        pickType: picks.get(dbGame.id)?.pickType || null,
-        confidence: picks.get(dbGame.id)?.confidence || null,
-        overUnderConfidence: picks.get(dbGame.id)?.overUnderConfidence || null,
-        groups: picks.get(dbGame.id)?.groups || [],
-        reasoning: picks.get(dbGame.id)?.reasoning || '',
-        originalId: dbGame.id,
-      }));
+      const transformedGames: Game[] = (dbGames || []).map((dbGame, index) => {
+        // Parse date as UTC
+        const utcDateStr = toUTCDateString(dbGame.game_date);
+        const gameDateTime = new Date(utcDateStr);
+        
+        return {
+          id: index + 1,
+          homeTeam: dbGame.home_team,
+          awayTeam: dbGame.away_team,
+          homeTeamCode: dbGame.home_team_code,
+          awayTeamCode: dbGame.away_team_code,
+          homeTeamLogo: dbGame.home_team_logo,
+          awayTeamLogo: dbGame.away_team_logo,
+          league: dbGame.league || 'NFL',
+          gameDateTimeLocal: gameDateTime,
+          gameDate: `${gameDateTime.getFullYear()}-${String(gameDateTime.getMonth() + 1).padStart(2, '0')}-${String(gameDateTime.getDate()).padStart(2, '0')}`,
+          gameTime: (() => {
+            try {
+              if (isNaN(gameDateTime.getTime())) return "TBD";
+              return gameDateTime.toLocaleTimeString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+              });
+            } catch (error) {
+              return "TBD";
+            }
+          })(),
+          spread: {
+            home: `${dbGame.home_team_code || dbGame.home_team} ${parseFloat(dbGame.home_spread) > 0 ? '+' : ''}${dbGame.home_spread}`,
+            away: `${dbGame.away_team_code || dbGame.away_team} ${parseFloat(dbGame.away_spread) > 0 ? '+' : ''}${dbGame.away_spread}`,
+          },
+          homeSpreadValue: parseFloat(dbGame.home_spread) || 0,
+          awaySpreadValue: parseFloat(dbGame.away_spread) || 0,
+          overUnder: dbGame.over_under_line ?? undefined,
+          homeMoneyline: dbGame.home_moneyline ?? -110,
+          awayMoneyline: dbGame.away_moneyline ?? -110,
+          selectedPick: picks.get(dbGame.id)?.pick || null,
+          selectedOverUnderPick: picks.get(dbGame.id)?.overUnderPick || null,
+          pickType: picks.get(dbGame.id)?.pickType || null,
+          confidence: picks.get(dbGame.id)?.confidence || null,
+          overUnderConfidence: picks.get(dbGame.id)?.overUnderConfidence || null,
+          groups: picks.get(dbGame.id)?.groups || [],
+          reasoning: picks.get(dbGame.id)?.reasoning || '',
+          originalId: dbGame.id,
+        };
+      });
 
       setGames(transformedGames);
     } catch (error) {
@@ -268,7 +338,6 @@ export default function GamesScreen() {
     const loadCurrentWeek = async () => {
       const weekNum = await getCurrentWeek();
       setCurrentWeekNumber(weekNum);
-      setSelectedWeek(`Week ${weekNum}`);
       setIsInitializing(false);
     };
     loadCurrentWeek();
@@ -290,12 +359,12 @@ export default function GamesScreen() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user && selectedWeek) loadUserPicks(session.user.id);
+      if (session?.user) loadUserPicks(session.user.id);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session?.user && selectedWeek) {
+      if (session?.user) {
         setTimeout(() => loadUserPicks(session.user.id), 500);
       }
     });
@@ -303,27 +372,32 @@ export default function GamesScreen() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Reload games when sport changes
   useEffect(() => {
-    if (!isInitializing && selectedWeek) {
+    if (!isInitializing) {
       if (session?.user) {
         loadUserPicks(session.user.id);
       } else {
         loadGamesFromDatabase();
       }
     }
-  }, [selectedWeek, session, isInitializing]);
+  }, [selectedSport, session, isInitializing]);
 
   const getTimeToLock = (gameDate: string, gameTime: string): string => {
     try {
-      const timeMatch = gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
+      // Parse the time from gameTime string
+      const timeMatch = gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)?/i);
       if (!timeMatch) return 'Soon';
       
-      const [, hours, minutes, period] = timeMatch;
-      let hour24 = parseInt(hours);
-      const min = parseInt(minutes);
+      let hour24 = parseInt(timeMatch[1]);
+      const min = parseInt(timeMatch[2]);
+      const period = timeMatch[3];
       
-      if (period.toUpperCase() === 'PM' && hour24 !== 12) hour24 += 12;
-      else if (period.toUpperCase() === 'AM' && hour24 === 12) hour24 = 0;
+      // Convert to 24-hour if AM/PM present
+      if (period) {
+        if (period.toUpperCase() === 'PM' && hour24 !== 12) hour24 += 12;
+        else if (period.toUpperCase() === 'AM' && hour24 === 12) hour24 = 0;
+      }
       
       const [year, month, day] = gameDate.split('-').map(Number);
       const gameDateObj = new Date(year, month - 1, day, hour24, min, 0, 0);
@@ -354,8 +428,7 @@ export default function GamesScreen() {
 
     // Track game view (first interaction with this game)
     if (session?.user?.id && game.originalId) {
-      const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
-      trackGameView(session.user.id, game.originalId, weekNumber);
+      trackGameView(session.user.id, game.originalId, currentWeekNumber || 0);
     }
 
     setPendingPicks(prev => {
@@ -388,7 +461,7 @@ export default function GamesScreen() {
         
         const newPick: TicketPick = {
           gameId: game.originalId!,
-          gameLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+          gameLabel: `${game.awayTeamCode || game.awayTeam} @ ${game.homeTeamCode || game.homeTeam}`,
           homeTeam: game.homeTeam,
           awayTeam: game.awayTeam,
           betType,
@@ -401,6 +474,7 @@ export default function GamesScreen() {
       }
   });
 };
+
   const getLineForPick = (game: Game, betType: 'spread' | 'total', side: string): string => {
     if (betType === 'spread') {
       if (side === 'home') return formatSpread(game.homeSpreadValue);
@@ -429,103 +503,104 @@ export default function GamesScreen() {
     setPendingPicks([]);
   };
 
-const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType: 'solo' | 'group') => {
-  if (!session?.user?.id) {
-    alert('Please log in to make picks');
-    return;
-  }
-
-  const weekNumber = parseInt(selectedWeek?.replace('Week ', '') || '1');
-  const now = new Date();
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const pickedDayOfWeek = days[now.getDay()];
-
-  const pickPromises = picks.map(async (pick) => {
-    const game = games.find(g => g.originalId === pick.gameId);
-    if (!game) return null;
-
-    const isSpread = pick.betType === 'spread';
-    const isTotal = pick.betType === 'total';
-    
-    // Calculate timing context safely
-    let timeBeforeGame = 0;
-    let pickedAtTime = 'early_week';
-    try {
-      const timeMatch = game.gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
-      if (timeMatch) {
-        let hour = parseInt(timeMatch[1]);
-        const min = parseInt(timeMatch[2]);
-        const period = timeMatch[3].toUpperCase();
-        if (period === 'PM' && hour !== 12) hour += 12;
-        if (period === 'AM' && hour === 12) hour = 0;
-        const gameDateTime = new Date(`${game.gameDate}T${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:00`);
-        timeBeforeGame = Math.max(0, Math.floor((gameDateTime.getTime() - now.getTime()) / (1000 * 60)));
-        
-        const hoursBeforeGame = timeBeforeGame / 60;
-        if (hoursBeforeGame < 4) pickedAtTime = 'game_day';
-        else if (hoursBeforeGame < 48) pickedAtTime = 'mid_week';
-      }
-    } catch (e) {
-      // Keep defaults if parsing fails
+  const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType: 'solo' | 'group') => {
+    if (!session?.user?.id) {
+      alert('Please log in to make picks');
+      return;
     }
-    
-    // Determine spread size category
-    const spreadSize = Math.abs(game.homeSpreadValue || 0);
-    let spreadCategory = 'medium';
-    if (spreadSize <= 1) spreadCategory = 'pk';
-    else if (spreadSize <= 3) spreadCategory = 'small';
-    else if (spreadSize > 7) spreadCategory = 'large';
-    
-    // Determine if picking favorite
-    const pickedFavorite = pick.side === 'home' 
-      ? (game.homeSpreadValue || 0) < 0 
-      : (game.awaySpreadValue || 0) < 0;
 
-    const pickData = {
-      game_id: pick.gameId,
-      pick: pick.side,
-      team_picked: isSpread ? pick.side : null,
-      confidence: isSpread ? pick.confidence : 'Medium',
-      reasoning: pick.notes || '',
-      pick_type: pickType,
-      groups: groupIds,
-      spread_value: pick.betType === 'spread' 
-        ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
-        : 0,
-      week: weekNumber,
-      overUnderPick: isTotal ? pick.side : null,
-      overUnderConfidence: isTotal ? pick.confidence : null,
+    const now = new Date();
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const pickedDayOfWeek = days[now.getDay()];
+
+    const pickPromises = picks.map(async (pick) => {
+      const game = games.find(g => g.originalId === pick.gameId);
+      if (!game) return null;
+
+      const isSpread = pick.betType === 'spread';
+      const isTotal = pick.betType === 'total';
       
-      // AI Context fields
-      spread_line_at_pick: game.homeSpreadValue,
-      total_line_at_pick: game.overUnder,
-      time_before_game_minutes: timeBeforeGame,
-      picked_at_time: pickedAtTime,
-      picked_day_of_week: pickedDayOfWeek,
-      spread_size: spreadSize,
-      spread_category: spreadCategory,
-      picked_favorite: isSpread ? pickedFavorite : null,
-      picked_team: isSpread 
-        ? (pick.side === 'home' ? game.homeTeam : game.awayTeam) 
-        : null,
-      opponent_team: isSpread 
-        ? (pick.side === 'home' ? game.awayTeam : game.homeTeam) 
-        : null,
-    };
+      // Calculate timing context safely
+      let timeBeforeGame = 0;
+      let pickedAtTime = 'early_week';
+      try {
+        const timeMatch = game.gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)?/i);
+        if (timeMatch) {
+          let hour = parseInt(timeMatch[1]);
+          const min = parseInt(timeMatch[2]);
+          const period = timeMatch[3];
+          if (period) {
+            if (period.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+            if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
+          }
+          const gameDateTime = new Date(`${game.gameDate}T${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:00`);
+          timeBeforeGame = Math.max(0, Math.floor((gameDateTime.getTime() - now.getTime()) / (1000 * 60)));
+          
+          const hoursBeforeGame = timeBeforeGame / 60;
+          if (hoursBeforeGame < 4) pickedAtTime = 'game_day';
+          else if (hoursBeforeGame < 48) pickedAtTime = 'mid_week';
+        }
+      } catch (e) {
+        // Keep defaults if parsing fails
+      }
+      
+      // Determine spread size category
+      const spreadSize = Math.abs(game.homeSpreadValue || 0);
+      let spreadCategory = 'medium';
+      if (spreadSize <= 1) spreadCategory = 'pk';
+      else if (spreadSize <= 3) spreadCategory = 'small';
+      else if (spreadSize > 7) spreadCategory = 'large';
+      
+      // Determine if picking favorite
+      const pickedFavorite = pick.side === 'home' 
+        ? (game.homeSpreadValue || 0) < 0 
+        : (game.awaySpreadValue || 0) < 0;
 
-    return savePick(session.user.id, pickData);
-  });
+      const pickData = {
+        game_id: pick.gameId,
+        pick: pick.side,
+        team_picked: isSpread ? pick.side : null,
+        confidence: isSpread ? pick.confidence : 'Medium',
+        reasoning: pick.notes || '',
+        pick_type: pickType,
+        groups: groupIds,
+        spread_value: pick.betType === 'spread' 
+          ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
+          : 0,
+        week: currentWeekNumber || 0,
+        overUnderPick: isTotal ? pick.side : null,
+        overUnderConfidence: isTotal ? pick.confidence : null,
+        
+        // AI Context fields
+        spread_line_at_pick: game.homeSpreadValue,
+        total_line_at_pick: game.overUnder,
+        time_before_game_minutes: timeBeforeGame,
+        picked_at_time: pickedAtTime,
+        picked_day_of_week: pickedDayOfWeek,
+        spread_size: spreadSize,
+        spread_category: spreadCategory,
+        picked_favorite: isSpread ? pickedFavorite : null,
+        picked_team: isSpread 
+          ? (pick.side === 'home' ? game.homeTeam : game.awayTeam) 
+          : null,
+        opponent_team: isSpread 
+          ? (pick.side === 'home' ? game.awayTeam : game.homeTeam) 
+          : null,
+      };
 
-  try {
-    await Promise.all(pickPromises);
-    setPendingPicks([]);
-    Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved!`);
-    refreshUserPicks();
-  } catch (error) {
-    console.error('Error saving picks:', error);
-    Alert.alert('❌ Error', 'Failed to save picks. Please try again.');
-  }
-};
+      return savePick(session.user.id, pickData);
+    });
+
+    try {
+      await Promise.all(pickPromises);
+      setPendingPicks([]);
+      Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved!`);
+      refreshUserPicks();
+    } catch (error) {
+      console.error('Error saving picks:', error);
+      Alert.alert('❌ Error', 'Failed to save picks. Please try again.');
+    }
+  };
 
   // Load user groups when session is available
   useEffect(() => {
@@ -537,26 +612,6 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
     };
     loadGroups();
   }, [session]);
-
-  const formatGameDateTime = (date: string, time: string): string => {
-    const [year, month, day] = date.split('-').map(Number);
-    const gameDate = new Date(year, month - 1, day);
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const gameDateOnly = new Date(gameDate);
-    gameDateOnly.setHours(0, 0, 0, 0);
-    
-    if (gameDateOnly.getTime() === today.getTime()) return `Today, ${time}`;
-    if (gameDateOnly.getTime() === tomorrow.getTime()) return `Tomorrow, ${time}`;
-    
-    const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
-    return `${gameDate.toLocaleDateString('en-US', options)}, ${time}`;
-  };
 
   const formatSpread = (value: number): string => {
     if (value > 0) return `+${value}`;
@@ -584,42 +639,37 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
         <Text style={styles.title}>Games</Text>
       </View>
 
+      {/* Sport Tabs - matching Home screen style */}
       <ScrollView 
         horizontal 
-        style={styles.weekFilter} 
+        style={styles.sportTabsContainer} 
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.weekFilterContent}
+        contentContainerStyle={styles.sportTabsContent}
       >
-        {visibleWeeks.map(week => (
-          <TouchableOpacity
-            key={week}
-            style={[styles.weekChip, selectedWeek === week && styles.weekChipActive]}
-            onPress={() => setSelectedWeek(week)}
-          >
-            <Text style={[styles.weekChipText, selectedWeek === week && styles.weekChipTextActive]}>
-              {week}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <ScrollView 
-        horizontal 
-        style={styles.sportFilter} 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.sportFilterContent}
-      >
-        {sports.map(sport => (
-          <TouchableOpacity
-            key={sport}
-            style={[styles.sportChip, selectedSport === sport && styles.sportChipActive]}
-            onPress={() => setSelectedSport(sport)}
-          >
-            <Text style={[styles.sportChipText, selectedSport === sport && styles.sportChipTextActive]}>
-              {sport}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {SPORTS.map(sport => {
+          const isSelected = selectedSport.key === sport.key;
+          return (
+            <TouchableOpacity
+              key={sport.key}
+              style={[
+                styles.sportTab,
+                isSelected && styles.sportTabActive,
+                !sport.enabled && styles.sportTabDisabled
+              ]}
+              onPress={() => sport.enabled && setSelectedSport(sport)}
+              disabled={!sport.enabled}
+            >
+              <Text style={styles.sportEmoji}>{sport.emoji}</Text>
+              <Text style={[
+                styles.sportTabText,
+                isSelected && styles.sportTabTextActive,
+                !sport.enabled && styles.sportTabTextDisabled
+              ]}>
+                {sport.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <ScrollView 
@@ -628,174 +678,235 @@ const handleSavePicks = async (picks: TicketPick[], groupIds: string[], pickType
         contentContainerStyle={styles.scrollContent}
       >
         {games.length > 0 ? (
-          games.map(game => {
-            const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
-            const isLocked = timeToLock === 'LOCKED';
-            
-            // Helper to check if a cell is selected (saved or pending)
-            const isCellSelected = (betType: string, side: string) => {
-              // Check pending picks first
-              const pending = pendingPicks.find(
-                p => p.gameId === game.originalId && p.betType === betType && p.side === side
-              );
-              if (pending) return 'pending';
-              
-              // Check saved picks
-              if (betType === 'spread' && game.selectedPick === side) return 'saved';
-              if (betType === 'total') {
-                if (side === 'over' && game.selectedOverUnderPick === 'over') return 'saved';
-                if (side === 'under' && game.selectedOverUnderPick === 'under') return 'saved';
-              }
-              return false;
-            };
-            
-            return (
-              <View key={game.id} style={[styles.gameCard, isLocked && styles.gameCardLocked]}>
-                {/* Column Headers */}
-                <View style={styles.gridHeader}>
-                  <View style={styles.teamColumnHeader} />
-                  <Text style={styles.columnHeader}>SPREAD</Text>
-                  <Text style={styles.columnHeader}>TOTAL</Text>
-                  <Text style={styles.columnHeader}>ML</Text>
-                </View>
-
-                {/* Away Team Row */}
-                <View style={styles.gridRow}>
-                  <View style={styles.teamColumn}>
-                    <Text style={styles.teamName}>{game.awayTeam}</Text>
-                  </View>
-                  
-                  {/* Away Spread */}
-                  <TouchableOpacity
-                    style={[
-                      styles.betCell,
-                      isCellSelected('spread', 'away') === 'pending' && styles.betCellPending,
-                      isCellSelected('spread', 'away') === 'saved' && styles.betCellSaved,
-                      isLocked && styles.betCellLocked
-                    ]}
-                    onPress={() => !isLocked && handleCellPress(game, 'spread', 'away')}
-                    disabled={isLocked}
-                  >
-                    <Text style={[styles.betLine, isCellSelected('spread', 'away') && styles.betLineSelected]}>
-                      {formatSpread(game.awaySpreadValue)}
-                    </Text>
-                    <Text style={[styles.betOdds, isCellSelected('spread', 'away') && styles.betOddsSelected]}>
-                      -110
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Over */}
-                  <TouchableOpacity
-                    style={[
-                      styles.betCell,
-                      isCellSelected('total', 'over') === 'pending' && styles.betCellPending,
-                      isCellSelected('total', 'over') === 'saved' && styles.betCellSaved,
-                      isLocked && styles.betCellLocked
-                    ]}
-                    onPress={() => !isLocked && handleCellPress(game, 'total', 'over')}
-                    disabled={isLocked}
-                  >
-                    <Text style={[styles.betLine, isCellSelected('total', 'over') && styles.betLineSelected]}>
-                      O {game.overUnder}
-                    </Text>
-                    <Text style={[styles.betOdds, isCellSelected('total', 'over') && styles.betOddsSelected]}>
-                      -110
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Away Moneyline - Display Only */}
-                  <View style={[styles.betCell, styles.betCellDisabled]}>
-                    <Text style={styles.betLineDisabled}>
-                      {formatMoneyline(game.awayMoneyline || -110)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Home Team Row */}
-                <View style={styles.gridRow}>
-                  <View style={styles.teamColumn}>
-                    <Text style={styles.teamName}>{game.homeTeam}</Text>
-                  </View>
-                  
-                  {/* Home Spread */}
-                  <TouchableOpacity
-                    style={[
-                      styles.betCell,
-                      isCellSelected('spread', 'home') === 'pending' && styles.betCellPending,
-                      isCellSelected('spread', 'home') === 'saved' && styles.betCellSaved,
-                      isLocked && styles.betCellLocked
-                    ]}
-                    onPress={() => !isLocked && handleCellPress(game, 'spread', 'home')}
-                    disabled={isLocked}
-                  >
-                    <Text style={[styles.betLine, isCellSelected('spread', 'home') && styles.betLineSelected]}>
-                      {formatSpread(game.homeSpreadValue)}
-                    </Text>
-                    <Text style={[styles.betOdds, isCellSelected('spread', 'home') && styles.betOddsSelected]}>
-                      -110
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Under */}
-                  <TouchableOpacity
-                    style={[
-                      styles.betCell,
-                      isCellSelected('total', 'under') === 'pending' && styles.betCellPending,
-                      isCellSelected('total', 'under') === 'saved' && styles.betCellSaved,
-                      isLocked && styles.betCellLocked
-                    ]}
-                    onPress={() => !isLocked && handleCellPress(game, 'total', 'under')}
-                    disabled={isLocked}
-                  >
-                    <Text style={[styles.betLine, isCellSelected('total', 'under') && styles.betLineSelected]}>
-                      U {game.overUnder}
-                    </Text>
-                    <Text style={[styles.betOdds, isCellSelected('total', 'under') && styles.betOddsSelected]}>
-                      -110
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Home Moneyline - Display Only */}
-                  <View style={[styles.betCell, styles.betCellDisabled]}>
-                    <Text style={styles.betLineDisabled}>
-                      {formatMoneyline(game.homeMoneyline || -110)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Game Info Footer */}
-                <View style={styles.gameFooter}>
-                  <Text style={styles.gameDateTime}>
-                    📅 {formatGameDateTime(game.gameDate, game.gameTime)}
-                  </Text>
-                  {isLocked ? (
-                    <Text style={styles.lockedBadge}>🔒 Locked</Text>
-                  ) : (
-                    <Text style={styles.timeToLock}>⏱ {timeToLock}</Text>
-                  )}
-                </View>
+          Array.from(groupedGames.entries()).map(([dateLabel, dateGames]) => (
+            <View key={dateLabel}>
+              {/* Date Header */}
+              <View style={styles.dateHeader}>
+                <View style={styles.dateHeaderLine} />
+                <Text style={styles.dateHeaderText}>{dateLabel}</Text>
+                <View style={styles.dateHeaderLine} />
               </View>
-            );
-          })
+
+              {/* Games for this date */}
+              {dateGames.map(game => {
+                const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
+                const isLocked = timeToLock === 'LOCKED';
+                const showLogos = game.homeTeamLogo && game.awayTeamLogo;
+                
+                // Helper to check if a cell is selected (saved or pending)
+                const isCellSelected = (betType: string, side: string) => {
+                  // Check pending picks first
+                  const pending = pendingPicks.find(
+                    p => p.gameId === game.originalId && p.betType === betType && p.side === side
+                  );
+                  if (pending) return 'pending';
+                  
+                  // Check saved picks
+                  if (betType === 'spread' && game.selectedPick === side) return 'saved';
+                  if (betType === 'total') {
+                    if (side === 'over' && game.selectedOverUnderPick === 'over') return 'saved';
+                    if (side === 'under' && game.selectedOverUnderPick === 'under') return 'saved';
+                  }
+                  return false;
+                };
+                
+                return (
+                  <View key={game.id} style={[styles.gameCard, isLocked && styles.gameCardLocked]}>
+                    {/* Column Headers */}
+                    <View style={styles.gridHeader}>
+                      <View style={styles.teamColumnHeader} />
+                      <Text style={styles.columnHeader}>SPREAD</Text>
+                      <Text style={styles.columnHeader}>TOTAL</Text>
+                      <Text style={styles.columnHeader}>ML</Text>
+                    </View>
+
+                    {/* Away Team Row */}
+                    <View style={styles.gridRow}>
+                      <View style={styles.teamColumn}>
+                        <View style={styles.teamInfo}>
+                          {showLogos && (
+                            <Image 
+                              source={{ uri: game.awayTeamLogo }} 
+                              style={styles.teamLogo}
+                              resizeMode="contain"
+                            />
+                          )}
+                          <Text style={styles.teamName}>
+                            {game.awayTeamCode || game.awayTeam}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      {/* Away Spread */}
+                      <TouchableOpacity
+                        style={[
+                          styles.betCell,
+                          isCellSelected('spread', 'away') === 'pending' && styles.betCellPending,
+                          isCellSelected('spread', 'away') === 'saved' && styles.betCellSaved,
+                          isLocked && styles.betCellLocked
+                        ]}
+                        onPress={() => !isLocked && handleCellPress(game, 'spread', 'away')}
+                        disabled={isLocked}
+                      >
+                        <Text style={[styles.betLine, isCellSelected('spread', 'away') && styles.betLineSelected]}>
+                          {formatSpread(game.awaySpreadValue)}
+                        </Text>
+                        <Text style={[styles.betOdds, isCellSelected('spread', 'away') && styles.betOddsSelected]}>
+                          -110
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Over */}
+                      <TouchableOpacity
+                        style={[
+                          styles.betCell,
+                          isCellSelected('total', 'over') === 'pending' && styles.betCellPending,
+                          isCellSelected('total', 'over') === 'saved' && styles.betCellSaved,
+                          isLocked && styles.betCellLocked
+                        ]}
+                        onPress={() => !isLocked && handleCellPress(game, 'total', 'over')}
+                        disabled={isLocked}
+                      >
+                        <Text style={[styles.betLine, isCellSelected('total', 'over') && styles.betLineSelected]}>
+                          O {game.overUnder}
+                        </Text>
+                        <Text style={[styles.betOdds, isCellSelected('total', 'over') && styles.betOddsSelected]}>
+                          -110
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Away Moneyline - Display Only */}
+                      <View style={[styles.betCell, styles.betCellDisabled]}>
+                        <Text style={styles.betLineDisabled}>
+                          {formatMoneyline(game.awayMoneyline || -110)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Home Team Row */}
+                    <View style={styles.gridRow}>
+                      <View style={styles.teamColumn}>
+                        <View style={styles.teamInfo}>
+                          {showLogos && (
+                            <Image 
+                              source={{ uri: game.homeTeamLogo }} 
+                              style={styles.teamLogo}
+                              resizeMode="contain"
+                            />
+                          )}
+                          <Text style={styles.teamName}>
+                            {game.homeTeamCode || game.homeTeam}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      {/* Home Spread */}
+                      <TouchableOpacity
+                        style={[
+                          styles.betCell,
+                          isCellSelected('spread', 'home') === 'pending' && styles.betCellPending,
+                          isCellSelected('spread', 'home') === 'saved' && styles.betCellSaved,
+                          isLocked && styles.betCellLocked
+                        ]}
+                        onPress={() => !isLocked && handleCellPress(game, 'spread', 'home')}
+                        disabled={isLocked}
+                      >
+                        <Text style={[styles.betLine, isCellSelected('spread', 'home') && styles.betLineSelected]}>
+                          {formatSpread(game.homeSpreadValue)}
+                        </Text>
+                        <Text style={[styles.betOdds, isCellSelected('spread', 'home') && styles.betOddsSelected]}>
+                          -110
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Under */}
+                      <TouchableOpacity
+                        style={[
+                          styles.betCell,
+                          isCellSelected('total', 'under') === 'pending' && styles.betCellPending,
+                          isCellSelected('total', 'under') === 'saved' && styles.betCellSaved,
+                          isLocked && styles.betCellLocked
+                        ]}
+                        onPress={() => !isLocked && handleCellPress(game, 'total', 'under')}
+                        disabled={isLocked}
+                      >
+                        <Text style={[styles.betLine, isCellSelected('total', 'under') && styles.betLineSelected]}>
+                          U {game.overUnder}
+                        </Text>
+                        <Text style={[styles.betOdds, isCellSelected('total', 'under') && styles.betOddsSelected]}>
+                          -110
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Home Moneyline - Display Only */}
+                      <View style={[styles.betCell, styles.betCellDisabled]}>
+                        <Text style={styles.betLineDisabled}>
+                          {formatMoneyline(game.homeMoneyline || -110)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Game Info Footer */}
+                    <View style={styles.gameFooter}>
+                      <Text style={styles.gameTime}>
+                        🕐 {game.gameTime}
+                      </Text>
+                      {isLocked ? (
+                        <Text style={styles.lockedBadge}>🔒 Locked</Text>
+                      ) : (
+                        <Text style={styles.timeToLock}>⏱ {timeToLock}</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ))
         ) : (
           <View style={styles.noGamesCard}>
-            <Text style={styles.noGamesText}>No {selectedSport} games scheduled for {selectedWeek}</Text>
-            <Text style={styles.noGamesSubtext}>Check back later or try another week</Text>
+            <Text style={styles.noGamesText}>
+              No upcoming {selectedSport.label} games available
+            </Text>
+            <Text style={styles.noGamesSubtext}>Check back later for new games</Text>
           </View>
         )}
 
+        {/* Dev Tools */}
         {__DEV__ && (
           <View style={styles.devSection}>
-            <Text style={styles.devLabel}>🛠 Dev Tools</Text>
-            <TouchableOpacity onPress={autoPopulateWeek} style={styles.devButton}>
-              <Text style={styles.devButtonText}>📥 Populate {selectedWeek}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={autoResolveWeek} style={[styles.devButton, { backgroundColor: '#007AFF' }]}>
-              <Text style={styles.devButtonText}>✅ Resolve {selectedWeek}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={advanceToNextWeek} style={[styles.devButton, { backgroundColor: '#34C759' }]}>
-              <Text style={styles.devButtonText}>⏭️ Advance Week</Text>
-            </TouchableOpacity>
+            <Text style={styles.devLabel}>🛠 Dev Tools (Week {currentWeekNumber})</Text>
+            {selectedSport.key === 'nfl' && (
+              <>
+                <TouchableOpacity onPress={autoPopulateWeek} style={styles.devButton}>
+                  <Text style={styles.devButtonText}>📥 Populate Week {currentWeekNumber}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={autoResolveWeek} style={[styles.devButton, { backgroundColor: '#007AFF' }]}>
+                  <Text style={styles.devButtonText}>✅ Resolve Week {currentWeekNumber}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={advanceToNextWeek} style={[styles.devButton, { backgroundColor: '#34C759' }]}>
+                  <Text style={styles.devButtonText}>⏭️ Advance Week</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {selectedSport.key === 'nba' && (
+              <TouchableOpacity 
+                onPress={async () => {
+                  const response = await fetch('https://jyqclrlmbsnwwqakfbwo.supabase.co/functions/v1/fetch-nba-games', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5cWNscmxtYnNud3dxYWtmYndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NjIxOTcsImV4cCI6MjA4MTIzODE5N30.dOj_ihr-SbQ-hdYDqmtsFDorK-cJ0OCFovjiBwAQZhw',
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  const data = await response.json();
+                  Alert.alert('NBA Fetch', `Fetched ${data.gamesCount} games. Requests remaining: ${data.requestsRemaining}`);
+                  loadGamesFromDatabase();
+                }} 
+                style={styles.devButton}
+              >
+                <Text style={styles.devButtonText}>🏀 Fetch NBA Games</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
@@ -827,69 +938,73 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
   },
-  weekFilter: {
-    maxHeight: 40,
-    marginBottom: 8,
+  sportTabsContainer: {
+    maxHeight: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
-  weekFilterContent: {
-    paddingHorizontal: 24,
-    gap: 12,
+  sportTabsContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
   },
-  weekChip: {
-    backgroundColor: '#2C2C2E',
-    paddingHorizontal: 20,
+  sportTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     marginRight: 8,
+    gap: 6,
   },
-  weekChipActive: {
+  sportTabActive: {
     backgroundColor: '#FF6B35',
   },
-  weekChipText: {
-    color: '#FFF',
+  sportTabDisabled: {
+    opacity: 0.4,
+  },
+  sportEmoji: {
+    fontSize: 18,
+  },
+  sportTabText: {
+    color: '#8E8E93',
     fontSize: 14,
     fontWeight: '600',
   },
-  weekChipTextActive: {
+  sportTabTextActive: {
     color: '#FFF',
   },
-  sportFilter: {
-    maxHeight: 40,
-    marginBottom: 16,
-  },
-  sportFilterContent: {
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  sportChip: {
-    backgroundColor: '#2C2C2E',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  sportChipActive: {
-    backgroundColor: '#FF6B35',
-  },
-  sportChipText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sportChipTextActive: {
-    color: '#FFF',
+  sportTabTextDisabled: {
+    color: '#666',
   },
   content: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 180, // Extra space for picks ticket
+    paddingBottom: 180,
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dateHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  dateHeaderText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 16,
   },
   gameCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 12,
     overflow: 'hidden',
   },
   gameCardLocked: {
@@ -921,6 +1036,15 @@ const styles = StyleSheet.create({
   teamColumn: {
     flex: 1.5,
     paddingVertical: 12,
+  },
+  teamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  teamLogo: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
   },
   teamName: {
     color: '#FFF',
@@ -989,7 +1113,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#333',
   },
-  gameDateTime: {
+  gameTime: {
     color: '#8E8E93',
     fontSize: 13,
   },
