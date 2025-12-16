@@ -11,6 +11,14 @@ const getPendingInvite = () => {
   return null;
 };
 
+// Helper to get pending group code from localStorage
+const getPendingGroupCode = () => {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    return localStorage.getItem('pendingGroupCode');
+  }
+  return null;
+};
+
 // Web-compatible alert
 const showAlert = (title: string, message: string, setMessage: (msg: { type: 'success' | 'error'; text: string } | null) => void, onOk?: () => void) => {
   if (Platform.OS === 'web') {
@@ -29,6 +37,11 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(mode === 'signup');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  
+  // Show context if user came from an invite
+  const pendingGroupCode = getPendingGroupCode();
+  const pendingInvite = getPendingInvite();
+  const hasInviteContext = pendingGroupCode || pendingInvite;
 
   // Check for existing session on mount
   useEffect(() => {
@@ -54,8 +67,14 @@ export default function LoginScreen() {
 
   const handlePostAuthRedirect = () => {
     const pendingInvite = getPendingInvite();
+    const pendingGroupCode = getPendingGroupCode();
+    
     if (pendingInvite) {
+      // Old invite system (by invite ID)
       router.replace(`/accept-invite/${pendingInvite}`);
+    } else if (pendingGroupCode) {
+      // New system - join by group code (will auto-join)
+      router.replace(`/join/${pendingGroupCode}`);
     } else {
       router.replace('/(tabs)/home');
     }
@@ -143,6 +162,18 @@ export default function LoginScreen() {
       >
         <Text style={styles.title}>Welcome to JustPicks</Text>
         
+        {/* Show invite context banner */}
+        {hasInviteContext && (
+          <View style={styles.inviteBanner}>
+            <Text style={styles.inviteBannerIcon}>🎉</Text>
+            <Text style={styles.inviteBannerText}>
+              {isSignUp 
+                ? "Sign up to join the group you were invited to!"
+                : "Log in to join the group you were invited to!"}
+            </Text>
+          </View>
+        )}
+        
         {message && (
           <View style={[styles.messageBox, message.type === 'error' ? styles.errorBox : styles.successBox]}>
             <Text style={[styles.messageText, message.type === 'error' ? styles.errorText : styles.successText]}>
@@ -215,6 +246,10 @@ export default function LoginScreen() {
         {__DEV__ && (
           <View style={styles.debugContainer}>
             <Text style={styles.debugLabel}>🛠 Dev Tools</Text>
+            <Text style={styles.debugInfo}>
+              Pending invite: {pendingInvite || 'none'}{'\n'}
+              Pending group code: {pendingGroupCode || 'none'}
+            </Text>
             <TouchableOpacity
               style={styles.debugButton}
               onPress={async () => {
@@ -254,6 +289,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
+  },
+  inviteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 107, 53, 0.15)',
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 16,
+  },
+  inviteBannerIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  inviteBannerText: {
+    color: '#FF6B35',
+    fontSize: 14,
+    flex: 1,
   },
   messageBox: {
     flexDirection: 'row',
@@ -347,6 +401,11 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 12,
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  debugInfo: {
+    color: '#666',
+    fontSize: 11,
     marginBottom: 12,
   },
   debugButton: {
