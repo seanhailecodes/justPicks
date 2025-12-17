@@ -16,17 +16,18 @@ export interface GroupStats {
   totalFriends: number;
 }
 
-// Updated UserGroup interface with performance metrics
+// Updated UserGroup interface with performance metrics and sport
 export interface UserGroup {
   id: string;
   name: string;
+  sport: string; // 'nfl' | 'nba' | 'ncaab' | 'ncaaf' | etc.
   role: 'primary_owner' | 'owner' | 'member';
   visibility: 'private' | 'public';
   joinType: 'invite_only' | 'request_to_join' | 'open';
   memberCount: number;
   activePicks: number;
   pendingPicks: number;
-  // New performance metrics
+  // Performance metrics
   rating: number | null; // Overall accuracy %
   weekAccuracy: number | null; // Last week win % (null if no data)
   monthAccuracy: number | null; // Last month win % (null if no data)
@@ -462,10 +463,10 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
 
     const groupIds = memberships.map(m => m.group_id);
 
-    // Get group details
+    // Get group details INCLUDING sport field
     const { data: groups, error: groupError } = await supabase
       .from('groups')
-      .select('id, name, visibility, join_type')
+      .select('id, name, sport, visibility, join_type')
       .in('id', groupIds);
 
     if (groupError) throw groupError;
@@ -524,6 +525,7 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
         return {
           id: group.id,
           name: group.name,
+          sport: group.sport || 'nfl', // Default to 'nfl' if not set
           role: membership?.role || 'member',
           visibility: group.visibility || 'private',
           joinType: group.join_type || 'invite_only',

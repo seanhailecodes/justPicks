@@ -220,6 +220,17 @@ export default function GroupsScreen() {
     return `${accuracy}%`;
   };
 
+  // Helper to get sport emoji
+  const getSportEmoji = (sport?: string) => {
+    switch (sport?.toLowerCase()) {
+      case 'nba': return '🏀';
+      case 'ncaab': return '🏀';
+      case 'nhl': return '🏒';
+      case 'mlb': return '⚾';
+      default: return '🏈'; // NFL default
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -279,6 +290,12 @@ export default function GroupsScreen() {
                       <Text style={styles.badgeText}>🌐 Public</Text>
                     </View>
                   )}
+                  {/* Sport badge */}
+                  {group.sport && (
+                    <View style={styles.sportBadge}>
+                      <Text style={styles.badgeText}>{getSportEmoji(group.sport)} {group.sport?.toUpperCase()}</Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* DEV ONLY: Test Accept Invite */}
@@ -325,9 +342,12 @@ export default function GroupsScreen() {
             ) : (
               <TouchableOpacity 
                 style={styles.makePicksButton}
-                onPress={() => router.push('/(tabs)/games')}
+                onPress={() => router.push({ 
+                  pathname: '/(tabs)/games', 
+                  params: { sport: group.sport || 'nfl' } 
+                })}
               >
-                <Text style={styles.makePicksButtonText}>🎯 Make Picks</Text>
+                <Text style={styles.makePicksButtonText}>{getSportEmoji(group.sport)} Make Picks</Text>
               </TouchableOpacity>
             )}
 
@@ -616,6 +636,7 @@ const styles = StyleSheet.create({
   },
   groupBadges: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
   },
@@ -627,6 +648,12 @@ const styles = StyleSheet.create({
   },
   publicBadge: {
     backgroundColor: '#34C759',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  sportBadge: {
+    backgroundColor: '#007AFF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,

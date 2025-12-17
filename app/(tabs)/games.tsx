@@ -3,7 +3,7 @@ import { getWeekScores, hasScoresForWeek } from '@/app/data/resolution/allScores
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import { Session } from '@supabase/supabase-js';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -134,6 +134,8 @@ const TeamDisplay = ({ logo, code, name }: { logo?: string; code?: string; name:
 
 export default function GamesScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  
   const [selectedSport, setSelectedSport] = useState<SportConfig>(SPORTS[0]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
@@ -148,6 +150,17 @@ export default function GamesScreen() {
 
   // Get grouped games
   const groupedGames = groupGamesByDate(games);
+
+  // Handle incoming sport parameter from navigation
+  useEffect(() => {
+    if (params.sport) {
+      const sportKey = params.sport as string;
+      const sportConfig = SPORTS.find(s => s.key === sportKey.toLowerCase());
+      if (sportConfig && sportConfig.enabled) {
+        setSelectedSport(sportConfig);
+      }
+    }
+  }, [params.sport]);
 
   const autoResolveWeek = async () => {
     if (!currentWeekNumber) return;
