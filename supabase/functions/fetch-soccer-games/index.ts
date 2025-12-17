@@ -5,18 +5,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// League IDs from API-Football
-const LEAGUES = {
-  CHAMPIONS_LEAGUE: 2,
-  WORLD_CUP: 1,
-  MLS: 253,
-}
-
-const LEAGUE_NAMES: Record<number, string> = {
-  2: 'Champions League',
-  1: 'World Cup',
-  253: 'MLS',
-}
+// The Odds API sport keys for soccer
+const SOCCER_SPORTS = [
+  { key: 'soccer_uefa_champs_league', name: 'Champions League' },
+  { key: 'soccer_usa_mls', name: 'MLS' },
+  { key: 'soccer_fifa_world_cup', name: 'World Cup' },
+]
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -25,148 +19,113 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const API_KEY = Deno.env.get('API_FOOTBALL_KEY') || '4004f66c4a3a2905f3152c00dceedc4d'
+    const API_KEY = Deno.env.get('ODDS_API_KEY') || '4004f66c4a3a2905f3152c00dceedc4d'
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
     const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    // Get today and next 14 days
-    const today = new Date()
-    const endDate = new Date(today)
-    endDate.setDate(endDate.getDate() + 14)
-
-    const formatDate = (d: Date) => d.toISOString().split('T')[0]
-
     let allGames: any[] = []
     let requestsUsed = 0
+    let requestsRemaining = 0
 
-    // Fetch fixtures for each league
-    for (const [leagueName, leagueId] of Object.entries(LEAGUES)) {
-      const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=2024&from=${formatDate(today)}&to=${formatDate(endDate)}`
+    // Fetch odds for each soccer league
+    for (const sport of SOCCER_SPORTS) {
+      const url = `https://api.the-odds-api.com/v4/sports/${sport.key}/odds/?apiKey=${API_KEY}&regions=us&markets=spreads,totals&oddsFormat=american`
       
-      console.log(`Fetching ${leagueName}: ${url}`)
+      console.log(`Fetching ${sport.name}: ${url}`)
       
-      const response = await fetch(url, {
-        headers: {
-          'x-apisports-key': API_KEY,
-        },
-      })
-
-      const data = await response.json()
+      const response = await fetch(url)
       requestsUsed++
 
-      if (data.errors && Object.keys(data.errors).length > 0) {
-        console.error(`API Error for ${leagueName}:`, data.errors)
+      // Get remaining requests from headers
+      const remaining = response.headers.get('x-requests-remaining')
+      if (remaining) {
+        requestsRemaining = parseInt(remaining)
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`API Error for ${sport.name}:`, response.status, errorText)
         continue
       }
 
-      const fixtures = data.response || []
-      console.log(`Found ${fixtures.length} fixtures for ${leagueName}`)
+      const games = await response.json()
+      console.log(`Found ${games.length} games for ${sport.name}`)
 
-      // Now fetch odds for these fixtures
-      for (const fixture of fixtures) {
-        const fixtureId = fixture.fixture.id
-        
-        // Fetch odds for this fixture
-        const oddsUrl = `https://v3.football.api-sports.io/odds?fixture=${fixtureId}`
-        const oddsResponse = await fetch(oddsUrl, {
-          headers: {
-            'x-apisports-key': API_KEY,
-          },
-        })
-        const oddsData = await oddsResponse.json()
-        requestsUsed++
-
-        let asianHandicap = { home: 0, away: 0, line: 0 }
-        let overUnder = { line: 2.5, over: -110, under: -110 }
-
-        // Parse odds if available
-        if (oddsData.response && oddsData.response.length > 0) {
-          const bookmakers = oddsData.response[0]?.bookmakers || []
-          
-          for (const bookmaker of bookmakers) {
-            for (const bet of bookmaker.bets || []) {
-              // Asian Handicap
-              if (bet.name === 'Asian Handicap' && bet.values?.length > 0) {
-                const homeVal = bet.values.find((v: any) => v.value?.includes('Home'))
-                const awayVal = bet.values.find((v: any) => v.value?.includes('Away'))
-                if (homeVal && awayVal) {
-                  // Parse handicap value like "Home -0.5"
-                  const homeMatch = homeVal.value.match(/([-+]?\d+\.?\d*)/)
-                  if (homeMatch) {
-                    asianHandicap.line = parseFloat(homeMatch[1])
-                    asianHandicap.home = parseFloat(homeVal.odd) || -110
-                    asianHandicap.away = parseFloat(awayVal.odd) || -110
-                  }
-                }
-                break
-              }
-              
-              // Over/Under (Goals)
-              if (bet.name === 'Goals Over/Under' && bet.values?.length > 0) {
-                const overVal = bet.values.find((v: any) => v.value?.startsWith('Over'))
-                const underVal = bet.values.find((v: any) => v.value?.startsWith('Under'))
-                if (overVal && underVal) {
-                  // Parse like "Over 2.5"
-                  const lineMatch = overVal.value.match(/(\d+\.?\d*)/)
-                  if (lineMatch) {
-                    overUnder.line = parseFloat(lineMatch[1])
-                    overUnder.over = parseFloat(overVal.odd) || -110
-                    overUnder.under = parseFloat(underVal.odd) || -110
-                  }
-                }
-                break
-              }
-            }
-          }
-        }
-
+      // Add league info to each game
+      games.forEach((game: any) => {
         allGames.push({
-          fixture,
-          leagueId,
-          asianHandicap,
-          overUnder,
+          ...game,
+          subLeague: sport.name,
         })
-      }
-
-      // Respect rate limits - small delay between leagues
-      await new Promise(resolve => setTimeout(resolve, 500))
+      })
     }
 
     console.log(`Total games to upsert: ${allGames.length}`)
 
     // Transform and upsert to database
-    const gamesToUpsert = allGames.map(({ fixture, leagueId, asianHandicap, overUnder }) => {
-      const gameDate = new Date(fixture.fixture.date)
-      const homeTeam = fixture.teams.home
-      const awayTeam = fixture.teams.away
+    const gamesToUpsert = allGames.map((game) => {
+      const gameDate = new Date(game.commence_time)
+      
+      // Find spreads and totals from bookmakers
+      let homeSpread = 0
+      let awaySpread = 0
+      let overUnderLine = 2.5
+      let homeMoneyline = -110
+      let awayMoneyline = -110
+
+      // Get first available bookmaker's odds
+      if (game.bookmakers && game.bookmakers.length > 0) {
+        const bookmaker = game.bookmakers[0]
+        
+        for (const market of bookmaker.markets || []) {
+          if (market.key === 'spreads') {
+            const homeOutcome = market.outcomes.find((o: any) => o.name === game.home_team)
+            const awayOutcome = market.outcomes.find((o: any) => o.name === game.away_team)
+            if (homeOutcome) {
+              homeSpread = homeOutcome.point || 0
+              homeMoneyline = homeOutcome.price || -110
+            }
+            if (awayOutcome) {
+              awaySpread = awayOutcome.point || 0
+              awayMoneyline = awayOutcome.price || -110
+            }
+          }
+          
+          if (market.key === 'totals') {
+            const overOutcome = market.outcomes.find((o: any) => o.name === 'Over')
+            if (overOutcome) {
+              overUnderLine = overOutcome.point || 2.5
+            }
+          }
+        }
+      }
 
       // Generate a unique ID
-      const gameId = `soccer_${leagueId}_${fixture.fixture.id}`
+      const dateStr = gameDate.toISOString().split('T')[0]
+      const homeCode = game.home_team.substring(0, 4).toLowerCase().replace(/\s/g, '')
+      const awayCode = game.away_team.substring(0, 4).toLowerCase().replace(/\s/g, '')
+      const gameId = `soccer_${dateStr}_${awayCode}_${homeCode}`
 
       return {
         id: gameId,
         league: 'SOCCER',
-        sub_league: LEAGUE_NAMES[leagueId] || 'Soccer',
-        home_team: homeTeam.name,
-        away_team: awayTeam.name,
-        home_team_code: homeTeam.name.substring(0, 3).toUpperCase(),
-        away_team_code: awayTeam.name.substring(0, 3).toUpperCase(),
-        home_team_logo: homeTeam.logo,
-        away_team_logo: awayTeam.logo,
+        sub_league: game.subLeague,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        home_team_code: game.home_team.substring(0, 3).toUpperCase(),
+        away_team_code: game.away_team.substring(0, 3).toUpperCase(),
         game_date: gameDate.toISOString(),
-        home_spread: asianHandicap.line,
-        away_spread: -asianHandicap.line,
-        home_moneyline: asianHandicap.home,
-        away_moneyline: asianHandicap.away,
-        over_under_line: overUnder.line,
+        home_spread: homeSpread,
+        away_spread: awaySpread,
+        home_moneyline: homeMoneyline,
+        away_moneyline: awayMoneyline,
+        over_under_line: overUnderLine,
         season: 2024,
         week: getWeekNumber(gameDate),
         locked: gameDate < new Date(),
-        external_id: fixture.fixture.id.toString(),
-        venue: fixture.fixture.venue?.name || null,
-        status: fixture.fixture.status?.short || 'NS',
+        external_id: game.id,
       }
     })
 
@@ -186,16 +145,13 @@ Deno.serve(async (req) => {
       console.log(`Successfully upserted ${gamesToUpsert.length} soccer games`)
     }
 
-    // Get remaining requests from API response headers
-    const requestsRemaining = 100 - requestsUsed // Approximate for free tier
-
     return new Response(
       JSON.stringify({
         success: true,
         gamesCount: gamesToUpsert.length,
         requestsUsed,
         requestsRemaining,
-        leagues: Object.keys(LEAGUES),
+        leagues: SOCCER_SPORTS.map(s => s.name),
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
