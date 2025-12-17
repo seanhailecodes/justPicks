@@ -5,16 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// API-Sports endpoint
-const API_SPORTS_URL = 'https://v1.basketball.api-sports.io'
-
-interface GameScore {
-  gameId: string
-  homeScore: number
-  awayScore: number
-  status: 'final' | 'cancelled'
-}
-
 // Calculate who covered the spread
 function calculateCoveredBy(
   homeScore: number,
@@ -49,17 +39,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const API_SPORTS_KEY = Deno.env.get('API_SPORTS_KEY')
-    if (!API_SPORTS_KEY) {
-      throw new Error('API_SPORTS_KEY not set')
+    const API_KEY = Deno.env.get('ODDS_API_KEY')
+    if (!API_KEY) {
+      throw new Error('ODDS_API_KEY not set')
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+    const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    // Step 1: Find NFL games that need resolution
-    // Games where: game_date has passed, not yet resolved (home_score is null)
+    // Step 1: Find NBA games that need resolution
     const now = new Date()
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
     
@@ -85,97 +74,45 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${unresolvedGames.length} unresolved NBA games`)
 
-    // Step 2: Fetch scores from API-Sports
-    // Get games from the last 3 days
-    const dateFrom = threeDaysAgo.toISOString().split('T')[0]
-    const dateTo = now.toISOString().split('T')[0]
+    // Step 2: Fetch scores from The Odds API
+    const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${API_KEY}&daysFrom=3`
     
-    const scoresUrl = `${API_SPORTS_URL}/games?league=12&season=2024-2025&date=${dateFrom}`
-    console.log(`Fetching scores from: ${scoresUrl}`)
+    console.log('Fetching NBA scores from The Odds API...')
+    const response = await fetch(url)
     
-    const scoresResponse = await fetch(scoresUrl, {
-      headers: {
-        'x-apisports-key': API_SPORTS_KEY,
-      }
-    })
+    const requestsRemaining = response.headers.get('x-requests-remaining')
+    console.log(`Odds API requests remaining: ${requestsRemaining}`)
 
-    const scoresData = await scoresResponse.json()
-    console.log(`API response: ${scoresData.results} games found`)
-
-    if (!scoresData.response || scoresData.response.length === 0) {
-      // Try fetching multiple dates
-      const allScores: any[] = []
-      for (let i = 0; i < 3; i++) {
-        const checkDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
-        const dateStr = checkDate.toISOString().split('T')[0]
-        
-        const dayResponse = await fetch(`${API_SPORTS_URL}/games?league=1&season=2024&date=${dateStr}`, {
-          headers: { 'x-apisports-key': API_SPORTS_KEY }
-        })
-        const dayData = await dayResponse.json()
-        if (dayData.response) {
-          allScores.push(...dayData.response)
-        }
-      }
-      scoresData.response = allScores
+    if (!response.ok) {
+      throw new Error(`Scores API error: ${response.status}`)
     }
 
-    // Build a map of team name -> score for matching
-    const scoresByTeams: Map<string, { home: number, away: number, status: string }> = new Map()
-    
-    for (const game of scoresData.response || []) {
-      if (game.game?.status?.short === 'FT' || game.game?.status?.short === 'AOT') {
-        const homeTeam = game.teams?.home?.name
-        const awayTeam = game.teams?.away?.name
-        const homeScore = game.scores?.home?.total
-        const awayScore = game.scores?.away?.total
-        
-        if (homeTeam && awayTeam && homeScore !== null && awayScore !== null) {
-          // Create key from both teams (sorted for consistency)
-          const key = [homeTeam.toLowerCase(), awayTeam.toLowerCase()].sort().join('|')
-          scoresByTeams.set(key, { home: homeScore, away: awayScore, status: 'final' })
-          console.log(`Score found: ${awayTeam} ${awayScore} @ ${homeTeam} ${homeScore}`)
-        }
-      }
-    }
+    const allScores = await response.json()
+    console.log(`Fetched ${allScores.length} scores`)
 
     // Step 3: Match and resolve games
     let gamesResolved = 0
     let picksResolved = 0
 
     for (const game of unresolvedGames) {
-      // Try to find matching score
-      const homeNormalized = game.home_team.toLowerCase()
-      const awayNormalized = game.away_team.toLowerCase()
-      const key = [homeNormalized, awayNormalized].sort().join('|')
+      // Find matching score by external_id
+      const score = allScores.find((s: any) => s.id === game.external_id)
       
-      // Also try partial matching (team name might be slightly different)
-      let matchedScore = scoresByTeams.get(key)
-      
-      if (!matchedScore) {
-        // Try fuzzy match - check if team names contain each other
-        for (const [scoreKey, score] of scoresByTeams) {
-          const [team1, team2] = scoreKey.split('|')
-          if ((homeNormalized.includes(team1) || team1.includes(homeNormalized)) &&
-              (awayNormalized.includes(team2) || team2.includes(awayNormalized))) {
-            matchedScore = score
-            break
-          }
-          if ((homeNormalized.includes(team2) || team2.includes(homeNormalized)) &&
-              (awayNormalized.includes(team1) || team1.includes(awayNormalized))) {
-            // Teams are swapped - need to swap scores
-            matchedScore = { home: score.away, away: score.home, status: score.status }
-            break
-          }
-        }
-      }
-
-      if (!matchedScore) {
-        console.log(`No score found for: ${game.away_team} @ ${game.home_team}`)
+      if (!score || !score.completed) {
+        console.log(`No completed score for: ${game.away_team} @ ${game.home_team} (external_id: ${game.external_id})`)
         continue
       }
 
-      const { home: homeScore, away: awayScore } = matchedScore
+      const homeScoreData = score.scores?.find((s: any) => s.name === game.home_team)
+      const awayScoreData = score.scores?.find((s: any) => s.name === game.away_team)
+
+      if (!homeScoreData || !awayScoreData) {
+        console.log(`Score data missing for: ${game.away_team} @ ${game.home_team}`)
+        continue
+      }
+
+      const homeScore = parseInt(homeScoreData.score)
+      const awayScore = parseInt(awayScoreData.score)
       const homeSpread = parseFloat(game.home_spread) || 0
       const overUnderLine = game.over_under_line
 
@@ -193,7 +130,6 @@ Deno.serve(async (req) => {
           away_score: awayScore,
           game_status: 'final',
           locked: true,
-          resolved_at: new Date().toISOString()
         })
         .eq('id', game.id)
 
@@ -248,43 +184,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Check if week is complete and advance if needed
-    if (gamesResolved > 0) {
-      // Get current week
-      const { data: appState } = await supabase
-        .from('app_state')
-        .select('current_week')
-        .single()
-
-      const currentWeek = appState?.current_week || 15
-
-      // Check if all games in current week are resolved
-      const { data: remainingGames } = await supabase
-        .from('games')
-        .select('id')
-        .eq('league', 'NBA')
-        .eq('week', currentWeek)
-        .is('home_score', null)
-
-      if (!remainingGames || remainingGames.length === 0) {
-        // All games resolved - advance to next week
-        const nextWeek = currentWeek + 1
-        if (nextWeek <= 18) {
-          await supabase
-            .from('app_state')
-            .update({ current_week: nextWeek })
-            .eq('id', 1) // or however your app_state is keyed
-
-          console.log(`✅ Week ${currentWeek} complete! Advanced to Week ${nextWeek}`)
-        }
-      }
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
         gamesResolved,
         picksResolved,
+        requestsRemaining,
         message: `Resolved ${gamesResolved} games and ${picksResolved} picks`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
