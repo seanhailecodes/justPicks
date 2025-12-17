@@ -1,268 +1,162 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const oddsApiKey = Deno.env.get("ODDS_API_KEY")!;
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Fetch completed NCAAB games from The Odds API (last 3 days)
-    const scoresUrl = `https://api.the-odds-api.com/v4/sports/basketball_ncaab/scores/?apiKey=${oddsApiKey}&daysFrom=3`;
-    
-    console.log("Fetching NCAAB scores from The Odds API...");
-    const scoresResponse = await fetch(scoresUrl);
-    
-    if (!scoresResponse.ok) {
-      throw new Error(`Odds API error: ${scoresResponse.status}`);
+    const API_KEY = Deno.env.get('ODDS_API_KEY')
+    if (!API_KEY) {
+      throw new Error('ODDS_API_KEY not set')
     }
 
-    const scoresData = await scoresResponse.json();
-    console.log(`Found ${scoresData.length} games from API`);
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+    const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    // Filter to only completed games
-    const completedGames = scoresData.filter((game: any) => game.completed === true && game.scores);
-    console.log(`${completedGames.length} completed games with scores`);
+    let resolvedCount = 0
+    let requestsRemaining = 0
 
-    // Build lookup map: team names -> scores
-    const scoresMap = new Map<string, { homeScore: number; awayScore: number; homeTeam: string; awayTeam: string }>();
-    
-    for (const game of completedGames) {
-      const homeScoreData = game.scores.find((s: any) => s.name === game.home_team);
-      const awayScoreData = game.scores.find((s: any) => s.name === game.away_team);
-      
-      if (!homeScoreData || !awayScoreData) continue;
-      
-      // Key by full team names since NCAAB doesn't have standard codes
-      const key = `${game.away_team}|${game.home_team}`;
-      scoresMap.set(key, {
-        homeScore: parseInt(homeScoreData.score),
-        awayScore: parseInt(awayScoreData.score),
-        homeTeam: game.home_team,
-        awayTeam: game.away_team
-      });
+    // Get unresolved NCAAB games from past 3 days
+    const threeDaysAgo = new Date()
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+
+    const { data: unresolvedGames, error: fetchError } = await supabase
+      .from('games')
+      .select('id, external_id, home_team, away_team, home_spread')
+      .eq('league', 'NCAAB')
+      .eq('locked', false)
+      .lt('game_date', new Date().toISOString())
+      .gte('game_date', threeDaysAgo.toISOString())
+
+    if (fetchError) {
+      throw fetchError
     }
 
-    console.log(`Built scores map with ${scoresMap.size} games`);
+    console.log(`Found ${unresolvedGames?.length || 0} unresolved NCAAB games`)
 
-    // STEP 1: Update any games that need scores
-    const { data: unresolvedGames, error: gamesError } = await supabase
-      .from("games")
-      .select("*")
-      .eq("league", "NCAAB")
-      .is("home_score", null);
-
-    if (gamesError) throw gamesError;
-
-    let gamesResolved = 0;
-
-    for (const dbGame of unresolvedGames || []) {
-      // Look up by full team names
-      const key = `${dbGame.away_team}|${dbGame.home_team}`;
-      const scores = scoresMap.get(key);
-      
-      if (!scores) {
-        console.log(`No score found for: ${dbGame.away_team} @ ${dbGame.home_team}`);
-        continue;
-      }
-
-      const homeSpread = parseFloat(dbGame.home_spread) || 0;
-      const homeWithSpread = scores.homeScore + homeSpread;
-      const totalPoints = scores.homeScore + scores.awayScore;
-      const overUnderLine = parseFloat(dbGame.over_under_line) || null;
-
-      // Calculate spread result
-      let homeCovered: boolean | null = null;
-      let awayCovered: boolean | null = null;
-      let spreadPush = false;
-
-      if (homeWithSpread > scores.awayScore) {
-        homeCovered = true;
-        awayCovered = false;
-      } else if (homeWithSpread < scores.awayScore) {
-        homeCovered = false;
-        awayCovered = true;
-      } else {
-        spreadPush = true;
-      }
-
-      // Calculate over/under
-      let wentOver: boolean | null = null;
-      let totalPush = false;
-
-      if (overUnderLine) {
-        if (totalPoints > overUnderLine) {
-          wentOver = true;
-        } else if (totalPoints < overUnderLine) {
-          wentOver = false;
-        } else {
-          totalPush = true;
-        }
-      }
-
-      console.log(`Updating game: ${dbGame.away_team} ${scores.awayScore} @ ${dbGame.home_team} ${scores.homeScore}`);
-
-      const { error: updateError } = await supabase
-        .from("games")
-        .update({
-          home_score: scores.homeScore,
-          away_score: scores.awayScore,
-          game_status: "final",
-          locked: true,
-          home_covered: homeCovered,
-          away_covered: awayCovered,
-          spread_push: spreadPush,
-          went_over: wentOver,
-          total_push: totalPush,
-          actual_total: totalPoints,
-          resolved_at: new Date().toISOString(),
-        })
-        .eq("id", dbGame.id);
-
-      if (!updateError) gamesResolved++;
-    }
-
-    // STEP 2: Get all NCAAB games with scores (to grade picks)
-    const { data: resolvedGames, error: resolvedGamesError } = await supabase
-      .from("games")
-      .select("*")
-      .eq("league", "NCAAB")
-      .not("home_score", "is", null);
-
-    if (resolvedGamesError) throw resolvedGamesError;
-
-    // Build a map of game data for quick lookup
-    const gamesMap = new Map<string, any>();
-    for (const game of resolvedGames || []) {
-      gamesMap.set(game.id, game);
-    }
-
-    console.log(`Found ${gamesMap.size} resolved NCAAB games in database`);
-
-    // STEP 3: Get all ungraded picks for NCAAB games
-    const ncaabGameIds = Array.from(gamesMap.keys());
-    
-    if (ncaabGameIds.length === 0) {
+    if (!unresolvedGames || unresolvedGames.length === 0) {
       return new Response(
-        JSON.stringify({
-          success: true,
-          gamesResolved,
-          picksResolved: 0,
-          message: `Resolved ${gamesResolved} games and 0 picks`,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        JSON.stringify({ success: true, resolvedCount: 0, message: 'No games to resolve' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    const { data: ungradedPicks, error: picksError } = await supabase
-      .from("picks")
-      .select("*")
-      .in("game_id", ncaabGameIds)
-      .is("correct", null);
-
-    if (picksError) {
-      console.error("Error fetching ungraded picks:", picksError);
-      throw picksError;
+    // Fetch scores from The Odds API
+    const url = `https://api.the-odds-api.com/v4/sports/basketball_ncaab/scores/?apiKey=${API_KEY}&daysFrom=3`
+    
+    console.log('Fetching NCAAB scores...')
+    const response = await fetch(url)
+    
+    const remaining = response.headers.get('x-requests-remaining')
+    if (remaining) {
+      requestsRemaining = parseInt(remaining)
     }
 
-    console.log(`Found ${ungradedPicks?.length || 0} ungraded NCAAB picks to process`);
+    if (!response.ok) {
+      throw new Error(`Scores API error: ${response.status}`)
+    }
 
-    let picksResolved = 0;
+    const allScores = await response.json()
+    console.log(`Fetched ${allScores.length} scores`)
 
-    for (const pick of ungradedPicks || []) {
-      const game = gamesMap.get(pick.game_id);
+    // Match scores to games and resolve
+    for (const game of unresolvedGames) {
+      // Find matching score by external_id
+      const score = allScores.find((s: any) => s.id === game.external_id)
       
-      if (!game || game.home_score === null) {
-        continue;
+      if (!score || !score.completed) {
+        continue
       }
 
-      const homeSpread = parseFloat(game.home_spread) || 0;
-      const homeWithSpread = game.home_score + homeSpread;
-      const totalPoints = game.home_score + game.away_score;
-      const overUnderLine = parseFloat(game.over_under_line) || null;
+      const homeScore = score.scores?.find((s: any) => s.name === game.home_team)?.score
+      const awayScore = score.scores?.find((s: any) => s.name === game.away_team)?.score
 
-      // Determine spread result
-      let homeCovered: boolean | null = null;
-      let awayCovered: boolean | null = null;
-      let spreadPush = false;
-
-      if (homeWithSpread > game.away_score) {
-        homeCovered = true;
-        awayCovered = false;
-      } else if (homeWithSpread < game.away_score) {
-        homeCovered = false;
-        awayCovered = true;
-      } else {
-        spreadPush = true;
+      if (homeScore === undefined || awayScore === undefined) {
+        console.log(`No scores found for ${game.away_team} @ ${game.home_team}`)
+        continue
       }
 
-      // Grade spread pick
-      let spreadCorrect: boolean | null = null;
-      if (pick.pick === "home" || pick.pick === "away") {
-        if (spreadPush) {
-          spreadCorrect = null;
-        } else if (pick.pick === "home") {
-          spreadCorrect = homeCovered;
-        } else {
-          spreadCorrect = awayCovered;
-        }
+      const homeScoreNum = parseInt(homeScore)
+      const awayScoreNum = parseInt(awayScore)
+      const homeSpread = parseFloat(game.home_spread) || 0
+
+      // Calculate if home team covered the spread
+      // Home covers if: (homeScore + homeSpread) > awayScore
+      const homeScoreWithSpread = homeScoreNum + homeSpread
+      const homeCovered = homeScoreWithSpread > awayScoreNum
+      const push = homeScoreWithSpread === awayScoreNum
+
+      let winner = 'away'
+      if (push) {
+        winner = 'push'
+      } else if (homeCovered) {
+        winner = 'home'
       }
 
-      // Grade over/under pick
-      let ouCorrect: boolean | null = null;
-      if (pick.over_under_pick === "over" || pick.over_under_pick === "under") {
-        if (overUnderLine) {
-          const totalPush = totalPoints === overUnderLine;
-          if (totalPush) {
-            ouCorrect = null;
-          } else if (pick.over_under_pick === "over") {
-            ouCorrect = totalPoints > overUnderLine;
-          } else {
-            ouCorrect = totalPoints < overUnderLine;
-          }
-        }
-      }
-
-      const { error: pickUpdateError } = await supabase
-        .from("picks")
+      // Update game with results
+      const { error: updateError } = await supabase
+        .from('games')
         .update({
-          correct: spreadCorrect,
-          over_under_correct: ouCorrect,
+          locked: true,
+          game_status: 'final',
+          home_score: homeScoreNum,
+          away_score: awayScoreNum,
+          winner: winner,
         })
-        .eq("id", pick.id);
+        .eq('id', game.id)
 
-      if (!pickUpdateError) {
-        picksResolved++;
-        console.log(`Graded pick ${pick.id}: spread=${spreadCorrect}, o/u=${ouCorrect}`);
-      } else {
-        console.error(`Error grading pick ${pick.id}:`, pickUpdateError);
+      if (updateError) {
+        console.error(`Error updating game ${game.id}:`, updateError)
+        continue
       }
+
+      // Update picks for this game
+      const { data: picks, error: picksSelectError } = await supabase
+        .from('picks')
+        .select('id, team_picked')
+        .eq('game_id', game.id)
+
+      if (!picksSelectError && picks) {
+        for (const pick of picks) {
+          let correct: boolean | null = null
+          
+          if (!push) {
+            correct = pick.team_picked === winner
+          }
+
+          await supabase
+            .from('picks')
+            .update({ correct })
+            .eq('id', pick.id)
+        }
+      }
+
+      resolvedCount++
+      console.log(`Resolved: ${game.away_team} @ ${game.home_team} - ${awayScoreNum}-${homeScoreNum}, winner: ${winner}`)
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        gamesResolved,
-        picksResolved,
-        message: `Resolved ${gamesResolved} games and ${picksResolved} picks`,
+        resolvedCount,
+        totalUnresolved: unresolvedGames.length,
+        requestsRemaining,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
   } catch (error) {
-    console.error("Error:", error);
+    console.error('Error:', error)
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-    );
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
-});
+})
