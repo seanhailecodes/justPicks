@@ -72,6 +72,7 @@ const SPORTS: SportConfig[] = [
   { key: 'nba', label: 'NBA', emoji: '🏀', league: 'NBA', enabled: true, displayMode: 'code' },
   { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: true, displayMode: 'name' },
   { key: 'ncaaf', label: 'NCAAF', emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name' },
+  { key: 'soccer', label: 'Soccer', emoji: '⚽', league: 'SOCCER', enabled: true, displayMode: 'name' }, 
   { key: 'nhl', label: 'NHL', emoji: '🏒', league: 'NHL', enabled: false, displayMode: 'code' },
   { key: 'mlb', label: 'MLB', emoji: '⚾', league: 'MLB', enabled: false, displayMode: 'code' },
 ];
