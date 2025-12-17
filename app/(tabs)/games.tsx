@@ -57,22 +57,23 @@ interface PickData {
   type: 'solo' | 'group';
 }
 
-// Sport configuration
+// Sport configuration with displayMode
 interface SportConfig {
   key: string;
   label: string;
   emoji: string;
   league: string;
   enabled: boolean;
+  displayMode: 'code' | 'name' | 'fighter';
 }
 
 const SPORTS: SportConfig[] = [
-  { key: 'nfl', label: 'NFL', emoji: '🏈', league: 'NFL', enabled: true },
-  { key: 'nba', label: 'NBA', emoji: '🏀', league: 'NBA', enabled: true },
-  { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: true },
-  { key: 'ncaaf', label: 'NCAAF', emoji: '🏈', league: 'NCAAF', enabled: false },
-  { key: 'nhl', label: 'NHL', emoji: '🏒', league: 'NHL', enabled: false },
-  { key: 'mlb', label: 'MLB', emoji: '⚾', league: 'MLB', enabled: false },
+  { key: 'nfl', label: 'NFL', emoji: '🏈', league: 'NFL', enabled: true, displayMode: 'code' },
+  { key: 'nba', label: 'NBA', emoji: '🏀', league: 'NBA', enabled: true, displayMode: 'code' },
+  { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: true, displayMode: 'name' },
+  { key: 'ncaaf', label: 'NCAAF', emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name' },
+  { key: 'nhl', label: 'NHL', emoji: '🏒', league: 'NHL', enabled: false, displayMode: 'code' },
+  { key: 'mlb', label: 'MLB', emoji: '⚾', league: 'MLB', enabled: false, displayMode: 'code' },
 ];
 
 // Helper to ensure date string is treated as UTC
@@ -116,8 +117,14 @@ const groupGamesByDate = (games: Game[]): Map<string, Game[]> => {
   return groups;
 };
 
-// Team display component - shows logo if available, otherwise just code
-const TeamDisplay = ({ logo, code, name }: { logo?: string; code?: string; name: string }) => (
+// Team display component - shows logo if available
+// displayMode: 'code' for pro sports (NFL, NBA), 'name' for college/soccer, 'fighter' for combat sports
+const TeamDisplay = ({ logo, code, name, displayMode }: { 
+  logo?: string; 
+  code?: string; 
+  name: string;
+  displayMode: 'code' | 'name' | 'fighter';
+}) => (
   <View style={styles.teamInfo}>
     {logo ? (
       <Image 
@@ -126,8 +133,8 @@ const TeamDisplay = ({ logo, code, name }: { logo?: string; code?: string; name:
         resizeMode="contain"
       />
     ) : null}
-    <Text style={styles.teamName}>
-      {code || name}
+    <Text style={styles.teamName} numberOfLines={1}>
+      {displayMode === 'code' ? (code || name) : name}
     </Text>
   </View>
 );
@@ -779,7 +786,8 @@ export default function GamesScreen() {
                         <TeamDisplay 
                           logo={game.awayTeamLogo} 
                           code={game.awayTeamCode} 
-                          name={game.awayTeam} 
+                          name={game.awayTeam}
+                          displayMode={selectedSport.displayMode}
                         />
                       </View>
                       
@@ -835,7 +843,8 @@ export default function GamesScreen() {
                         <TeamDisplay 
                           logo={game.homeTeamLogo} 
                           code={game.homeTeamCode} 
-                          name={game.homeTeam} 
+                          name={game.homeTeam}
+                          displayMode={selectedSport.displayMode}
                         />
                       </View>
                       
@@ -1089,6 +1098,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: '600',
+    flexShrink: 1,
   },
   betCell: {
     flex: 1,
