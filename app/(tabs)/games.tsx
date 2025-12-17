@@ -136,7 +136,19 @@ export default function GamesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   
-  const [selectedSport, setSelectedSport] = useState<SportConfig>(SPORTS[0]);
+  // Initialize sport from URL param if present
+  const getInitialSport = (): SportConfig => {
+    if (params.sport) {
+      const sportKey = (params.sport as string).toLowerCase();
+      const sportConfig = SPORTS.find(s => s.key === sportKey);
+      if (sportConfig && sportConfig.enabled) {
+        return sportConfig;
+      }
+    }
+    return SPORTS[0]; // Default to NFL
+  };
+  
+  const [selectedSport, setSelectedSport] = useState<SportConfig>(getInitialSport);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
   const [session, setSession] = useState<Session | null>(null);
@@ -151,12 +163,12 @@ export default function GamesScreen() {
   // Get grouped games
   const groupedGames = groupGamesByDate(games);
 
-  // Handle incoming sport parameter from navigation
+  // Handle incoming sport parameter changes (for when navigating while already on the screen)
   useEffect(() => {
     if (params.sport) {
-      const sportKey = params.sport as string;
-      const sportConfig = SPORTS.find(s => s.key === sportKey.toLowerCase());
-      if (sportConfig && sportConfig.enabled) {
+      const sportKey = (params.sport as string).toLowerCase();
+      const sportConfig = SPORTS.find(s => s.key === sportKey);
+      if (sportConfig && sportConfig.enabled && sportConfig.key !== selectedSport.key) {
         setSelectedSport(sportConfig);
       }
     }
