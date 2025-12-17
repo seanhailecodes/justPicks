@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// API-Sports NFL endpoint
-const API_SPORTS_URL = 'https://v1.american-football.api-sports.io'
+// API-Sports endpoint
+const API_SPORTS_URL = 'https://v1.basketball.api-sports.io'
 
 interface GameScore {
   gameId: string
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const { data: unresolvedGames, error: gamesError } = await supabase
       .from('games')
       .select('*')
-      .eq('league', 'NFL')
+      .eq('league', 'NBA')
       .is('home_score', null)
       .lt('game_date', now.toISOString())
       .gt('game_date', threeDaysAgo.toISOString())
@@ -83,14 +83,14 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Found ${unresolvedGames.length} unresolved NFL games`)
+    console.log(`Found ${unresolvedGames.length} unresolved NBA games`)
 
     // Step 2: Fetch scores from API-Sports
     // Get games from the last 3 days
     const dateFrom = threeDaysAgo.toISOString().split('T')[0]
     const dateTo = now.toISOString().split('T')[0]
     
-    const scoresUrl = `${API_SPORTS_URL}/games?league=1&season=2024&date=${dateFrom}`
+    const scoresUrl = `${API_SPORTS_URL}/games?league=12&season=2024-2025&date=${dateFrom}`
     console.log(`Fetching scores from: ${scoresUrl}`)
     
     const scoresResponse = await fetch(scoresUrl, {
@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
       const { data: remainingGames } = await supabase
         .from('games')
         .select('id')
-        .eq('league', 'NFL')
+        .eq('league', 'NBA')
         .eq('week', currentWeek)
         .is('home_score', null)
 
