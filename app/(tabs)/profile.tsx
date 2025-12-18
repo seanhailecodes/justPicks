@@ -16,12 +16,13 @@ const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
   ncaaf: '🏈',
   nba: '🏀',
   ncaab: '🏀',
+  soccer: '⚽',
   soccer_epl: '⚽',
   ufc: '🥊',
 };
 
-// Sports user has made picks in (will be dynamic later)
-const AVAILABLE_SPORTS: Sport[] = ['nfl'];
+// Sports available in the app
+const AVAILABLE_SPORTS: Sport[] = ['nfl', 'nba', 'ncaab', 'soccer'];
 
 interface SportStats {
   totalPicks: number;
@@ -70,7 +71,7 @@ export default function ProfileScreen() {
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userSports, setUserSports] = useState<Sport[]>(['nfl']); // Sports user has picks in
+  const [userSports, setUserSports] = useState<Sport[]>(['nfl', 'nba', 'ncaab', 'soccer']);
 
   const sportScrollRef = useRef<ScrollView>(null);
 
@@ -110,9 +111,8 @@ export default function ProfileScreen() {
         // Load stats for default sport (NFL)
         await loadSportStats(user.id, 'nfl');
         
-        // TODO: Fetch which sports user has picks in
-        // For now, just NFL
-        setUserSports(['nfl']);
+        // Set available sports
+        setUserSports(['nfl', 'nba', 'ncaab', 'soccer']);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -124,43 +124,91 @@ export default function ProfileScreen() {
 
   const loadSportStats = async (userId: string, sport: Sport) => {
     try {
-      // For now, use existing getUserStats (which is NFL-focused)
-      // TODO: Update getUserStats to accept sport parameter
-      const statsResult = await getUserStats(userId);
+      // Map sport key to league name in database
+      const leagueMap: Record<string, string> = {
+        nfl: 'NFL',
+        nba: 'NBA',
+        ncaab: 'NCAAB',
+        ncaaf: 'NCAAF',
+        soccer: 'SOCCER',
+        soccer_epl: 'SOCCER',
+      };
       
-      if (statsResult?.success && statsResult?.data) {
-        const decidedPicks = (statsResult.data.correctPicks || 0) + (statsResult.data.incorrectPicks || 0);
-        
-        const stats: SportStats = {
-          totalPicks: decidedPicks,
-          correctPicks: statsResult.data.correctPicks || 0,
-          incorrectPicks: statsResult.data.incorrectPicks || 0,
-          upcomingPicks: statsResult.data.upcomingPicks ?? statsResult.data.pendingPicks ?? 0,
-          winRate: statsResult.data.winRate || 0,
-          spreadAccuracy: statsResult.data.spreadAccuracy || { percentage: 0, wins: 0, total: 0 },
-          overUnderAccuracy: statsResult.data.overUnderAccuracy || { percentage: 0, wins: 0, total: 0 },
-          tier: getTierFromWinRate(statsResult.data.winRate || 0),
-          lastWeek: statsResult.data.lastWeek,
-          lastMonth: statsResult.data.lastMonth,
-          season: statsResult.data.season,
-        };
-        
-        setSportStats(prev => ({
-          ...prev,
-          [sport]: stats
-        }));
-      } else {
-        setSportStats(prev => ({
-          ...prev,
-          [sport]: defaultSportStats
-        }));
+      const league = leagueMap[sport] || 'NFL';
+
+      // Get picks filtered by league via games join
+      const { data: picks, error: picksError } = await supabase
+        .from('picks')
+        .select(`
+          *,
+          games!inner (
+            id,
+            league
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('games.league', league);
+
+      if (picksError) {
+        console.error('Error fetching picks:', picksError);
+        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        return;
       }
+
+      // Calculate statistics
+      const totalPicks = picks?.length || 0;
+      const correctPicks = picks?.filter(p => p.correct === true).length || 0;
+      const incorrectPicks = picks?.filter(p => p.correct === false).length || 0;
+      const pendingPicks = picks?.filter(p => p.correct === null).length || 0;
+      
+      const decidedPicks = correctPicks + incorrectPicks;
+      const winRate = decidedPicks > 0 ? Math.round((correctPicks / decidedPicks) * 100) : 0;
+
+      // Spread accuracy
+      const spreadPicks = picks?.filter(p => p.team_picked) || [];
+      const spreadCorrect = spreadPicks.filter(p => p.correct === true).length;
+      const spreadDecided = spreadPicks.filter(p => p.correct !== null).length;
+      const spreadPercentage = spreadDecided > 0 ? Math.round((spreadCorrect / spreadDecided) * 100) : 0;
+
+      // Over/Under accuracy
+      const ouPicks = picks?.filter(p => p.over_under_pick) || [];
+      const ouCorrect = ouPicks.filter(p => p.over_under_correct === true).length;
+      const ouDecided = ouPicks.filter(p => p.over_under_correct !== null).length;
+      const ouPercentage = ouDecided > 0 ? Math.round((ouCorrect / ouDecided) * 100) : 0;
+
+      // Last week (7 days)
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const lastWeekPicks = picks?.filter(p => new Date(p.created_at) >= oneWeekAgo) || [];
+      const lwWins = lastWeekPicks.filter(p => p.correct === true).length;
+      const lwLosses = lastWeekPicks.filter(p => p.correct === false).length;
+      const lwTotal = lwWins + lwLosses;
+
+      // Last month (30 days)
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+      const lastMonthPicks = picks?.filter(p => new Date(p.created_at) >= oneMonthAgo) || [];
+      const lmWins = lastMonthPicks.filter(p => p.correct === true).length;
+      const lmLosses = lastMonthPicks.filter(p => p.correct === false).length;
+      const lmTotal = lmWins + lmLosses;
+
+      const stats: SportStats = {
+        totalPicks: decidedPicks,
+        correctPicks,
+        incorrectPicks,
+        upcomingPicks: pendingPicks,
+        winRate,
+        spreadAccuracy: { percentage: spreadPercentage, wins: spreadCorrect, total: spreadDecided },
+        overUnderAccuracy: { percentage: ouPercentage, wins: ouCorrect, total: ouDecided },
+        tier: getTierFromWinRate(winRate),
+        lastWeek: lwTotal > 0 ? { record: `${lwWins}-${lwLosses}`, winRate: Math.round((lwWins / lwTotal) * 100) } : undefined,
+        lastMonth: lmTotal > 0 ? { record: `${lmWins}-${lmLosses}`, winRate: Math.round((lmWins / lmTotal) * 100) } : undefined,
+      };
+
+      setSportStats(prev => ({ ...prev, [sport]: stats }));
     } catch (error) {
       console.error('Error loading sport stats:', error);
-      setSportStats(prev => ({
-        ...prev,
-        [sport]: defaultSportStats
-      }));
+      setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
     }
   };
 
