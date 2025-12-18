@@ -571,6 +571,18 @@ export default function GamesScreen() {
       return;
     }
 
+    // Validate that groups are selected if sharing to groups
+    if (pickType === 'group' && groupIds.length === 0) {
+      Alert.alert('No Groups Selected', 'Please select at least one group or choose Solo.');
+      return;
+    }
+
+    // Debug log to track what's being saved
+    console.log('=== SAVING PICKS ===');
+    console.log('pickType:', pickType);
+    console.log('groupIds:', groupIds);
+    console.log('userGroups available:', userGroups);
+
     const now = new Date();
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const pickedDayOfWeek = days[now.getDay()];
@@ -650,6 +662,8 @@ export default function GamesScreen() {
           : null,
       };
 
+      console.log('Saving pick with data:', JSON.stringify(pickData, null, 2));
+
       return savePick(session.user.id, pickData);
     });
 
@@ -669,6 +683,7 @@ export default function GamesScreen() {
     const loadGroups = async () => {
       if (session?.user?.id) {
         const groups = await getUserGroups(session.user.id);
+        console.log('Loaded user groups:', groups);
         setUserGroups(groups.map(g => ({ id: g.id, name: g.name })));
       }
     };
