@@ -4,9 +4,18 @@ import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, Touchabl
 import { supabase } from '../lib/supabase';
 import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
 
+// Available sports for group creation
+const SPORTS = [
+  { key: 'nfl', label: 'NFL', emoji: '🏈' },
+  { key: 'nba', label: 'NBA', emoji: '🏀' },
+  { key: 'ncaab', label: 'NCAAB', emoji: '🏀' },
+  { key: 'soccer', label: 'Soccer', emoji: '⚽' },
+];
+
 export default function CreateGroupScreen() {
-  const { sport } = useLocalSearchParams<{ sport?: string }>();
+  const { sport: sportParam } = useLocalSearchParams<{ sport?: string }>();
   const [groupName, setGroupName] = useState('');
+  const [selectedSport, setSelectedSport] = useState(sportParam || 'nfl');
   const [isPrivate, setIsPrivate] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
@@ -16,6 +25,13 @@ export default function CreateGroupScreen() {
   useEffect(() => {
     loadUser();
   }, []);
+
+  // Update selected sport if param changes
+  useEffect(() => {
+    if (sportParam && SPORTS.find(s => s.key === sportParam)) {
+      setSelectedSport(sportParam);
+    }
+  }, [sportParam]);
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -120,7 +136,7 @@ export default function CreateGroupScreen() {
           invite_code: finalInviteCode,
           visibility: isPrivate ? 'private' : 'public',
           require_approval: requireApproval,
-          sport: sport || 'nfl'  // Use passed sport or default to NFL
+          sport: selectedSport
         })
         .select()
         .single();
@@ -138,9 +154,10 @@ export default function CreateGroupScreen() {
 
       if (memberError) throw memberError;
 
+      const sportLabel = SPORTS.find(s => s.key === selectedSport)?.label || selectedSport.toUpperCase();
       Alert.alert(
         'Success!', 
-        `Group "${finalGroupName}" created successfully!${isPrivate ? ' This is a private group - only invited members can join.' : ''}`
+        `${sportLabel} group "${finalGroupName}" created!${isPrivate ? ' This is a private group - only invited members can join.' : ''}`
       );
       
       // Navigate back to groups
@@ -172,6 +189,32 @@ export default function CreateGroupScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Sport Selector */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Sport *</Text>
+          <View style={styles.sportSelector}>
+            {SPORTS.map((sport) => (
+              <TouchableOpacity
+                key={sport.key}
+                style={[
+                  styles.sportOption,
+                  selectedSport === sport.key && styles.sportOptionSelected
+                ]}
+                onPress={() => setSelectedSport(sport.key)}
+              >
+                <Text style={styles.sportEmoji}>{sport.emoji}</Text>
+                <Text style={[
+                  styles.sportLabel,
+                  selectedSport === sport.key && styles.sportLabelSelected
+                ]}>
+                  {sport.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.helperText}>Group picks will be filtered to this sport</Text>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.label}>Group Name *</Text>
           <TextInput
@@ -313,6 +356,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     textAlign: 'right',
+  },
+  sportSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#333',
+    gap: 6,
+  },
+  sportOptionSelected: {
+    borderColor: '#FF6B35',
+    backgroundColor: '#2C1810',
+  },
+  sportEmoji: {
+    fontSize: 18,
+  },
+  sportLabel: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sportLabelSelected: {
+    color: '#FF6B35',
   },
   codeContainer: {
     flexDirection: 'row',
