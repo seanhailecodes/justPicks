@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { supabase, getUserStats, getUserProfile } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
 
 // Sport logos - uncomment as you add logo files
@@ -16,13 +16,12 @@ const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
   ncaaf: '🏈',
   nba: '🏀',
   ncaab: '🏀',
-  soccer: '⚽',
   soccer_epl: '⚽',
   ufc: '🥊',
 };
 
 // Sports available in the app
-const AVAILABLE_SPORTS: Sport[] = ['nfl', 'nba', 'ncaab', 'soccer'];
+const AVAILABLE_SPORTS: Sport[] = ['nfl', 'nba', 'ncaab', 'soccer_epl'];
 
 interface SportStats {
   totalPicks: number;
@@ -71,7 +70,7 @@ export default function ProfileScreen() {
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userSports, setUserSports] = useState<Sport[]>(['nfl', 'nba', 'ncaab', 'soccer']);
+  const [userSports, setUserSports] = useState<Sport[]>(['nfl', 'nba', 'ncaab', 'soccer_epl']);
 
   const sportScrollRef = useRef<ScrollView>(null);
 
@@ -112,7 +111,7 @@ export default function ProfileScreen() {
         await loadSportStats(user.id, 'nfl');
         
         // Set available sports
-        setUserSports(['nfl', 'nba', 'ncaab', 'soccer']);
+        setUserSports(['nfl', 'nba', 'ncaab', 'soccer_epl']);
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -130,24 +129,16 @@ export default function ProfileScreen() {
         nba: 'NBA',
         ncaab: 'NCAAB',
         ncaaf: 'NCAAF',
-        soccer: 'SOCCER',
         soccer_epl: 'SOCCER',
       };
       
       const league = leagueMap[sport] || 'NFL';
 
-      // Get picks filtered by league via games join
-      const { data: picks, error: picksError } = await supabase
+      // Get all picks for user
+      const { data: allPicks, error: picksError } = await supabase
         .from('picks')
-        .select(`
-          *,
-          games!inner (
-            id,
-            league
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('games.league', league);
+        .select('*')
+        .eq('user_id', userId);
 
       if (picksError) {
         console.error('Error fetching picks:', picksError);
@@ -155,23 +146,48 @@ export default function ProfileScreen() {
         return;
       }
 
+      // Get game IDs from picks
+      const gameIds = [...new Set(allPicks?.map(p => p.game_id) || [])];
+      
+      if (gameIds.length === 0) {
+        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        return;
+      }
+
+      // Get games for those picks
+      const { data: games, error: gamesError } = await supabase
+        .from('games')
+        .select('id, league')
+        .in('id', gameIds)
+        .eq('league', league);
+
+      if (gamesError) {
+        console.error('Error fetching games:', gamesError);
+        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        return;
+      }
+
+      // Filter picks to only those for this league
+      const leagueGameIds = new Set(games?.map(g => g.id) || []);
+      const picks = allPicks?.filter(p => leagueGameIds.has(p.game_id)) || [];
+
       // Calculate statistics
-      const totalPicks = picks?.length || 0;
-      const correctPicks = picks?.filter(p => p.correct === true).length || 0;
-      const incorrectPicks = picks?.filter(p => p.correct === false).length || 0;
-      const pendingPicks = picks?.filter(p => p.correct === null).length || 0;
+      const totalPicks = picks.length;
+      const correctPicks = picks.filter(p => p.correct === true).length;
+      const incorrectPicks = picks.filter(p => p.correct === false).length;
+      const pendingPicks = picks.filter(p => p.correct === null).length;
       
       const decidedPicks = correctPicks + incorrectPicks;
       const winRate = decidedPicks > 0 ? Math.round((correctPicks / decidedPicks) * 100) : 0;
 
       // Spread accuracy
-      const spreadPicks = picks?.filter(p => p.team_picked) || [];
+      const spreadPicks = picks.filter(p => p.team_picked);
       const spreadCorrect = spreadPicks.filter(p => p.correct === true).length;
       const spreadDecided = spreadPicks.filter(p => p.correct !== null).length;
       const spreadPercentage = spreadDecided > 0 ? Math.round((spreadCorrect / spreadDecided) * 100) : 0;
 
       // Over/Under accuracy
-      const ouPicks = picks?.filter(p => p.over_under_pick) || [];
+      const ouPicks = picks.filter(p => p.over_under_pick);
       const ouCorrect = ouPicks.filter(p => p.over_under_correct === true).length;
       const ouDecided = ouPicks.filter(p => p.over_under_correct !== null).length;
       const ouPercentage = ouDecided > 0 ? Math.round((ouCorrect / ouDecided) * 100) : 0;
@@ -179,7 +195,7 @@ export default function ProfileScreen() {
       // Last week (7 days)
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      const lastWeekPicks = picks?.filter(p => new Date(p.created_at) >= oneWeekAgo) || [];
+      const lastWeekPicks = picks.filter(p => new Date(p.created_at) >= oneWeekAgo);
       const lwWins = lastWeekPicks.filter(p => p.correct === true).length;
       const lwLosses = lastWeekPicks.filter(p => p.correct === false).length;
       const lwTotal = lwWins + lwLosses;
@@ -187,7 +203,7 @@ export default function ProfileScreen() {
       // Last month (30 days)
       const oneMonthAgo = new Date();
       oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
-      const lastMonthPicks = picks?.filter(p => new Date(p.created_at) >= oneMonthAgo) || [];
+      const lastMonthPicks = picks.filter(p => new Date(p.created_at) >= oneMonthAgo);
       const lmWins = lastMonthPicks.filter(p => p.correct === true).length;
       const lmLosses = lastMonthPicks.filter(p => p.correct === false).length;
       const lmTotal = lmWins + lmLosses;
@@ -286,6 +302,13 @@ export default function ProfileScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
+  // Get display name for sport tab (handle soccer_epl -> Soccer)
+  const getSportDisplayName = (sport: Sport): string => {
+    const config = getSportConfig(sport);
+    if (sport === 'soccer_epl') return 'Soccer';
+    return config?.shortName || sport.toUpperCase();
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -310,6 +333,7 @@ export default function ProfileScreen() {
   const currentStats = sportStats[selectedSport] || defaultSportStats;
   const sportConfig = getSportConfig(selectedSport);
   const displayName = userProfile.display_name || userProfile.username || 'PickMaster';
+  const sportDisplayName = getSportDisplayName(selectedSport);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -329,10 +353,10 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.sportTabsContent}
       >
         {userSports.map(sport => {
-          const config = getSportConfig(sport);
           const isSelected = selectedSport === sport;
           const logo = SPORT_LOGOS[sport];
           const emoji = SPORT_EMOJIS[sport];
+          const displayLabel = getSportDisplayName(sport);
 
           return (
             <TouchableOpacity
@@ -346,7 +370,7 @@ export default function ProfileScreen() {
                 <Text style={styles.sportEmoji}>{emoji}</Text>
               ) : null}
               <Text style={[styles.sportTabText, isSelected && styles.sportTabTextActive]}>
-                {config.shortName}
+                {displayLabel}
               </Text>
             </TouchableOpacity>
           );
@@ -372,7 +396,7 @@ export default function ProfileScreen() {
         {/* Sport-Specific Stats Card */}
         <View style={styles.statsCard}>
           <View style={styles.statsCardHeader}>
-            <Text style={styles.sectionTitle}>{sportConfig.shortName} Record</Text>
+            <Text style={styles.sectionTitle}>{sportDisplayName} Record</Text>
             <View style={[styles.tierBadge, { backgroundColor: getTierColor(currentStats.tier) + '33' }]}>
               <Text style={[styles.tierBadgeText, { color: getTierColor(currentStats.tier) }]}>
                 {getTierIcon(currentStats.tier)} {currentStats.tier}
@@ -452,7 +476,7 @@ export default function ProfileScreen() {
 
         {/* Tier Rating Card */}
         <View style={styles.tierCard}>
-          <Text style={styles.sectionTitle}>{sportConfig.shortName} Picker Rating</Text>
+          <Text style={styles.sectionTitle}>{sportDisplayName} Picker Rating</Text>
           <View style={styles.tierBarContainer}>
             <View style={[styles.tierBar, { 
               width: getTierWidth(currentStats.tier), 
