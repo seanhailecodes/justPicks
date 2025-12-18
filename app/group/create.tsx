@@ -3,8 +3,10 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
+import { router, useLocalSearchParams } from 'expo-router';
 
 export default function CreateGroupScreen() {
+  const { sport } = useLocalSearchParams<{ sport?: string }>();
   const [groupName, setGroupName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
@@ -119,7 +121,7 @@ export default function CreateGroupScreen() {
           invite_code: finalInviteCode,
           visibility: isPrivate ? 'private' : 'public',
           require_approval: requireApproval,
-          sport: 'nfl' // Hardcoded for now, will be dynamic when NBA is added
+          sport: sport || 'nfl'  // Use passed sport or default to NFL
         })
         .select()
         .single();
