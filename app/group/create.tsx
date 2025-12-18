@@ -1,9 +1,8 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
-import { router, useLocalSearchParams } from 'expo-router';
 
 export default function CreateGroupScreen() {
   const { sport } = useLocalSearchParams<{ sport?: string }>();
