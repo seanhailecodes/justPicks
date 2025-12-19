@@ -126,6 +126,10 @@ export default function GroupPicksScreen() {
         loadGamesAndPicks();
       } else if (groupInfo.sport === 'nba') {
         loadGamesAndPicks();
+      } else if (groupInfo.sport === 'ncaab') {
+        loadGamesAndPicks();
+      } else if (groupInfo.sport === 'soccer') {
+        loadGamesAndPicks();
       }
     }
   }, [groupInfo, selectedWeek]);
@@ -173,7 +177,7 @@ export default function GroupPicksScreen() {
           .eq('week', selectedWeek)
           .eq('season', 2025);
       } else {
-        // NBA: Get games from last 7 days + next 3 days
+        // NBA/NCAAB/Soccer: Get games from last 7 days + next 3 days
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const threeDaysAhead = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
@@ -212,12 +216,13 @@ export default function GroupPicksScreen() {
 
       const gameIds = games.map(g => g.id);
       
-      // Get picks from group members only
+      // Get picks that were SHARED TO THIS GROUP
+      // The 'groups' column is an array of group IDs - filter where this groupId is in that array
       const { data: picks, error: picksError } = await supabase
         .from('picks')
         .select('*')
         .in('game_id', gameIds)
-        .in('user_id', memberIds)
+        .contains('groups', [groupId])  // Only picks shared to this specific group
         .order('created_at', { ascending: false });
 
       let pickWithUsernames = picks || [];
@@ -474,7 +479,7 @@ export default function GroupPicksScreen() {
   };
 
   const getHeaderSubtitle = () => {
-    if (groupInfo?.sport === 'nba') {
+    if (groupInfo?.sport === 'nba' || groupInfo?.sport === 'ncaab' || groupInfo?.sport === 'soccer') {
       return 'Recent & Upcoming';
     }
     return `Week ${selectedWeek}`;
@@ -761,7 +766,7 @@ export default function GroupPicksScreen() {
           onPress={() => setActiveTab('picks')}
         >
           <Text style={[styles.tabButtonText, activeTab === 'picks' && styles.tabButtonTextActive]}>
-            {groupInfo?.sport === 'nba' ? 'Recent Picks' : "This Week's Picks"}
+            {groupInfo?.sport === 'nfl' ? "This Week's Picks" : 'Recent Picks'}
           </Text>
         </TouchableOpacity>
         
@@ -781,6 +786,9 @@ export default function GroupPicksScreen() {
           {/* Group Name Row */}
           <View style={styles.groupNameRow}>
             <Text style={styles.groupNameText}>{groupInfo?.name || groupName}</Text>
+            <View style={styles.sportBadgeSmall}>
+              <Text style={styles.sportBadgeSmallText}>{getSportLabel()}</Text>
+            </View>
           </View>
 
           {/* Week Selector - NFL Only */}
@@ -818,8 +826,8 @@ export default function GroupPicksScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {groupInfo?.sport === 'nba' ? (
-              // NBA: Group by date
+            {groupInfo?.sport !== 'nfl' ? (
+              // NBA/NCAAB/Soccer: Group by date
               Object.entries(gamesByDate).map(([dateGroup, games]) => (
                 <View key={dateGroup}>
                   <Text style={styles.dateGroupHeader}>{dateGroup}</Text>
@@ -847,7 +855,7 @@ export default function GroupPicksScreen() {
             {gamesData.length > 0 && (
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryTitle}>
-                  {groupInfo?.sport === 'nba' ? 'Recent Activity' : `Week ${selectedWeek} Summary`}
+                  {groupInfo?.sport === 'nfl' ? `Week ${selectedWeek} Summary` : 'Recent Activity'}
                 </Text>
                 <Text style={styles.summaryText}>
                   {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
@@ -917,6 +925,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  sportBadgeSmall: {
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  sportBadgeSmallText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#1C1C1E',
@@ -942,6 +961,9 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
   },
   groupNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
