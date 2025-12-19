@@ -14,6 +14,7 @@ import {
   trackAddedToTicket, 
   trackRemovedFromTicket,
 } from '../lib/ai-data-helpers';
+import { useNotificationContext } from '../../components/NotificationContext';
 
 // Type definitions
 interface GameSpread {
@@ -143,6 +144,7 @@ const TeamDisplay = ({ logo, code, name, displayMode }: {
 export default function GamesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { showPickConfirmation } = useNotificationContext();
   
   // Initialize sport from URL param if present
   const getInitialSport = (): SportConfig => {
@@ -670,7 +672,10 @@ export default function GamesScreen() {
     try {
       await Promise.all(pickPromises);
       setPendingPicks([]);
-      Alert.alert('✅ Saved!', `${picks.length} pick${picks.length > 1 ? 's' : ''} saved!`);
+      
+      // Show notification modal
+      showPickConfirmation(picks.length);
+      
       refreshUserPicks();
     } catch (error) {
       console.error('Error saving picks:', error);

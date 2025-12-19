@@ -1,0 +1,149 @@
+# Notification System Integration Guide
+
+## Files to Copy
+
+1. `services/notifications.ts` - Message banks and helper functions
+2. `components/NotificationModal.tsx` - The modal UI component  
+3. `components/NotificationContext.tsx` - Context provider and hook
+
+---
+
+## Step 1: Wrap App in Provider
+
+In your root layout file (`app/_layout.tsx`), wrap the app:
+
+```tsx
+import { NotificationProvider } from '../components/NotificationContext';
+
+export default function RootLayout() {
+  return (
+    <NotificationProvider>
+      <Stack>
+        {/* ... your existing screens */}
+      </Stack>
+    </NotificationProvider>
+  );
+}
+```
+
+---
+
+## Step 2: Show Pick Confirmation (in games.tsx)
+
+After successfully saving picks, show confirmation:
+
+```tsx
+import { useNotificationContext } from '../../components/NotificationContext';
+
+export default function GamesScreen() {
+  const { showPickConfirmation } = useNotificationContext();
+  
+  const handleSavePicks = async () => {
+    // ... your existing save logic ...
+    
+    if (success) {
+      // Show confirmation with pick count
+      showPickConfirmation(savedPicks.length);
+    }
+  };
+}
+```
+
+**Find your save picks function and add after success:**
+
+```tsx
+// After successful save (around line where you clear pending picks)
+showPickConfirmation(pendingPicks.length);
+```
+
+---
+
+## Step 3: Check Weekly Performance (in home.tsx)
+
+On home screen mount, check if we should show weekly summary:
+
+```tsx
+import { useNotificationContext } from '../../components/NotificationContext';
+import { supabase } from '../lib/supabase';
+
+export default function HomeScreen() {
+  const { checkWeeklyPerformance } = useNotificationContext();
+  
+  useEffect(() => {
+    const checkPerformance = async () => {
+      // Get user's last 7 days of picks
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const { data: picks } = await supabase
+        .from('picks')
+        .select('correct')
+        .eq('user_id', user.id)
+        .gte('created_at', weekAgo.toISOString())
+        .not('correct', 'is', null);
+      
+      if (picks && picks.length >= 3) {
+        const wins = picks.filter(p => p.correct === true).length;
+        const losses = picks.filter(p => p.correct === false).length;
+        
+        await checkWeeklyPerformance(wins, losses);
+      }
+    };
+    
+    // Small delay to let screen render first
+    const timer = setTimeout(checkPerformance, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+}
+```
+
+---
+
+## Usage Examples
+
+### Show Custom Notification
+```tsx
+const { showNotification } = useNotificationContext();
+
+// Info notification
+showNotification('Welcome Back!', 'Ready to make some picks?', 'info');
+
+// Success notification  
+showNotification('Group Created!', 'Invite your friends to join.', 'success');
+```
+
+### Pick Confirmation (automatic message selection)
+```tsx
+const { showPickConfirmation } = useNotificationContext();
+
+// Single pick
+showPickConfirmation(1);  // "Pick Locked In!"
+
+// Multiple picks
+showPickConfirmation(5);  // "5 picks saved. Let's see how they play out!"
+```
+
+---
+
+## Message Customization
+
+Edit `services/notifications.ts` to add/modify messages:
+
+- `GREAT_WEEK_MESSAGES` - 58%+ win rate (20 messages)
+- `STRUGGLING_WEEK_MESSAGES` - 37% or less (20 messages)
+- `PICK_CONFIRMATION_MESSAGES` - Single pick confirmations
+- `MULTI_PICK_CONFIRMATION_MESSAGES` - Multiple picks at once
+
+---
+
+## Thresholds
+
+Current settings in `notifications.ts`:
+- **Great week**: 58%+ win rate
+- **Struggling week**: 37% or less
+- **Minimum picks**: 3 resolved picks required
+
+To adjust, edit `getWeeklyPerformanceMessage()` function.
