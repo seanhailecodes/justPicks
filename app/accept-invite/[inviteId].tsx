@@ -137,7 +137,7 @@ export default function AcceptInviteScreen() {
         .select('id')
         .eq('group_id', invite.group_id)
         .eq('user_id', currentUserId)
-        .single();
+        .maybeSingle();
 
       if (existingMember) {
         // Already a member, just go to the group
