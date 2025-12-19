@@ -27,6 +27,7 @@ export interface TicketPick {
 interface UserGroup {
   id: string;
   name: string;
+  sport: string;
 }
 
 interface PicksTicketProps {
@@ -36,6 +37,7 @@ interface PicksTicketProps {
   onSave: (picks: TicketPick[], groupIds: string[], pickType: 'solo' | 'group') => void;
   onClear: () => void;
   userGroups: UserGroup[];
+  currentSport: string;  // Current sport being viewed (e.g., 'nfl', 'nba', 'ncaab', 'soccer')
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -46,20 +48,29 @@ export default function PicksTicket({
   onRemovePick, 
   onSave, 
   onClear,
-  userGroups 
+  userGroups,
+  currentSport
 }: PicksTicketProps) {
   const [expanded, setExpanded] = useState(false);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [pickType, setPickType] = useState<'solo' | 'group'>('solo');
   const [slideAnim] = useState(new Animated.Value(0));
 
-  // Select all groups by default when userGroups loads
+  // Filter groups to only show those matching current sport
+  const filteredGroups = userGroups.filter(g => 
+    g.sport.toLowerCase() === currentSport.toLowerCase()
+  );
+
+  // Select all matching groups by default when filteredGroups changes
   useEffect(() => {
-    if (userGroups.length > 0) {
-      setSelectedGroups(userGroups.map(g => g.id));
+    if (filteredGroups.length > 0) {
+      setSelectedGroups(filteredGroups.map(g => g.id));
       setPickType('group');
+    } else {
+      setSelectedGroups([]);
+      setPickType('solo');
     }
-  }, [userGroups]);
+  }, [currentSport, userGroups]);
 
   useEffect(() => {
     Animated.spring(slideAnim, {
@@ -256,7 +267,7 @@ export default function PicksTicket({
 
                 {/* Share Options */}
                 <View style={styles.shareSection}>
-                  <Text style={styles.shareSectionTitle}>Share to:</Text>
+                  <Text style={styles.shareSectionTitle}>SHARE TO:</Text>
                   <View style={styles.shareOptions}>
                     <TouchableOpacity
                       style={[
@@ -276,23 +287,29 @@ export default function PicksTicket({
                       </Text>
                     </TouchableOpacity>
                     
-                    {userGroups.map(group => (
-                      <TouchableOpacity
-                        key={group.id}
-                        style={[
-                          styles.shareButton,
-                          selectedGroups.includes(group.id) && styles.shareButtonActive
-                        ]}
-                        onPress={() => toggleGroup(group.id)}
-                      >
-                        <Text style={[
-                          styles.shareButtonText,
-                          selectedGroups.includes(group.id) && styles.shareButtonTextActive
-                        ]}>
-                          👥 {group.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {filteredGroups.length > 0 ? (
+                      filteredGroups.map(group => (
+                        <TouchableOpacity
+                          key={group.id}
+                          style={[
+                            styles.shareButton,
+                            selectedGroups.includes(group.id) && styles.shareButtonActive
+                          ]}
+                          onPress={() => toggleGroup(group.id)}
+                        >
+                          <Text style={[
+                            styles.shareButtonText,
+                            selectedGroups.includes(group.id) && styles.shareButtonTextActive
+                          ]}>
+                            👥 {group.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <Text style={styles.noGroupsText}>
+                        No {currentSport.toUpperCase()} groups yet
+                      </Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -546,6 +563,7 @@ const styles = StyleSheet.create({
   shareOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
   },
   shareButton: {
     paddingVertical: 8,
@@ -568,6 +586,12 @@ const styles = StyleSheet.create({
   },
   shareButtonTextActive: {
     color: '#FFF',
+  },
+  noGroupsText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginLeft: 8,
   },
   actionButtons: {
     flexDirection: 'row',
