@@ -165,7 +165,7 @@ export default function GamesScreen() {
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [pendingPicks, setPendingPicks] = useState<TicketPick[]>([]);
-  const [userGroups, setUserGroups] = useState<{id: string; name: string}[]>([]);
+  const [userGroups, setUserGroups] = useState<{id: string; name: string; sport: string}[]>([]);
   const [hasLoadedInitialSport, setHasLoadedInitialSport] = useState(false);
 
   // Get grouped games
@@ -684,7 +684,7 @@ export default function GamesScreen() {
       if (session?.user?.id) {
         const groups = await getUserGroups(session.user.id);
         console.log('Loaded user groups:', groups);
-        setUserGroups(groups.map(g => ({ id: g.id, name: g.name })));
+        setUserGroups(groups.map(g => ({ id: g.id, name: g.name, sport: g.sport })));
       }
     };
     loadGroups();
@@ -983,6 +983,7 @@ export default function GamesScreen() {
         onSave={handleSavePicks}
         onClear={handleClearPicks}
         userGroups={userGroups}
+        currentSport={selectedSport.key}
       />
     </SafeAreaView>
   );
