@@ -177,27 +177,27 @@ export const STRUGGLING_WEEK_MESSAGES = [
   }
 ];
 
-// Pick confirmation messages (short, varied)
+// Pick confirmation messages - SPORTS THEMED
 export const PICK_CONFIRMATION_MESSAGES = [
-  { title: "✅ Pick Locked In!", message: "Your pick has been saved. Good luck!" },
-  { title: "🎯 Pick Submitted!", message: "May the sports gods be with you!" },
-  { title: "📝 Got It!", message: "Your pick is in the books!" },
-  { title: "🔒 Locked!", message: "Pick saved - no turning back now!" },
-  { title: "👍 All Set!", message: "Your pick has been recorded!" },
-  { title: "🎟️ Ticket Punched!", message: "You're in - let's see how it plays out!" },
-  { title: "⚡ Quick Draw!", message: "Pick submitted successfully!" },
-  { title: "🏈 Game On!", message: "Your prediction is locked in!" },
-  { title: "📌 Pinned!", message: "Pick saved to your record!" },
-  { title: "🎪 In The Mix!", message: "Your pick joins the action!" }
+  { title: "✅ Pick Locked In!", message: "You're on the board. Good luck!" },
+  { title: "🏈 You're In!", message: "Pick saved - let's see how it plays out!" },
+  { title: "🎯 Locked!", message: "Your prediction is set. Game on!" },
+  { title: "🔒 Pick Secured!", message: "No turning back now - trust your gut!" },
+  { title: "📋 On the Board!", message: "Your pick has been recorded!" },
+  { title: "🎟️ You're Set!", message: "Pick saved - may the odds be in your favor!" },
+  { title: "⚡ Pick Saved!", message: "Quick trigger! Now we wait..." },
+  { title: "🏀 Locked and Loaded!", message: "Your prediction is in the books!" },
+  { title: "✨ Pick Confirmed!", message: "Saved! Time to watch it unfold." },
+  { title: "🎪 In the Game!", message: "You've made your call - good luck!" }
 ];
 
-// Multiple picks saved at once
+// Multiple picks saved at once - SPORTS THEMED
 export const MULTI_PICK_CONFIRMATION_MESSAGES = [
   { title: "✅ Picks Locked In!", message: "{count} picks saved. Let's see how they play out!" },
-  { title: "🎯 All Submitted!", message: "{count} picks in the books. Good luck!" },
-  { title: "📝 Batch Complete!", message: "{count} predictions locked and loaded!" },
-  { title: "🔒 All Locked!", message: "{count} picks saved - you're ready for game day!" },
-  { title: "🎟️ Tickets Punched!", message: "{count} picks submitted. May the odds be in your favor!" }
+  { title: "🎯 All Set!", message: "{count} picks on the board. Good luck!" },
+  { title: "🔒 Picks Secured!", message: "{count} predictions locked and loaded!" },
+  { title: "🏈 You're In!", message: "{count} picks saved - game time!" },
+  { title: "📋 On the Board!", message: "{count} picks recorded. May the odds be in your favor!" }
 ];
 
 // ============================================
