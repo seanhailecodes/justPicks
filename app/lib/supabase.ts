@@ -330,6 +330,7 @@ export const savePick = async (userId: string, pickData: {
       user_id: userId,
       game_id: pickData.game_id,
       pick_type: pickData.pick_type,
+      groups: pickData.groups || [],
       reasoning: pickData.reasoning || '',
       season: 2025,
       week: pickData.week,
