@@ -1065,7 +1065,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 32,
     borderRadius: 16,
-    overflow: 'hidden',
     backgroundColor: '#2C2C2E',
     marginBottom: 6,
   },
