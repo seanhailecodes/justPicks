@@ -577,7 +577,7 @@ export default function GroupPicksScreen() {
                         backgroundColor: spreadConsensus.awayPercentage > spreadConsensus.homePercentage 
                           ? spreadConsensus.consensusColor 
                           : '#2C2C2E',
-                        flex: spreadConsensus.awayPercentage || 1 
+                        flex: spreadConsensus.awayPercentage 
                       }
                     ]}
                   >
