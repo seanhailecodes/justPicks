@@ -1079,6 +1079,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1,
+    borderRadius: 16, 
   },
   barText: {
     color: '#FFF',
