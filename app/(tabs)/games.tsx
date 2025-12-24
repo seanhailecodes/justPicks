@@ -989,6 +989,7 @@ export default function GamesScreen() {
         onClear={handleClearPicks}
         userGroups={userGroups}
         currentSport={selectedSport.key}
+        userId={session?.user?.id}
       />
     </SafeAreaView>
   );
