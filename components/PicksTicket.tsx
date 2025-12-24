@@ -8,8 +8,10 @@ import {
   TextInput,
   TouchableOpacity, 
   View,
-  Dimensions 
+  Dimensions,
+  Keyboard
 } from 'react-native';
+import { supabase } from '../app/lib/supabase';
 
 export interface TicketPick {
   gameId: string;
@@ -38,6 +40,7 @@ interface PicksTicketProps {
   onClear: () => void;
   userGroups: UserGroup[];
   currentSport: string;  // Current sport being viewed (e.g., 'nfl', 'nba', 'ncaab', 'soccer')
+  userId?: string;       // Optional - needed for autocomplete suggestions
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -49,17 +52,59 @@ export default function PicksTicket({
   onSave, 
   onClear,
   userGroups,
-  currentSport
+  currentSport,
+  userId
 }: PicksTicketProps) {
   const [expanded, setExpanded] = useState(false);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [pickType, setPickType] = useState<'solo' | 'group'>('solo');
   const [slideAnim] = useState(new Animated.Value(0));
+  
+  // Autocomplete state
+  const [pastReasonings, setPastReasonings] = useState<string[]>([]);
+  const [focusedPickKey, setFocusedPickKey] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   // Filter groups to only show those matching current sport
   const filteredGroups = userGroups.filter(g => 
     g.sport.toLowerCase() === currentSport.toLowerCase()
   );
+
+  // Fetch past reasonings when userId is available
+  useEffect(() => {
+    const fetchPastReasonings = async () => {
+      if (!userId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('picks')
+          .select('reasoning')
+          .eq('user_id', userId)
+          .not('reasoning', 'is', null)
+          .not('reasoning', 'eq', '')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        
+        if (error) {
+          console.error('Error fetching past reasonings:', error);
+          return;
+        }
+        
+        // Get unique reasonings, preserve order (most recent first)
+        const uniqueReasonings = [...new Set(
+          data
+            ?.map(p => p.reasoning?.trim())
+            .filter(r => r && r.length > 0)
+        )] as string[];
+        
+        setPastReasonings(uniqueReasonings);
+      } catch (err) {
+        console.error('Error in fetchPastReasonings:', err);
+      }
+    };
+    
+    fetchPastReasonings();
+  }, [userId]);
 
   // Select all matching groups by default when filteredGroups changes
   useEffect(() => {
@@ -104,6 +149,40 @@ export default function PicksTicket({
 
   const handleNotesChange = (gameId: string, betType: string, notes: string) => {
     onUpdatePick(gameId, betType, { notes });
+    
+    // Update suggestions based on input
+    if (notes.length >= 2) {
+      const filtered = pastReasonings.filter(r => 
+        r.toLowerCase().includes(notes.toLowerCase())
+      ).slice(0, 5);
+      setSuggestions(filtered);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const handleNotesFocus = (gameId: string, betType: string) => {
+    setFocusedPickKey(`${gameId}-${betType}`);
+    // Show recent suggestions when focusing (even if empty input)
+    const currentPick = picks.find(p => p.gameId === gameId && p.betType === betType);
+    if (!currentPick?.notes || currentPick.notes.length < 2) {
+      setSuggestions(pastReasonings.slice(0, 5));
+    }
+  };
+
+  const handleNotesBlur = () => {
+    // Delay hiding suggestions to allow tap to register
+    setTimeout(() => {
+      setFocusedPickKey(null);
+      setSuggestions([]);
+    }, 200);
+  };
+
+  const handleSuggestionTap = (gameId: string, betType: string, suggestion: string) => {
+    onUpdatePick(gameId, betType, { notes: suggestion });
+    setSuggestions([]);
+    setFocusedPickKey(null);
+    Keyboard.dismiss();
   };
 
   const handleSave = () => {
@@ -181,9 +260,11 @@ export default function PicksTicket({
                   const opponent = pick.side === 'home' ? pick.awayTeam : pick.homeTeam;
                   // @ when picking away team (playing at opponent), vs when picking home team
                   const vsText = pick.side === 'away' ? '@' : 'vs';
+                  const pickKey = `${pick.gameId}-${pick.betType}`;
+                  const showSuggestions = focusedPickKey === pickKey && suggestions.length > 0;
                   
                   return (
-                  <View key={`${pick.gameId}-${pick.betType}`} style={styles.pickItem}>
+                  <View key={pickKey} style={[styles.pickItem, showSuggestions && styles.pickItemWithSuggestions]}>
                     <View style={styles.pickRow}>
                       {/* Pick Info */}
                       <View style={styles.pickInfoCompact}>
@@ -252,15 +333,37 @@ export default function PicksTicket({
                       </TouchableOpacity>
                     </View>
                     
-                    {/* Notes Input */}
-                    <TextInput
-                      style={styles.notesInput}
-                      placeholder="Add note (optional)..."
-                      placeholderTextColor="rgba(255,255,255,0.3)"
-                      value={pick.notes || ''}
-                      onChangeText={(text) => handleNotesChange(pick.gameId, pick.betType, text)}
-                      maxLength={200}
-                    />
+                    {/* Notes Input with Autocomplete */}
+                    <View style={styles.notesContainer}>
+                      <TextInput
+                        style={styles.notesInput}
+                        placeholder="Add note (optional)..."
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        value={pick.notes || ''}
+                        onChangeText={(text) => handleNotesChange(pick.gameId, pick.betType, text)}
+                        onFocus={() => handleNotesFocus(pick.gameId, pick.betType)}
+                        onBlur={handleNotesBlur}
+                        maxLength={200}
+                      />
+                      
+                      {/* Suggestions Dropdown */}
+                      {showSuggestions && (
+                        <View style={styles.suggestionsContainer}>
+                          <Text style={styles.suggestionsHeader}>Recent notes:</Text>
+                          {suggestions.map((suggestion, idx) => (
+                            <TouchableOpacity
+                              key={idx}
+                              style={styles.suggestionItem}
+                              onPress={() => handleSuggestionTap(pick.gameId, pick.betType, suggestion)}
+                            >
+                              <Text style={styles.suggestionText} numberOfLines={1}>
+                                {suggestion}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
                   </View>
                   );
                 })}
@@ -451,6 +554,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+    zIndex: 1,
+  },
+  pickItemWithSuggestions: {
+    zIndex: 100,
   },
   pickRow: {
     flexDirection: 'row',
@@ -535,6 +642,10 @@ const styles = StyleSheet.create({
   confidenceTextActive: {
     color: '#FFF',
   },
+  notesContainer: {
+    position: 'relative',
+    zIndex: 10,
+  },
   notesInput: {
     marginTop: 10,
     paddingVertical: 8,
@@ -545,6 +656,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+  },
+  suggestionsContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,53,0.4)',
+    overflow: 'hidden',
+    zIndex: 100,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  suggestionsHeader: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  suggestionItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  suggestionText: {
+    color: '#FFF',
+    fontSize: 13,
   },
   shareSection: {
     marginTop: 16,
