@@ -106,13 +106,15 @@ export default function GroupPicksScreen() {
         setSelectedWeek(data.current_week);
         
         setTimeout(() => {
-          if (weekScrollViewRef.current && data.current_week > 4) {
-            weekScrollViewRef.current.scrollTo({ 
-              x: (data.current_week - 2) * 90, 
-              animated: true 
+      if (weekScrollViewRef.current && data.current_week > 4) {
+        // Each week chip is ~90px wide, center the current week
+        const scrollPosition = (data.current_week - 3) * 90;
+        weekScrollViewRef.current.scrollTo({ 
+          x: scrollPosition, 
+          animated: true 
             });
           }
-        }, 100);
+        }, 300);
       }
     };
     
