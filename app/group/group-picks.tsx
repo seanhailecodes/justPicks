@@ -802,7 +802,7 @@ export default function GroupPicksScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.weekSelectorContent}
             >
-              {Array.from({ length: 18 }, (_, i) => i + 1).map((weekNum) => (
+              {Array.from({ length: 22 }, (_, i) => i + 1).map((weekNum) => (
                 <TouchableOpacity
                   key={weekNum}
                   style={[
