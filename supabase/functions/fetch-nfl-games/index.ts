@@ -48,7 +48,7 @@ function getNFLWeek(gameDate: Date): number {
   const diffMs = gameDate.getTime() - seasonStart.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   const week = Math.floor(diffDays / 7) + 1
-  return Math.max(1, Math.min(18, week)) // Clamp to 1-18
+  return Math.max(1, Math.min(22, week)) // Clamp to 1-22
 }
 
 Deno.serve(async (req) => {
