@@ -28,6 +28,31 @@ export default function AuthCallback() {
       try {
         console.log('Auth callback params:', params);
 
+        // ON WEB: Supabase puts tokens in URL hash (#access_token=...)
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          
+          if (accessToken && refreshToken) {
+            console.log('Found tokens in URL hash, setting session...');
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            
+            if (error) {
+              console.error('Error setting session:', error);
+              router.replace('/(auth)/login');
+              return;
+            }
+            
+            // Session set successfully
+            handlePostAuthRedirect();
+            return;
+          }
+        }
+
         // Handle email confirmation link (has 'token' and 'type')
         if (params.token && params.type) {
           const { error } = await supabase.auth.verifyOtp({
@@ -41,7 +66,6 @@ export default function AuthCallback() {
             return;
           }
 
-          // After successful verification, check for pending invite
           const { data: { session } } = await supabase.auth.getSession();
           
           if (session) {
@@ -83,10 +107,8 @@ export default function AuthCallback() {
       const pendingGroupCode = getPendingGroupCode();
       
       if (pendingInvite) {
-        // Old invite system (by invite ID)
         router.replace(`/accept-invite/${pendingInvite}`);
       } else if (pendingGroupCode) {
-        // New system - join by group code (will auto-join)
         router.replace(`/join/${pendingGroupCode}`);
       } else {
         router.replace('/(tabs)');

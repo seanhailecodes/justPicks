@@ -96,9 +96,7 @@ export default function LoginScreen() {
         email: email.trim(),
         password: password,
         options: {
-          emailRedirectTo: Platform.OS === 'web' 
-            ? `${window.location.origin}/callback`
-            : 'justpicks://auth/callback',
+          emailRedirectTo: 'https://justpicks.app/auth/callback',
         }
       });
 
