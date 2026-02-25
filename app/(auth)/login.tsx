@@ -96,7 +96,7 @@ export default function LoginScreen() {
         email: email.trim(),
         password: password,
         options: {
-          emailRedirectTo: 'https://justpicks.app/auth/callback',
+          emailRedirectTo: 'https://just-picks-baby.vercel.app/callback',
         }
       });
 
