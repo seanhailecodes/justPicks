@@ -14,71 +14,13 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
+import { APP_SPORTS, SPORT_EMOJI, getDefaultSport } from '../../services/activeSport';
 
-// Sport logos - add your logo files to assets/images/
-// If a logo file doesn't exist, set to null and it will show text only
-const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {
-  // Uncomment these as you add logo files to assets/images/
-  // nfl: require('../../assets/images/nfl.png'),
-  // ncaab: require('../../assets/images/ncaab.png'),
-  // ncaaf: require('../../assets/images/ncaaf.png'),
-  // nba: require('../../assets/images/nba.png'),
-  // wnba: require('../../assets/images/wnba.png'),
-  // mlb: require('../../assets/images/mlb.png'),
-  // nhl: require('../../assets/images/nhl.png'),
-  // soccer_epl: require('../../assets/images/epl.png'),
-  // ufc: require('../../assets/images/ufc.png'),
-  // pga: require('../../assets/images/pga.png'),
-};
+// Sport logos - uncomment as you add logo files to assets/images/
+const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {};
 
-// Fallback emojis when logos aren't available
-const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
-  nfl: '🏈',
-  nba: '🏀',
-  ncaaf: '🏈',
-  ncaab: '🏀',
-  wnba: '🏀',
-  mlb: '⚾',
-  nhl: '🏒',
-  soccer_epl: '⚽',
-  soccer_laliga: '⚽',
-  soccer_mls: '⚽',
-  ufc: '🥊',
-  boxing: '🥊',
-  pga: '⛳',
-  f1: '🏎️',
-};
-
-// Sports available in the app (add more as you expand)
-// season: [startMonth, startDay, endMonth, endDay] (1-indexed months)
-const AVAILABLE_SPORTS: { sport: Sport; enabled: boolean; season?: [number, number, number, number] }[] = [
-  { sport: 'nfl',       enabled: true,  season: [9, 1, 2, 15] },
-  { sport: 'nba',       enabled: true,  season: [10, 1, 6, 30] },
-  { sport: 'ncaab',     enabled: true,  season: [11, 1, 4, 10] },
-  { sport: 'ncaaf',     enabled: false, season: [8, 24, 1, 20] },
-  { sport: 'soccer_epl',enabled: false, season: [8, 1, 5, 31] },
-  { sport: 'ufc',       enabled: false },
-  { sport: 'pga',       enabled: false },
-];
-
-const isSportInSeason = (season?: [number, number, number, number]): boolean => {
-  if (!season) return false;
-  const [startMonth, startDay, endMonth, endDay] = season;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  for (const startYear of [now.getFullYear(), now.getFullYear() - 1]) {
-    const start = new Date(startYear, startMonth - 1, startDay);
-    const endYear = endMonth < startMonth ? startYear + 1 : startYear;
-    const end = new Date(endYear, endMonth - 1, endDay);
-    if (today >= start && today <= end) return true;
-  }
-  return false;
-};
-
-const getDefaultSport = (): Sport => {
-  const active = AVAILABLE_SPORTS.find(s => s.enabled && isSportInSeason(s.season));
-  return active?.sport ?? AVAILABLE_SPORTS.find(s => s.enabled)?.sport ?? 'nba';
-};
+// Use the master sport list from activeSport service
+const AVAILABLE_SPORTS = APP_SPORTS;
 
 interface UserGroup {
   id: string;
@@ -423,7 +365,7 @@ export default function HomeScreen() {
   };
 
   // Get the current sport emoji for Quick Actions
-  const currentSportEmoji = SPORT_EMOJIS[selectedSport] || '🏈';
+  const currentSportEmoji = SPORT_EMOJI[selectedSport] || '🏈';
 
   if (loading) {
     return (
@@ -454,11 +396,9 @@ export default function HomeScreen() {
         style={styles.sportTabsContainer}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {AVAILABLE_SPORTS.map(({ sport, enabled }) => {
-          const config = getSportConfig(sport);
+        {AVAILABLE_SPORTS.map(({ key: sport, enabled, emoji, label }) => {
           const isSelected = selectedSport === sport;
           const logo = SPORT_LOGOS[sport];
-          const emoji = SPORT_EMOJIS[sport];
 
           return (
             <TouchableOpacity
@@ -488,7 +428,7 @@ export default function HomeScreen() {
                 isSelected && styles.sportTabTextActive,
                 !enabled && styles.sportTabTextDisabled
               ]}>
-                {config.shortName}
+                {label}
               </Text>
             </TouchableOpacity>
           );

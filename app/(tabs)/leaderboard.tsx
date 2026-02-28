@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { getDefaultSport } from '../../services/activeSport';
+import { APP_SPORTS, getDefaultSport } from '../../services/activeSport';
 
-const SPORTS = [
-  { id: 'nfl', label: '🏈 NFL', league: 'NFL' },
-  { id: 'nba', label: '🏀 NBA', league: 'NBA' },
-  { id: 'ncaaf', label: '🏈 NCAAF', league: 'NCAAF', disabled: true },
-  { id: 'ncaab', label: '🏀 NCAAB', league: 'NCAAB', disabled: true },
-];
+// Map master sport list to leaderboard's expected shape
+const SPORTS = APP_SPORTS.map(s => ({
+  id: s.key,
+  label: `${s.emoji} ${s.label}`,
+  league: s.league,
+  disabled: !s.enabled,
+}));
 
 const TIME_PERIODS = [
   { key: 'week', label: 'Week' },

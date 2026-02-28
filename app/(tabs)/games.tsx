@@ -15,6 +15,7 @@ import {
   trackRemovedFromTicket,
 } from '../lib/ai-data-helpers';
 import { useNotificationContext } from '../../components/NotificationContext';
+import { APP_SPORTS, AppSport, isSportInSeason } from '../../services/activeSport';
 
 // Type definitions
 interface GameSpread {
@@ -58,46 +59,9 @@ interface PickData {
   type: 'solo' | 'group';
 }
 
-// Sport configuration with displayMode
-interface SportConfig {
-  key: string;
-  label: string;
-  emoji: string;
-  league: string;
-  enabled: boolean;
-  displayMode: 'code' | 'name' | 'fighter';
-  // Season as [startMonth, startDay, endMonth, endDay] (1-indexed months)
-  season?: [number, number, number, number];
-}
-
-const SPORTS: SportConfig[] = [
-  { key: 'nfl',   label: 'NFL',    emoji: '🏈', league: 'NFL',    enabled: true,  displayMode: 'code', season: [9, 1, 2, 15] },
-  { key: 'nba',   label: 'NBA',    emoji: '🏀', league: 'NBA',    enabled: true,  displayMode: 'code', season: [10, 1, 6, 30] },
-  { key: 'ncaab', label: 'NCAAB',  emoji: '🏀', league: 'NCAAB', enabled: true,  displayMode: 'name', season: [11, 1, 4, 10] },
-  { key: 'soccer',label: 'Soccer', emoji: '⚽', league: 'SOCCER', enabled: true,  displayMode: 'name', season: [8, 1, 5, 31] },
-  { key: 'ncaaf', label: 'NCAAF',  emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name', season: [8, 24, 1, 20] },
-  { key: 'nhl',   label: 'NHL',    emoji: '🏒', league: 'NHL',   enabled: false, displayMode: 'code', season: [10, 1, 6, 30] },
-  { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: false, displayMode: 'code', season: [3, 20, 10, 31] },
-];
-
-// Returns true if the given sport is currently in season.
-// Tries both "season started this year" and "season started last year"
-// so mid-season sports (e.g. NBA Oct–Jun) are detected correctly in any month.
-const isSportInSeason = (sport: SportConfig): boolean => {
-  if (!sport.season) return false;
-  const [startMonth, startDay, endMonth, endDay] = sport.season;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  for (const startYear of [now.getFullYear(), now.getFullYear() - 1]) {
-    const start = new Date(startYear, startMonth - 1, startDay);
-    // If end month is before start month the season crosses New Year
-    const endYear = endMonth < startMonth ? startYear + 1 : startYear;
-    const end = new Date(endYear, endMonth - 1, endDay);
-    if (today >= start && today <= end) return true;
-  }
-  return false;
-};
+// Use AppSport type from activeSport service (single source of truth)
+type SportConfig = AppSport;
+const SPORTS = APP_SPORTS;
 
 // Helper to ensure date string is treated as UTC
 const toUTCDateString = (dateStr: string): string => {
@@ -177,7 +141,7 @@ export default function GamesScreen() {
       }
     }
     // Pick first enabled sport that is currently in season
-    const activeSport = SPORTS.find(s => s.enabled && isSportInSeason(s));
+    const activeSport = SPORTS.find(s => s.enabled && isSportInSeason(s.season));
     // Fall back to first enabled sport if nothing is in season
     return activeSport ?? SPORTS.find(s => s.enabled) ?? SPORTS[0];
   };

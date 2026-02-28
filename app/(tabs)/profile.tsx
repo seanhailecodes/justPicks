@@ -3,26 +3,10 @@ import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
-import { getDefaultSport } from '../../services/activeSport';
+import { APP_SPORTS, SPORT_EMOJI, getDefaultSport } from '../../services/activeSport';
 
-// Sport logos - uncomment as you add logo files
-const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {
-  // nfl: require('../../assets/images/nfl.png'),
-  // nba: require('../../assets/images/nba.png'),
-};
-
-// Fallback emojis
-const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
-  nfl: '🏈',
-  ncaaf: '🏈',
-  nba: '🏀',
-  ncaab: '🏀',
-  soccer_epl: '⚽',
-  ufc: '🥊',
-};
-
-// Sports available in the app
-const AVAILABLE_SPORTS: Sport[] = ['nfl', 'nba', 'ncaab', 'soccer_epl'];
+// Use master sport list — only enabled sports shown in profile tabs
+const AVAILABLE_SPORTS = APP_SPORTS.filter(s => s.enabled);
 
 interface SportStats {
   totalPicks: number;
@@ -71,7 +55,7 @@ export default function ProfileScreen() {
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userSports, setUserSports] = useState<Sport[]>(['nfl', 'nba', 'ncaab', 'soccer_epl']);
+  const [userSports] = useState<Sport[]>(AVAILABLE_SPORTS.map(s => s.key));
 
   const sportScrollRef = useRef<ScrollView>(null);
 
@@ -355,9 +339,9 @@ export default function ProfileScreen() {
       >
         {userSports.map(sport => {
           const isSelected = selectedSport === sport;
-          const logo = SPORT_LOGOS[sport];
-          const emoji = SPORT_EMOJIS[sport];
-          const displayLabel = getSportDisplayName(sport);
+          const sportConfig = AVAILABLE_SPORTS.find(s => s.key === sport);
+          const emoji = SPORT_EMOJI[sport];
+          const displayLabel = sportConfig?.label ?? sport.toUpperCase();
 
           return (
             <TouchableOpacity
