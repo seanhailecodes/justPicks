@@ -66,17 +66,37 @@ interface SportConfig {
   league: string;
   enabled: boolean;
   displayMode: 'code' | 'name' | 'fighter';
+  // Season as [startMonth, startDay, endMonth, endDay] (1-indexed months)
+  season?: [number, number, number, number];
 }
 
 const SPORTS: SportConfig[] = [
-  { key: 'nfl', label: 'NFL', emoji: '🏈', league: 'NFL', enabled: true, displayMode: 'code' },
-  { key: 'nba', label: 'NBA', emoji: '🏀', league: 'NBA', enabled: true, displayMode: 'code' },
-  { key: 'ncaab', label: 'NCAAB', emoji: '🏀', league: 'NCAAB', enabled: true, displayMode: 'name' },
-  { key: 'soccer', label: 'Soccer', emoji: '⚽', league: 'SOCCER', enabled: true, displayMode: 'name' }, 
-  { key: 'ncaaf', label: 'NCAAF', emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name' },
-  { key: 'nhl', label: 'NHL', emoji: '🏒', league: 'NHL', enabled: false, displayMode: 'code' },
-  { key: 'mlb', label: 'MLB', emoji: '⚾', league: 'MLB', enabled: false, displayMode: 'code' },
+  { key: 'nfl',   label: 'NFL',    emoji: '🏈', league: 'NFL',    enabled: true,  displayMode: 'code', season: [9, 1, 2, 15] },
+  { key: 'nba',   label: 'NBA',    emoji: '🏀', league: 'NBA',    enabled: true,  displayMode: 'code', season: [10, 1, 6, 30] },
+  { key: 'ncaab', label: 'NCAAB',  emoji: '🏀', league: 'NCAAB', enabled: true,  displayMode: 'name', season: [11, 1, 4, 10] },
+  { key: 'soccer',label: 'Soccer', emoji: '⚽', league: 'SOCCER', enabled: true,  displayMode: 'name', season: [8, 1, 5, 31] },
+  { key: 'ncaaf', label: 'NCAAF',  emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name', season: [8, 24, 1, 20] },
+  { key: 'nhl',   label: 'NHL',    emoji: '🏒', league: 'NHL',   enabled: false, displayMode: 'code', season: [10, 1, 6, 30] },
+  { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: false, displayMode: 'code', season: [3, 20, 10, 31] },
 ];
+
+// Returns true if the given sport is currently in season
+const isSportInSeason = (sport: SportConfig): boolean => {
+  if (!sport.season) return false;
+  const [startMonth, startDay, endMonth, endDay] = sport.season;
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-indexed
+  const day = now.getDate();
+  const year = now.getFullYear();
+
+  const start = new Date(year, startMonth - 1, startDay);
+  let end = new Date(year, endMonth - 1, endDay);
+  // Handle seasons that wrap across New Year (e.g. NFL Sep–Feb)
+  if (end < start) end = new Date(year + 1, endMonth - 1, endDay);
+
+  const today = new Date(year, month - 1, day);
+  return today >= start && today <= end;
+};
 
 // Helper to ensure date string is treated as UTC
 const toUTCDateString = (dateStr: string): string => {
@@ -146,7 +166,7 @@ export default function GamesScreen() {
   const params = useLocalSearchParams();
   const { showPickConfirmation } = useNotificationContext();
   
-  // Initialize sport from URL param if present
+  // Initialize sport from URL param if present, otherwise pick first active sport
   const getInitialSport = (): SportConfig => {
     if (params.sport) {
       const sportKey = (params.sport as string).toLowerCase();
@@ -155,7 +175,10 @@ export default function GamesScreen() {
         return sportConfig;
       }
     }
-    return SPORTS[0]; // Default to NFL
+    // Pick first enabled sport that is currently in season
+    const activeSport = SPORTS.find(s => s.enabled && isSportInSeason(s));
+    // Fall back to first enabled sport if nothing is in season
+    return activeSport ?? SPORTS.find(s => s.enabled) ?? SPORTS[0];
   };
   
   const [selectedSport, setSelectedSport] = useState<SportConfig>(getInitialSport);
