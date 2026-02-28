@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert, Share } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Modal, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Friend, getFriendsWithStats, getGroupStats, getUserGroups, GroupStats, UserGroup } from '../lib/database';
 import { supabase } from '../lib/supabase';
-import { getFriendsWithStats, getGroupStats, getUserGroups, Friend, GroupStats, UserGroup } from '../lib/database';
 
 export default function GroupsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,7 +127,7 @@ export default function GroupsScreen() {
         return;
       }
 
-      const inviteLink = `https://justpicks.app/join/${inviteCode}`;
+  const inviteLink = `https://just-picks-baby.vercel.app/join/${inviteCode}`;
       // Alternative deep link: justpicks://join/${inviteCode}
 
       const result = await Share.share({
