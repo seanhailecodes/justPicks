@@ -1,6 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { supabase } from '../lib/supabase';
 
 interface InviteDetails {
@@ -41,20 +50,73 @@ export default function AcceptInviteScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const emojiScaleAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fingerNudgeAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     loadInviteAndCheckAuth();
   }, [inviteId]);
 
+  useEffect(() => {
+    if (!loading && invite) {
+      // Entrance animation
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+        Animated.spring(emojiScaleAnim, {
+          toValue: 1,
+          friction: 4,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Finger jabs toward the user then loops with a gentle nudge
+        Animated.sequence([
+          Animated.timing(fingerNudgeAnim, { toValue: 12, duration: 120, useNativeDriver: true }),
+          Animated.timing(fingerNudgeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
+          Animated.timing(fingerNudgeAnim, { toValue: 10, duration: 100, useNativeDriver: true }),
+          Animated.timing(fingerNudgeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
+        ]).start(() => {
+          // Subtle ongoing pulse
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(fingerNudgeAnim, { toValue: 6, duration: 600, useNativeDriver: true }),
+              Animated.timing(fingerNudgeAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+            ])
+          ).start();
+        });
+
+        // Pulse the accept button
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulseAnim, { toValue: 1.04, duration: 700, useNativeDriver: true }),
+            Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+          ])
+        ).start();
+      });
+    }
+  }, [loading, invite]);
+
   const loadInviteAndCheckAuth = async () => {
     try {
-      // First load invite details (no auth required)
       const { data: inviteData, error: inviteError } = await supabase
         .from('group_invites')
         .select('id, group_id, status, expires_at, invited_by')
         .eq('id', inviteId)
         .single();
-
-      console.log('Invite query result:', inviteData, inviteError);
 
       if (inviteError || !inviteData) {
         setError('Invite not found or has expired.');
@@ -62,28 +124,24 @@ export default function AcceptInviteScreen() {
         return;
       }
 
-      // Check if already accepted/declined
       if (inviteData.status !== 'pending') {
         setError(`This invite has already been ${inviteData.status}.`);
         setLoading(false);
         return;
       }
 
-      // Check if expired
       if (new Date(inviteData.expires_at) < new Date()) {
         setError('This invite has expired.');
         setLoading(false);
         return;
       }
 
-      // Get group name separately
       const { data: groupData } = await supabase
         .from('groups')
         .select('name')
         .eq('id', inviteData.group_id)
         .single();
 
-      // Get inviter name separately
       const { data: profileData } = await supabase
         .from('profiles')
         .select('display_name, username')
@@ -99,9 +157,7 @@ export default function AcceptInviteScreen() {
         expires_at: inviteData.expires_at,
       });
 
-      // Then check if user is logged in
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (user) {
         setCurrentUserId(user.id);
         setIsLoggedIn(true);
@@ -115,23 +171,19 @@ export default function AcceptInviteScreen() {
   };
 
   const handleSignUp = () => {
-    // Store invite ID for after signup
     setPendingInvite(inviteId!);
     router.push('/(auth)/login?mode=signup');
   };
 
   const handleLogin = () => {
-    // Store invite ID for after login
     setPendingInvite(inviteId!);
     router.push('/(auth)/login');
   };
 
   const handleAccept = async () => {
     if (!invite || !currentUserId) return;
-
     setAccepting(true);
     try {
-      // Check if already a member
       const { data: existingMember } = await supabase
         .from('group_members')
         .select('id')
@@ -140,23 +192,16 @@ export default function AcceptInviteScreen() {
         .maybeSingle();
 
       if (existingMember) {
-        // Already a member, just go to the group
         router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
         return;
       }
 
-      // Add user to group
       const { error: memberError } = await supabase
         .from('group_members')
-        .insert({
-          group_id: invite.group_id,
-          user_id: currentUserId,
-          role: 'member',
-        });
+        .insert({ group_id: invite.group_id, user_id: currentUserId, role: 'member' });
 
       if (memberError) throw memberError;
 
-      // Update invite status
       const { error: updateError } = await supabase
         .from('group_invites')
         .update({ status: 'accepted' })
@@ -164,10 +209,7 @@ export default function AcceptInviteScreen() {
 
       if (updateError) throw updateError;
 
-      // Clear pending invite
       clearPendingInvite();
-
-      // Navigate to the group
       router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
     } catch (err) {
       console.error('Error accepting invite:', err);
@@ -178,7 +220,6 @@ export default function AcceptInviteScreen() {
 
   const handleDecline = async () => {
     if (!invite) return;
-
     try {
       if (isLoggedIn) {
         await supabase
@@ -186,7 +227,6 @@ export default function AcceptInviteScreen() {
           .update({ status: 'declined' })
           .eq('id', invite.id);
       }
-      
       clearPendingInvite();
       router.replace(isLoggedIn ? '/(tabs)/groups' : '/');
     } catch (err) {
@@ -199,7 +239,7 @@ export default function AcceptInviteScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={styles.loadingText}>Loading invite...</Text>
+          <Text style={styles.loadingText}>Loading your invite...</Text>
         </View>
       </SafeAreaView>
     );
@@ -209,13 +249,14 @@ export default function AcceptInviteScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <Text style={styles.errorIcon}>❌</Text>
+          <Text style={styles.errorIcon}>😬</Text>
+          <Text style={styles.errorTitle}>Hmm.</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.button}
+          <TouchableOpacity
+            style={styles.acceptButton}
             onPress={() => router.replace(isLoggedIn ? '/(tabs)/groups' : '/')}
           >
-            <Text style={styles.buttonText}>
+            <Text style={styles.acceptButtonText}>
               {isLoggedIn ? 'Go to Groups' : 'Go Home'}
             </Text>
           </TouchableOpacity>
@@ -227,63 +268,99 @@ export default function AcceptInviteScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.emoji}>🎉</Text>
-          <Text style={styles.title}>You're Invited!</Text>
-          
-          <Text style={styles.inviteText}>
-            <Text style={styles.highlight}>{invite?.inviter_name}</Text> has invited you to join
+
+        {/* Top glow accent */}
+        <View style={styles.glowBar} />
+
+        <Animated.View
+          style={[
+            styles.card,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+          ]}
+        >
+          {/* Animated pointing finger */}
+          <Animated.Text
+            style={[styles.emoji, { transform: [{ scale: emojiScaleAnim }, { translateX: fingerNudgeAnim }] }]}
+          >
+            👉
+          </Animated.Text>
+
+          {/* Headline */}
+          <Text style={styles.headline}>YOU ARE IN.</Text>
+          <Text style={styles.subheadline}>Right here. Right now.</Text>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Invite details */}
+          <Text style={styles.inviterText}>
+            <Text style={styles.inviterName}>{invite?.inviter_name}</Text>
+            {'\n'}wants you in their crew
           </Text>
-          
-          <Text style={styles.groupName}>{invite?.group_name}</Text>
 
+          <View style={styles.groupBadge}>
+            <Text style={styles.groupBadgeText}>{invite?.group_name}</Text>
+          </View>
+
+          {/* Value prop for new users */}
+          {!isLoggedIn && (
+            <Text style={styles.valueProp}>
+              Bet less with friends. Just picks.{'\n'}Confer, compare, pick calm.{'\n'}Show off. Bragging rights.
+            </Text>
+          )}
+
+          {/* CTAs */}
           {isLoggedIn ? (
-            // Logged in - show accept/decline
             <View style={styles.buttons}>
-              <TouchableOpacity 
-                style={[styles.button, styles.acceptButton, accepting && styles.buttonDisabled]}
-                onPress={handleAccept}
-                disabled={accepting}
-              >
-                <Text style={styles.buttonText}>
-                  {accepting ? 'Joining...' : 'Accept & Join'}
-                </Text>
-              </TouchableOpacity>
+              <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
+                <TouchableOpacity
+                  style={[styles.acceptButton, accepting && styles.buttonDisabled]}
+                  onPress={handleAccept}
+                  disabled={accepting}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.acceptButtonText}>
+                    {accepting ? 'Joining...' : "LET'S GO 👊"}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-              <TouchableOpacity 
-                style={[styles.button, styles.declineButton]}
+              <TouchableOpacity
+                style={styles.declineButton}
                 onPress={handleDecline}
                 disabled={accepting}
               >
-                <Text style={styles.declineButtonText}>Decline</Text>
+                <Text style={styles.declineButtonText}>No thanks</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            // Not logged in - show signup/login
             <View style={styles.buttons}>
-              <TouchableOpacity 
-                style={[styles.button, styles.acceptButton]}
-                onPress={handleSignUp}
-              >
-                <Text style={styles.buttonText}>Sign Up to Join</Text>
-              </TouchableOpacity>
+              <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
+                <TouchableOpacity
+                  style={styles.acceptButton}
+                  onPress={handleSignUp}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.acceptButtonText}>CREATE ACCOUNT & JOIN 🔥</Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-              <TouchableOpacity 
-                style={[styles.button, styles.secondaryButton]}
+              <TouchableOpacity
+                style={styles.loginButton}
                 onPress={handleLogin}
               >
-                <Text style={styles.secondaryButtonText}>Already have an account? Log In</Text>
+                <Text style={styles.loginButtonText}>Already have an account? Log in</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.button, styles.declineButton]}
+              <TouchableOpacity
+                style={styles.declineButton}
                 onPress={handleDecline}
               >
                 <Text style={styles.declineButtonText}>No thanks</Text>
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
@@ -294,11 +371,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  glowBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#FF6B35',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 32,
+    gap: 12,
   },
   content: {
     flex: 1,
@@ -306,89 +397,142 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 16,
+    backgroundColor: '#111',
+    borderRadius: 20,
     padding: 32,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FF6B35',
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
   },
   emoji: {
-    fontSize: 64,
+    fontSize: 72,
     marginBottom: 16,
   },
-  title: {
-    color: '#FFF',
-    fontSize: 28,
-    fontWeight: 'bold',
+  headline: {
+    color: '#FF6B35',
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  subheadline: {
+    color: '#555',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 24,
+    letterSpacing: 1,
+  },
+  divider: {
+    width: 40,
+    height: 2,
+    backgroundColor: '#FF6B35',
+    borderRadius: 1,
+    marginBottom: 24,
+    opacity: 0.5,
+  },
+  inviterText: {
+    color: '#8E8E93',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  inviterName: {
+    color: '#FF6B35',
+    fontWeight: '700',
+    fontSize: 17,
+  },
+  groupBadge: {
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     marginBottom: 24,
   },
-  inviteText: {
-    color: '#8E8E93',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  highlight: {
-    color: '#FF6B35',
-    fontWeight: '600',
-  },
-  groupName: {
+  groupBadgeText: {
     color: '#FFF',
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 32,
+    letterSpacing: 0.5,
+  },
+  valueProp: {
+    color: '#555',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 8,
   },
   buttons: {
     width: '100%',
     gap: 12,
-  },
-  button: {
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+    marginTop: 8,
   },
   acceptButton: {
     backgroundColor: '#FF6B35',
+    paddingVertical: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    width: '100%',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  secondaryButton: {
-    backgroundColor: '#2C2C2E',
+  acceptButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  loginButton: {
+    backgroundColor: '#1C1C1E',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    width: '100%',
+  },
+  loginButtonText: {
+    color: '#EBEBF5',
+    fontSize: 14,
+    fontWeight: '500',
   },
   declineButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#444',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  declineButtonText: {
+    color: '#444',
+    fontSize: 14,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  secondaryButtonText: {
-    color: '#FFF',
-    fontSize: 14,
-  },
-  declineButtonText: {
-    color: '#8E8E93',
-    fontSize: 16,
-  },
   loadingText: {
-    color: '#8E8E93',
-    marginTop: 16,
-    fontSize: 16,
+    color: '#555',
+    marginTop: 12,
+    fontSize: 15,
   },
   errorIcon: {
     fontSize: 48,
-    marginBottom: 16,
+  },
+  errorTitle: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: '800',
   },
   errorText: {
-    color: '#FF3B30',
-    fontSize: 18,
+    color: '#8E8E93',
+    fontSize: 15,
     textAlign: 'center',
-    marginBottom: 24,
   },
 });
