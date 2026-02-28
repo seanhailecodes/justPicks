@@ -8,6 +8,9 @@ import { APP_SPORTS, SPORT_EMOJI, getDefaultSport } from '../../services/activeS
 // Use master sport list — only enabled sports shown in profile tabs
 const AVAILABLE_SPORTS = APP_SPORTS.filter(s => s.enabled);
 
+// Sport logos placeholder (add images here as you expand)
+const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
+
 interface SportStats {
   totalPicks: number;
   correctPicks: number;
