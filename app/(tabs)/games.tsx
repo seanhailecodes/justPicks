@@ -80,22 +80,23 @@ const SPORTS: SportConfig[] = [
   { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: false, displayMode: 'code', season: [3, 20, 10, 31] },
 ];
 
-// Returns true if the given sport is currently in season
+// Returns true if the given sport is currently in season.
+// Tries both "season started this year" and "season started last year"
+// so mid-season sports (e.g. NBA Oct–Jun) are detected correctly in any month.
 const isSportInSeason = (sport: SportConfig): boolean => {
   if (!sport.season) return false;
   const [startMonth, startDay, endMonth, endDay] = sport.season;
   const now = new Date();
-  const month = now.getMonth() + 1; // 1-indexed
-  const day = now.getDate();
-  const year = now.getFullYear();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const start = new Date(year, startMonth - 1, startDay);
-  let end = new Date(year, endMonth - 1, endDay);
-  // Handle seasons that wrap across New Year (e.g. NFL Sep–Feb)
-  if (end < start) end = new Date(year + 1, endMonth - 1, endDay);
-
-  const today = new Date(year, month - 1, day);
-  return today >= start && today <= end;
+  for (const startYear of [now.getFullYear(), now.getFullYear() - 1]) {
+    const start = new Date(startYear, startMonth - 1, startDay);
+    // If end month is before start month the season crosses New Year
+    const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+    const end = new Date(endYear, endMonth - 1, endDay);
+    if (today >= start && today <= end) return true;
+  }
+  return false;
 };
 
 // Helper to ensure date string is treated as UTC
