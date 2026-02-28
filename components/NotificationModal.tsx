@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useEffect, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
 
 interface NotificationModalProps {
   visible: boolean;
@@ -31,9 +32,17 @@ export default function NotificationModal({
 }: NotificationModalProps) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const handScaleAnim = useRef(new Animated.Value(0)).current;
+  const handRotateAnim = useRef(new Animated.Value(0)).current;
+  const handBounceAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      // Haptic feedback on appear
+      if (type === 'success') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
       Animated.parallel([
         Animated.spring(scaleAnim, {
           toValue: 1,
@@ -47,9 +56,55 @@ export default function NotificationModal({
           useNativeDriver: true,
         }),
       ]).start();
+
+      if (type === 'success') {
+        // Hand punches in, wobbles, then settles
+        handScaleAnim.setValue(0);
+        handRotateAnim.setValue(0);
+        handBounceAnim.setValue(0);
+
+        Animated.sequence([
+          // Punch in big
+          Animated.spring(handScaleAnim, {
+            toValue: 1.4,
+            friction: 4,
+            tension: 80,
+            useNativeDriver: true,
+          }),
+          // Settle to normal with wobble
+          Animated.parallel([
+            Animated.spring(handScaleAnim, {
+              toValue: 1,
+              friction: 6,
+              tension: 50,
+              useNativeDriver: true,
+            }),
+            Animated.sequence([
+              Animated.timing(handRotateAnim, { toValue: -0.15, duration: 80, useNativeDriver: true }),
+              Animated.timing(handRotateAnim, { toValue: 0.15, duration: 80, useNativeDriver: true }),
+              Animated.timing(handRotateAnim, { toValue: -0.1, duration: 60, useNativeDriver: true }),
+              Animated.timing(handRotateAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+            ]),
+          ]),
+          // Small bounce loop
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(handBounceAnim, { toValue: -8, duration: 300, useNativeDriver: true }),
+              Animated.timing(handBounceAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+            ]),
+            { iterations: 3 }
+          ),
+        ]).start(() => {
+          // Second haptic pulse after animation
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        });
+      }
     } else {
       scaleAnim.setValue(0.8);
       opacityAnim.setValue(0);
+      handScaleAnim.setValue(0);
+      handRotateAnim.setValue(0);
+      handBounceAnim.setValue(0);
     }
   }, [visible]);
 
@@ -101,6 +156,29 @@ export default function NotificationModal({
 
           {/* Content */}
           <View style={styles.content}>
+            {/* Animated hand for pick confirmations */}
+            {type === 'success' && (
+              <Animated.Text
+                style={[
+                  styles.handEmoji,
+                  {
+                    transform: [
+                      { scale: handScaleAnim },
+                      {
+                        rotate: handRotateAnim.interpolate({
+                          inputRange: [-1, 1],
+                          outputRange: ['-30deg', '30deg'],
+                        }),
+                      },
+                      { translateY: handBounceAnim },
+                    ],
+                  },
+                ]}
+              >
+                👊
+              </Animated.Text>
+            )}
+
             {/* Title */}
             <Text style={styles.title}>{title}</Text>
 
@@ -267,6 +345,11 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
     alignItems: 'center',
+  },
+  handEmoji: {
+    fontSize: 64,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   title: {
     fontSize: 24,
