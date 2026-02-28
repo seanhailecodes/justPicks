@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
+import { getDefaultSport } from '../../services/activeSport';
 
 // Available sports for group creation
 const SPORTS = [
@@ -15,7 +16,7 @@ const SPORTS = [
 export default function CreateGroupScreen() {
   const { sport: sportParam } = useLocalSearchParams<{ sport?: string }>();
   const [groupName, setGroupName] = useState('');
-  const [selectedSport, setSelectedSport] = useState(sportParam || 'nfl');
+  const [selectedSport, setSelectedSport] = useState(sportParam || getDefaultSport());
   const [isPrivate, setIsPrivate] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
