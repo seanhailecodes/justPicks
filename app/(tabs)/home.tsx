@@ -50,15 +50,35 @@ const SPORT_EMOJIS: Partial<Record<Sport, string>> = {
 };
 
 // Sports available in the app (add more as you expand)
-const AVAILABLE_SPORTS: { sport: Sport; enabled: boolean }[] = [
-  { sport: 'nfl', enabled: true },
-  { sport: 'nba', enabled: true },
-  { sport: 'ncaab', enabled: true },
-  { sport: 'ncaaf', enabled: false },
-  { sport: 'soccer_epl', enabled: false },
-  { sport: 'ufc', enabled: false },
-  { sport: 'pga', enabled: false },
+// season: [startMonth, startDay, endMonth, endDay] (1-indexed months)
+const AVAILABLE_SPORTS: { sport: Sport; enabled: boolean; season?: [number, number, number, number] }[] = [
+  { sport: 'nfl',       enabled: true,  season: [9, 1, 2, 15] },
+  { sport: 'nba',       enabled: true,  season: [10, 1, 6, 30] },
+  { sport: 'ncaab',     enabled: true,  season: [11, 1, 4, 10] },
+  { sport: 'ncaaf',     enabled: false, season: [8, 24, 1, 20] },
+  { sport: 'soccer_epl',enabled: false, season: [8, 1, 5, 31] },
+  { sport: 'ufc',       enabled: false },
+  { sport: 'pga',       enabled: false },
 ];
+
+const isSportInSeason = (season?: [number, number, number, number]): boolean => {
+  if (!season) return false;
+  const [startMonth, startDay, endMonth, endDay] = season;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (const startYear of [now.getFullYear(), now.getFullYear() - 1]) {
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+    const end = new Date(endYear, endMonth - 1, endDay);
+    if (today >= start && today <= end) return true;
+  }
+  return false;
+};
+
+const getDefaultSport = (): Sport => {
+  const active = AVAILABLE_SPORTS.find(s => s.enabled && isSportInSeason(s.season));
+  return active?.sport ?? AVAILABLE_SPORTS.find(s => s.enabled)?.sport ?? 'nba';
+};
 
 interface UserGroup {
   id: string;
@@ -89,7 +109,7 @@ interface UserStats {
 }
 
 export default function HomeScreen() {
-  const [selectedSport, setSelectedSport] = useState<Sport>('nfl');
+  const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [upcomingGames, setUpcomingGames] = useState<UpcomingGame[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
