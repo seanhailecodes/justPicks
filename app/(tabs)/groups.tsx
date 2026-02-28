@@ -131,9 +131,10 @@ export default function GroupsScreen() {
       // Alternative deep link: justpicks://join/${inviteCode}
 
       const result = await Share.share({
-        message: `Join my group "${selectedGroupForInvite.name}" on JustPicks! 🏈\n\nUse code: ${inviteCode}\n\nOr click: ${inviteLink}`,
+        message: `Join my group "${selectedGroupForInvite.name}" on JustPicks! 🏈\n\nUse code: ${inviteCode}`,
+        url: inviteLink,
         title: `Join ${selectedGroupForInvite.name} on JustPicks`,
-      });
+    });
 
       if (result.action === Share.sharedAction) {
         // User shared successfully
