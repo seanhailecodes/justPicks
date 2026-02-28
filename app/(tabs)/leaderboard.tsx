@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { getDefaultSport } from '../../services/activeSport';
 
 const SPORTS = [
   { id: 'nfl', label: '🏈 NFL', league: 'NFL' },
@@ -35,7 +36,10 @@ interface UserGroup {
 
 export default function LeaderboardScreen() {
   const router = useRouter();
-  const [selectedSport, setSelectedSport] = useState(SPORTS[0]);
+  const [selectedSport, setSelectedSport] = useState(() => {
+    const def = getDefaultSport();
+    return SPORTS.find(s => s.id === def) ?? SPORTS[0];
+  });
   const [timeframe, setTimeframe] = useState<'week' | 'month' | 'season' | 'all'>('week');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);

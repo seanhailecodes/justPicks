@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
+import { getDefaultSport } from '../../services/activeSport';
 
 // Sport logos - uncomment as you add logo files
 const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {
@@ -65,7 +66,7 @@ const defaultUserProfile: UserProfile = {
 };
 
 export default function ProfileScreen() {
-  const [selectedSport, setSelectedSport] = useState<Sport>('nfl');
+  const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport());
   const [hiddenIdentity, setHiddenIdentity] = useState(true);
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
