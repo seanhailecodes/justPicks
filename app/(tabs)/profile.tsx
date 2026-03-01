@@ -95,11 +95,10 @@ export default function ProfileScreen() {
           created_at: user.created_at || new Date().toISOString()
         });
         
-        // Load stats for default sport (NFL)
-        await loadSportStats(user.id, 'nfl');
+        // Load stats for default sport
+        await loadSportStats(user.id, getDefaultSport());
         
-        // Set available sports
-        setUserSports(['nfl', 'nba', 'ncaab', 'soccer_epl']);
+        // userSports is derived from AVAILABLE_SPORTS — no setter needed
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -345,6 +344,7 @@ export default function ProfileScreen() {
           const sportConfig = AVAILABLE_SPORTS.find(s => s.key === sport);
           const emoji = SPORT_EMOJI[sport];
           const displayLabel = sportConfig?.label ?? sport.toUpperCase();
+          const logo = SPORT_LOGOS[sport];
 
           return (
             <TouchableOpacity
