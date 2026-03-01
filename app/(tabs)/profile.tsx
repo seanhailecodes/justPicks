@@ -5,8 +5,8 @@ import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport } from '../../services/activeSport';
 
-// Use master sport list — only enabled sports shown in profile tabs
-const AVAILABLE_SPORTS = APP_SPORTS.filter(s => s.enabled);
+// Use full master sport list — matches home/games screens (disabled ones grayed out)
+const AVAILABLE_SPORTS = APP_SPORTS;
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
@@ -58,7 +58,7 @@ export default function ProfileScreen() {
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userSports] = useState<Sport[]>(AVAILABLE_SPORTS.map(s => s.key));
+  const userSports = AVAILABLE_SPORTS;
 
   const sportScrollRef = useRef<ScrollView>(null);
 
@@ -339,26 +339,28 @@ export default function ProfileScreen() {
         style={styles.sportTabsContainer}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {userSports.map(sport => {
+        {userSports.map(({ key: sport, enabled, emoji, label }) => {
           const isSelected = selectedSport === sport;
-          const sportConfig = AVAILABLE_SPORTS.find(s => s.key === sport);
-          const emoji = SPORT_EMOJI[sport];
-          const displayLabel = sportConfig?.label ?? sport.toUpperCase();
           const logo = SPORT_LOGOS[sport];
 
           return (
             <TouchableOpacity
               key={sport}
-              style={[styles.sportTab, isSelected && styles.sportTabActive]}
-              onPress={() => setSelectedSport(sport)}
+              style={[
+                styles.sportTab,
+                isSelected && styles.sportTabActive,
+                !enabled && styles.sportTabDisabled,
+              ]}
+              onPress={() => enabled && setSelectedSport(sport)}
+              disabled={!enabled}
             >
               {logo ? (
                 <Image source={logo} style={styles.sportLogo} resizeMode="contain" />
               ) : emoji ? (
-                <Text style={styles.sportEmoji}>{emoji}</Text>
+                <Text style={[styles.sportEmoji, !enabled && styles.sportEmojiDisabled]}>{emoji}</Text>
               ) : null}
-              <Text style={[styles.sportTabText, isSelected && styles.sportTabTextActive]}>
-                {displayLabel}
+              <Text style={[styles.sportTabText, isSelected && styles.sportTabTextActive, !enabled && styles.sportTabTextDisabled]}>
+                {label}
               </Text>
             </TouchableOpacity>
           );
@@ -592,6 +594,15 @@ const styles = StyleSheet.create({
   },
   sportTabTextActive: {
     color: '#FFF',
+  },
+  sportTabDisabled: {
+    opacity: 0.35,
+  },
+  sportTabTextDisabled: {
+    color: '#555',
+  },
+  sportEmojiDisabled: {
+    opacity: 0.4,
   },
   content: {
     flex: 1,
