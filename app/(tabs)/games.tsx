@@ -296,14 +296,19 @@ export default function GamesScreen() {
 
   const loadGamesFromDatabase = async (picksToUse?: Map<string, any>) => {
     try {
-      const now = new Date();
-      
+      // Use start of today (UTC midnight) instead of exact now.
+      // Game times in the DB may be stored in local time without timezone info,
+      // so comparing against exact UTC now can cause same-day games to be
+      // incorrectly filtered out. The `locked` field handles games that have started.
+      const startOfToday = new Date();
+      startOfToday.setUTCHours(0, 0, 0, 0);
+
       let query = supabase
         .from('games')
         .select('*')
         .eq('league', selectedSport.league)
         .eq('locked', false)
-        .gte('game_date', now.toISOString())
+        .gte('game_date', startOfToday.toISOString())
         .order('game_date', { ascending: true })
         .limit(50); // Get next 50 upcoming games
 
