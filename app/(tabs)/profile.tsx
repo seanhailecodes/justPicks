@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
-import { APP_SPORTS, SPORT_EMOJI, getDefaultSport } from '../../services/activeSport';
+import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 
 // Use full master sport list — matches home/games screens (disabled ones grayed out)
 const AVAILABLE_SPORTS = APP_SPORTS;
@@ -339,8 +339,11 @@ export default function ProfileScreen() {
         style={styles.sportTabsContainer}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {userSports.map(({ key: sport, enabled, emoji, label }) => {
+        {userSports.map(({ key: sport, enabled, emoji, label, season }) => {
           const isSelected = selectedSport === sport;
+          const inSeason = enabled && isSportInSeason(season);
+          const isComingSoon = !enabled;
+          const isOffSeason = enabled && !inSeason;
           const logo = SPORT_LOGOS[sport];
 
           return (
@@ -349,17 +352,23 @@ export default function ProfileScreen() {
               style={[
                 styles.sportTab,
                 isSelected && styles.sportTabActive,
-                !enabled && styles.sportTabDisabled,
+                isOffSeason && styles.sportTabOffSeason,
+                isComingSoon && styles.sportTabDisabled,
               ]}
-              onPress={() => enabled && setSelectedSport(sport)}
-              disabled={!enabled}
+              onPress={() => !isComingSoon && setSelectedSport(sport)}
+              disabled={isComingSoon}
             >
               {logo ? (
                 <Image source={logo} style={styles.sportLogo} resizeMode="contain" />
               ) : emoji ? (
-                <Text style={[styles.sportEmoji, !enabled && styles.sportEmojiDisabled]}>{emoji}</Text>
+                <Text style={[styles.sportEmoji, (isOffSeason || isComingSoon) && styles.sportEmojiDisabled]}>{emoji}</Text>
               ) : null}
-              <Text style={[styles.sportTabText, isSelected && styles.sportTabTextActive, !enabled && styles.sportTabTextDisabled]}>
+              <Text style={[
+                styles.sportTabText,
+                isSelected && styles.sportTabTextActive,
+                isOffSeason && styles.sportTabTextOffSeason,
+                isComingSoon && styles.sportTabTextDisabled,
+              ]}>
                 {label}
               </Text>
             </TouchableOpacity>
@@ -595,11 +604,19 @@ const styles = StyleSheet.create({
   sportTabTextActive: {
     color: '#FFF',
   },
+  sportTabOffSeason: {
+    opacity: 0.5,
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  sportTabTextOffSeason: {
+    color: '#666',
+  },
   sportTabDisabled: {
-    opacity: 0.35,
+    opacity: 0.25,
   },
   sportTabTextDisabled: {
-    color: '#555',
+    color: '#444',
   },
   sportEmojiDisabled: {
     opacity: 0.4,
