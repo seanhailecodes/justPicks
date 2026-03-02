@@ -110,16 +110,24 @@ export default function ProfileScreen() {
 
   const loadSportStats = async (userId: string, sport: Sport) => {
     try {
-      // Map sport key to league name in database
+      // Map sport key to league name in database — must match APP_SPORTS[].league values
       const leagueMap: Record<string, string> = {
-        nfl: 'NFL',
-        nba: 'NBA',
-        ncaab: 'NCAAB',
-        ncaaf: 'NCAAF',
-        soccer_epl: 'SOCCER',
+        nfl:    'NFL',
+        nba:    'NBA',
+        ncaab:  'NCAAB',
+        ncaaf:  'NCAAF',
+        nhl:    'NHL',
+        mlb:    'MLB',
+        soccer: 'SOCCER',
+        ufc:    'UFC',
+        pga:    'PGA',
       };
-      
-      const league = leagueMap[sport] || 'NFL';
+
+      const league = leagueMap[sport];
+      if (!league) {
+        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        return;
+      }
 
       // Get all picks for user
       const { data: allPicks, error: picksError } = await supabase
@@ -428,7 +436,7 @@ export default function ProfileScreen() {
               <Text style={[styles.picksSummaryValue, { color: '#FF9500' }]}>
                 {currentStats.upcomingPicks}
               </Text>
-              <Text style={styles.picksSummaryLabel}>Upcoming</Text>
+              <Text style={styles.picksSummaryLabel}>Pending</Text>
             </View>
           </View>
 
