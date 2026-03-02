@@ -796,7 +796,9 @@ export default function GamesScreen() {
                     {/* Column Headers */}
                     <View style={styles.gridHeader}>
                       <View style={styles.teamColumnHeader} />
-                      <Text style={styles.columnHeader}>SPREAD</Text>
+                      <Text style={styles.columnHeader}>
+                        {selectedSport.key === 'pga' ? 'PICK' : 'SPREAD'}
+                      </Text>
                       <Text style={styles.columnHeader}>TOTAL</Text>
                       <Text style={styles.columnHeader}>ML</Text>
                     </View>
@@ -832,23 +834,29 @@ export default function GamesScreen() {
                       </TouchableOpacity>
 
                       {/* Over */}
-                      <TouchableOpacity
-                        style={[
-                          styles.betCell,
-                          isCellSelected('total', 'over') === 'pending' && styles.betCellPending,
-                          isCellSelected('total', 'over') === 'saved' && styles.betCellSaved,
-                          isLocked && styles.betCellLocked
-                        ]}
-                        onPress={() => !isLocked && handleCellPress(game, 'total', 'over')}
-                        disabled={isLocked}
-                      >
-                        <Text style={[styles.betLine, isCellSelected('total', 'over') && styles.betLineSelected]}>
-                          O {game.overUnder}
-                        </Text>
-                        <Text style={[styles.betOdds, isCellSelected('total', 'over') && styles.betOddsSelected]}>
-                          -110
-                        </Text>
-                      </TouchableOpacity>
+                      {game.overUnder !== undefined ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.betCell,
+                            isCellSelected('total', 'over') === 'pending' && styles.betCellPending,
+                            isCellSelected('total', 'over') === 'saved' && styles.betCellSaved,
+                            isLocked && styles.betCellLocked
+                          ]}
+                          onPress={() => !isLocked && handleCellPress(game, 'total', 'over')}
+                          disabled={isLocked}
+                        >
+                          <Text style={[styles.betLine, isCellSelected('total', 'over') && styles.betLineSelected]}>
+                            O {game.overUnder}
+                          </Text>
+                          <Text style={[styles.betOdds, isCellSelected('total', 'over') && styles.betOddsSelected]}>
+                            -110
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={[styles.betCell, styles.betCellDisabled]}>
+                          <Text style={styles.betLineDisabled}>--</Text>
+                        </View>
+                      )}
 
                       {/* Away Moneyline - Display Only */}
                       <View style={[styles.betCell, styles.betCellDisabled]}>
@@ -889,23 +897,29 @@ export default function GamesScreen() {
                       </TouchableOpacity>
 
                       {/* Under */}
-                      <TouchableOpacity
-                        style={[
-                          styles.betCell,
-                          isCellSelected('total', 'under') === 'pending' && styles.betCellPending,
-                          isCellSelected('total', 'under') === 'saved' && styles.betCellSaved,
-                          isLocked && styles.betCellLocked
-                        ]}
-                        onPress={() => !isLocked && handleCellPress(game, 'total', 'under')}
-                        disabled={isLocked}
-                      >
-                        <Text style={[styles.betLine, isCellSelected('total', 'under') && styles.betLineSelected]}>
-                          U {game.overUnder}
-                        </Text>
-                        <Text style={[styles.betOdds, isCellSelected('total', 'under') && styles.betOddsSelected]}>
-                          -110
-                        </Text>
-                      </TouchableOpacity>
+                      {game.overUnder !== undefined ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.betCell,
+                            isCellSelected('total', 'under') === 'pending' && styles.betCellPending,
+                            isCellSelected('total', 'under') === 'saved' && styles.betCellSaved,
+                            isLocked && styles.betCellLocked
+                          ]}
+                          onPress={() => !isLocked && handleCellPress(game, 'total', 'under')}
+                          disabled={isLocked}
+                        >
+                          <Text style={[styles.betLine, isCellSelected('total', 'under') && styles.betLineSelected]}>
+                            U {game.overUnder}
+                          </Text>
+                          <Text style={[styles.betOdds, isCellSelected('total', 'under') && styles.betOddsSelected]}>
+                            -110
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={[styles.betCell, styles.betCellDisabled]}>
+                          <Text style={styles.betLineDisabled}>--</Text>
+                        </View>
+                      )}
 
                       {/* Home Moneyline - Display Only */}
                       <View style={[styles.betCell, styles.betCellDisabled]}>
@@ -957,7 +971,7 @@ export default function GamesScreen() {
                 </TouchableOpacity>
               </>
             )}
-            {['nba', 'nhl', 'ncaab', 'soccer'].includes(selectedSport.key) && (
+            {['nba', 'nhl', 'ncaab', 'soccer', 'pga'].includes(selectedSport.key) && (
               <TouchableOpacity
                 onPress={async () => {
                   const fnMap: Record<string, string> = {
@@ -965,6 +979,7 @@ export default function GamesScreen() {
                     nhl:    'fetch-nhl-games',
                     ncaab:  'fetch-ncaab-games',
                     soccer: 'fetch-soccer-games',
+                    pga:    'fetch-golf-games',
                   };
                   const fn = fnMap[selectedSport.key];
                   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
