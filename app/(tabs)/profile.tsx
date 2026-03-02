@@ -149,12 +149,13 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Get games for those picks
+      // Get games for those picks — exclude voided games so they don't count as pending
       const { data: games, error: gamesError } = await supabase
         .from('games')
-        .select('id, league')
+        .select('id, league, game_status')
         .in('id', gameIds)
-        .eq('league', league);
+        .eq('league', league)
+        .neq('game_status', 'voided');
 
       if (gamesError) {
         console.error('Error fetching games:', gamesError);
