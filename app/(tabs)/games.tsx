@@ -797,7 +797,7 @@ export default function GamesScreen() {
                     <View style={styles.gridHeader}>
                       <View style={styles.teamColumnHeader} />
                       <Text style={styles.columnHeader}>
-                        {selectedSport.key === 'pga' ? 'PICK' : 'SPREAD'}
+                        {['pga', 'ufc'].includes(selectedSport.key) ? 'PICK' : 'SPREAD'}
                       </Text>
                       <Text style={styles.columnHeader}>TOTAL</Text>
                       <Text style={styles.columnHeader}>ML</Text>
@@ -971,7 +971,7 @@ export default function GamesScreen() {
                 </TouchableOpacity>
               </>
             )}
-            {['nba', 'nhl', 'ncaab', 'soccer', 'pga'].includes(selectedSport.key) && (
+            {['nba', 'nhl', 'ncaab', 'soccer', 'pga', 'ufc'].includes(selectedSport.key) && (
               <TouchableOpacity
                 onPress={async () => {
                   const fnMap: Record<string, string> = {
@@ -980,6 +980,7 @@ export default function GamesScreen() {
                     ncaab:  'fetch-ncaab-games',
                     soccer: 'fetch-soccer-games',
                     pga:    'fetch-golf-games',
+                    ufc:    'fetch-ufc-games',
                   };
                   const fn = fnMap[selectedSport.key];
                   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
