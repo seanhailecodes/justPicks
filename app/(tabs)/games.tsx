@@ -950,10 +950,17 @@ export default function GamesScreen() {
                 </TouchableOpacity>
               </>
             )}
-            {selectedSport.key === 'nba' && (
-              <TouchableOpacity 
+            {['nba', 'nhl', 'ncaab', 'soccer'].includes(selectedSport.key) && (
+              <TouchableOpacity
                 onPress={async () => {
-                  const response = await fetch('https://jyqclrlmbsnwwqakfbwo.supabase.co/functions/v1/fetch-nba-games', {
+                  const fnMap: Record<string, string> = {
+                    nba:    'fetch-nba-games',
+                    nhl:    'fetch-nhl-games',
+                    ncaab:  'fetch-ncaab-games',
+                    soccer: 'fetch-soccer-games',
+                  };
+                  const fn = fnMap[selectedSport.key];
+                  const response = await fetch(`https://jyqclrlmbsnwwqakfbwo.supabase.co/functions/v1/${fn}`, {
                     method: 'POST',
                     headers: {
                       'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5cWNscmxtYnNud3dxYWtmYndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NjIxOTcsImV4cCI6MjA4MTIzODE5N30.dOj_ihr-SbQ-hdYDqmtsFDorK-cJ0OCFovjiBwAQZhw',
@@ -961,12 +968,12 @@ export default function GamesScreen() {
                     }
                   });
                   const data = await response.json();
-                  Alert.alert('NBA Fetch', `Fetched ${data.gamesCount} games. Requests remaining: ${data.requestsRemaining}`);
+                  Alert.alert(`${selectedSport.label} Fetch`, `Fetched ${data.gamesCount} games. Requests remaining: ${data.requestsRemaining}`);
                   loadGamesFromDatabase();
-                }} 
+                }}
                 style={styles.devButton}
               >
-                <Text style={styles.devButtonText}>🏀 Fetch NBA Games</Text>
+                <Text style={styles.devButtonText}>{selectedSport.emoji} Fetch {selectedSport.label} Games</Text>
               </TouchableOpacity>
             )}
           </View>
