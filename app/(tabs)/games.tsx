@@ -258,13 +258,13 @@ export default function GamesScreen() {
     }
   };
 
-  const loadUserPicks = async (userId: string) => {
+  const loadUserPicks = async (userId: string, sportOverride?: SportConfig) => {
     try {
       // Load all picks for this user (we'll filter by game later)
       const result = await getUserPicks(userId, null);
-      
+
       const picksMap = new Map();
-      
+
       if (result.success && result.data) {
         result.data.forEach(pick => {
           picksMap.set(pick.game_id, {
@@ -278,13 +278,13 @@ export default function GamesScreen() {
           });
         });
       }
-      
+
       setUserPicks(picksMap);
-      await loadGamesFromDatabase(picksMap);
-      
+      await loadGamesFromDatabase(picksMap, sportOverride);
+
     } catch (error) {
       console.error('Error loading picks:', error);
-      await loadGamesFromDatabase(new Map());
+      await loadGamesFromDatabase(new Map(), sportOverride);
     }
   };
 
@@ -294,7 +294,7 @@ export default function GamesScreen() {
     }
   };
 
-  const loadGamesFromDatabase = async (picksToUse?: Map<string, any>) => {
+  const loadGamesFromDatabase = async (picksToUse?: Map<string, any>, sportOverride?: SportConfig) => {
     try {
       // Use start of today (UTC midnight) instead of exact now.
       // Game times in the DB may be stored in local time without timezone info,
@@ -303,10 +303,13 @@ export default function GamesScreen() {
       const startOfToday = new Date();
       startOfToday.setUTCHours(0, 0, 0, 0);
 
+      // Always use the explicit sport override to avoid stale closure bugs
+      const sport = sportOverride ?? selectedSport;
+
       let query = supabase
         .from('games')
         .select('*')
-        .eq('league', selectedSport.league)
+        .eq('league', sport.league)
         .eq('locked', false)
         .gte('game_date', startOfToday.toISOString())
         .order('game_date', { ascending: true })
@@ -420,10 +423,14 @@ export default function GamesScreen() {
   // Reload games when sport changes
   useEffect(() => {
     if (!isInitializing && hasLoadedInitialSport) {
+      // Clear immediately so stale games don't show while new sport loads
+      setGames([]);
+      setPendingPicks([]);
+      const sport = selectedSport;
       if (session?.user) {
-        loadUserPicks(session.user.id);
+        loadUserPicks(session.user.id, sport);
       } else {
-        loadGamesFromDatabase();
+        loadGamesFromDatabase(undefined, sport);
       }
     }
   }, [selectedSport]);
