@@ -169,7 +169,11 @@ export default function PickHistoryScreen() {
     : 0;
 
   const handleBack = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/home');
+    }
   };
 
   if (loading) {
