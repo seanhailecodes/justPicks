@@ -960,10 +960,12 @@ export default function GamesScreen() {
                     soccer: 'fetch-soccer-games',
                   };
                   const fn = fnMap[selectedSport.key];
-                  const response = await fetch(`https://jyqclrlmbsnwwqakfbwo.supabase.co/functions/v1/${fn}`, {
+                  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+                  const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+                  const response = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
                     method: 'POST',
                     headers: {
-                      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5cWNscmxtYnNud3dxYWtmYndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NjIxOTcsImV4cCI6MjA4MTIzODE5N30.dOj_ihr-SbQ-hdYDqmtsFDorK-cJ0OCFovjiBwAQZhw',
+                      'Authorization': `Bearer ${supabaseKey}`,
                       'Content-Type': 'application/json'
                     }
                   });
