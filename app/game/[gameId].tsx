@@ -34,6 +34,9 @@ export default function GroupPicksScreen() {
   const [gameData, setGameData] = useState<GameDetails | null>(null);
   const [friendPicks, setFriendPicks] = useState<FriendPick[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [userPickId, setUserPickId] = useState<string | null>(null);
+  const [userPickTeam, setUserPickTeam] = useState<string | null>(null);
+  const [removingPick, setRemovingPick] = useState(false);
 
   useEffect(() => {
     if (gameId) {
@@ -184,8 +187,10 @@ export default function GroupPicksScreen() {
         };
       });
 
-      setFriendPicks(picks);
-      console.log('Processed picks:', picks.length);
+      // Store the current user's pick ID and team for remove functionality
+      const myPick = picksData?.find(p => p.user_id === currentUser.id);
+      setUserPickId(myPick ? myPick.id.toString() : null);
+      setUserPickTeam(myPick ? myPick.team_picked : null);
 
       setFriendPicks(picks);
       console.log('Processed picks:', picks.length);
@@ -237,6 +242,26 @@ export default function GroupPicksScreen() {
   const awayPicks = friendPicks.filter(p => p.pick === 'away').length;
   const totalPicks = friendPicks.length;
   const pendingPicks = Math.max(0, 10 - totalPicks); // Assuming 10 total friends
+
+  const removePick = async () => {
+    if (!userPickId) return;
+    setRemovingPick(true);
+    try {
+      const { error } = await supabase
+        .from('picks')
+        .delete()
+        .eq('id', userPickId);
+      if (error) throw error;
+      setUserPickId(null);
+      setUserPickTeam(null);
+      // Remove from community list too
+      setFriendPicks(prev => prev.filter(p => p.id !== userPickId));
+    } catch (e) {
+      console.error('Error removing pick:', e);
+    } finally {
+      setRemovingPick(false);
+    }
+  };
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -298,6 +323,14 @@ export default function GroupPicksScreen() {
             <View style={styles.lockWarning}>
               <Text style={styles.lockIcon}>🕐</Text>
               <Text style={styles.lockText}>Picks lock in {gameData.timeToLock}</Text>
+            </View>
+          )}
+          {userPickId && !gameData.locked && (
+            <View style={styles.myPickRow}>
+              <Text style={styles.myPickLabel}>Your pick: <Text style={styles.myPickTeam}>{userPickTeam === 'home' ? gameData.homeTeam : gameData.awayTeam}</Text></Text>
+              <TouchableOpacity onPress={removePick} disabled={removingPick} style={styles.removePickButton}>
+                <Text style={styles.removePickText}>{removingPick ? 'Removing…' : 'Remove Pick'}</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -484,6 +517,32 @@ const styles = StyleSheet.create({
   lockText: {
     color: '#FF9500',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  myPickRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  myPickLabel: {
+    color: '#8E8E93',
+    fontSize: 13,
+  },
+  myPickTeam: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  removePickButton: {
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  removePickText: {
+    color: '#FFF',
+    fontSize: 12,
     fontWeight: '600',
   },
   consensusCard: {
