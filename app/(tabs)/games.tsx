@@ -447,44 +447,25 @@ export default function GamesScreen() {
     }
   }, [isInitializing, session]);
 
-  const getTimeToLock = (gameDate: string, gameTime: string): string => {
+  // Use the Date object directly — no locale string parsing, no timezone ambiguity.
+  const getTimeToLock = (gameDateTimeLocal: Date): string => {
     try {
-      // Parse the time from gameTime string
-      const timeMatch = gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)?/i);
-      if (!timeMatch) return 'Soon';
-      
-      let hour24 = parseInt(timeMatch[1]);
-      const min = parseInt(timeMatch[2]);
-      const period = timeMatch[3];
-      
-      // Convert to 24-hour if AM/PM present
-      if (period) {
-        if (period.toUpperCase() === 'PM' && hour24 !== 12) hour24 += 12;
-        else if (period.toUpperCase() === 'AM' && hour24 === 12) hour24 = 0;
-      }
-      
-      const [year, month, day] = gameDate.split('-').map(Number);
-      const gameDateObj = new Date(year, month - 1, day, hour24, min, 0, 0);
-      const diffMs = gameDateObj.getTime() - currentTime.getTime();
-      
+      const diffMs = gameDateTimeLocal.getTime() - currentTime.getTime();
       if (diffMs <= 0) return 'LOCKED';
-      
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMinutes / 60);
       const diffDays = Math.floor(diffHours / 24);
-      
       if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h`;
       if (diffHours > 0) return `${diffHours}h ${diffMinutes % 60}m`;
       if (diffMinutes > 0) return `${diffMinutes}m`;
-      
       return 'LOCKED';
-    } catch (error) {
+    } catch {
       return 'Soon';
     }
   };
 
   const handleCellPress = (game: Game, betType: 'spread' | 'total', side: 'home' | 'away' | 'over' | 'under') => {
-    const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
+    const timeToLock = getTimeToLock(game.gameDateTimeLocal);
     if (timeToLock === 'LOCKED') {
       alert('This game has already started. Picks are locked.');
       return;
@@ -596,22 +577,12 @@ export default function GamesScreen() {
       const isSpread = pick.betType === 'spread';
       const isTotal = pick.betType === 'total';
       
-      // Calculate timing context safely
+      // Calculate timing context — use the Date object directly, no string parsing
       let timeBeforeGame = 0;
       let pickedAtTime = 'early_week';
       try {
-        const timeMatch = game.gameTime.match(/(\d{1,2}):(\d{2})\s?(AM|PM)?/i);
-        if (timeMatch) {
-          let hour = parseInt(timeMatch[1]);
-          const min = parseInt(timeMatch[2]);
-          const period = timeMatch[3];
-          if (period) {
-            if (period.toUpperCase() === 'PM' && hour !== 12) hour += 12;
-            if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
-          }
-          const gameDateTime = new Date(`${game.gameDate}T${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:00`);
-          timeBeforeGame = Math.max(0, Math.floor((gameDateTime.getTime() - now.getTime()) / (1000 * 60)));
-          
+        timeBeforeGame = Math.max(0, Math.floor((game.gameDateTimeLocal.getTime() - now.getTime()) / (1000 * 60)));
+        {
           const hoursBeforeGame = timeBeforeGame / 60;
           if (hoursBeforeGame < 4) pickedAtTime = 'game_day';
           else if (hoursBeforeGame < 48) pickedAtTime = 'mid_week';
@@ -771,7 +742,7 @@ export default function GamesScreen() {
 
               {/* Games for this date */}
               {dateGames.map(game => {
-                const timeToLock = getTimeToLock(game.gameDate, game.gameTime);
+                const timeToLock = getTimeToLock(game.gameDateTimeLocal);
                 const isLocked = timeToLock === 'LOCKED';
                 
                 // Helper to check if a cell is selected (saved or pending)
@@ -932,7 +903,7 @@ export default function GamesScreen() {
                     {/* Game Info Footer */}
                     <View style={styles.gameFooter}>
                       <Text style={styles.gameTime}>
-                        🕐 {game.gameTime}
+                        🕐 {game.gameDateTimeLocal.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                       </Text>
                       {isLocked ? (
                         <Text style={styles.lockedBadge}>🔒 Locked</Text>
