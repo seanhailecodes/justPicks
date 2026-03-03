@@ -60,6 +60,34 @@ export default function GroupPicksScreen() {
 
       console.log('Game data loaded:', gameData);
 
+      // Parse game_date as UTC (normalize to ensure Z suffix)
+      const rawDate = gameData.game_date as string;
+      const normalized = rawDate.includes('T') ? rawDate : rawDate.replace(' ', 'T');
+      const hasTimezone = normalized.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(normalized);
+      const gameDateUTC = new Date(hasTimezone ? normalized : normalized + 'Z');
+
+      // Format date with Today/Tomorrow labels
+      const formatDate = (d: Date): string => {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        if (d.toDateString() === today.toDateString()) return 'Today';
+        if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+        return d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' });
+      };
+
+      // Calculate real timeToLock
+      const calcTimeToLock = (d: Date): string => {
+        const diffMs = d.getTime() - Date.now();
+        if (diffMs <= 0) return 'LOCKED';
+        const diffMin = Math.floor(diffMs / 60000);
+        const diffHrs = Math.floor(diffMin / 60);
+        const diffDays = Math.floor(diffHrs / 24);
+        if (diffDays > 0) return `${diffDays}d ${diffHrs % 24}h`;
+        if (diffHrs > 0) return `${diffHrs}h ${diffMin % 60}m`;
+        return `${diffMin}m`;
+      };
+
       // Transform game data to match our interface
       const game: GameDetails = {
         id: gameData.id,
@@ -72,14 +100,10 @@ export default function GroupPicksScreen() {
           away: `${gameData.away_team} ${gameData.away_spread > 0 ? '+' : ''}${gameData.away_spread}`,
           value: Math.abs(gameData.home_spread),
         },
-        time: new Date(gameData.game_date).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        }),
-        date: new Date(gameData.game_date).toLocaleDateString(),
+        time: gameDateUTC.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+        date: formatDate(gameDateUTC),
         locked: gameData.locked || false,
-        timeToLock: '2h', // Calculate this based on game_date if needed
+        timeToLock: calcTimeToLock(gameDateUTC),
       };
 
       setGameData(game);
