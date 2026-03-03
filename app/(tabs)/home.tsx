@@ -232,23 +232,15 @@ export default function HomeScreen() {
         console.log('Loading upcoming games for:', selectedSport);
     try {
     const now = new Date();
-    
-    // Map sport to league
-    const leagueMap: Record<string, string> = {
-      'nfl': 'NFL',
-      'nba': 'NBA',
-      'ncaaf': 'NCAAF',
-      'ncaab': 'NCAAB',
-    };
-    
-    const league = leagueMap[selectedSport] || 'NFL';
+
+    // Use activeSport as single source of truth for league mapping
+    const league = getSport(selectedSport).league;
 
       // Get games for current week (for NFL) or upcoming games
       const { data: games } = await supabase
         .from('games')
         .select('*')
-        .eq('league', league) 
-        .eq('season', 2025)
+        .eq('league', league)
         .eq('locked', false)
         .gte('game_date', now.toISOString()) 
         .order('game_date', { ascending: true })
@@ -282,7 +274,7 @@ export default function HomeScreen() {
         awayTeam: game.away_team_code || game.away_team,
         gameDate: formatGameDate(gameDateTime),
         gameTime: formatGameTime(gameDateTime),
-        timeToLock: getTimeToLock(game.game_date),
+        timeToLock: getTimeToLock(gameDateTime),
         userHasPicked: pickedGameIds.has(game.id),
         spread: game.home_spread,
         overUnder: game.over_under_line
@@ -330,9 +322,8 @@ export default function HomeScreen() {
     }
   };
 
-  const getTimeToLock = (dateStr: string): string => {
+  const getTimeToLock = (gameDate: Date): string => {
     try {
-      const gameDate = new Date(dateStr);
       const now = new Date();
       const diffMs = gameDate.getTime() - now.getTime();
 
