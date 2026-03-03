@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
-import { APP_SPORTS, SPORT_EMOJI, getDefaultSport } from '../../services/activeSport';
+import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, getSport } from '../../services/activeSport';
 
 // Sport logos - uncomment as you add logo files to assets/images/
 const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {};
@@ -74,6 +74,8 @@ export default function HomeScreen() {
   // Reload when sport changes
   useEffect(() => {
     if (userId) {
+      const league = getSport(selectedSport).league;
+      loadUserStats(userId, league);
       loadSportData();
     }
   }, [selectedSport, userId]);
@@ -109,8 +111,9 @@ export default function HomeScreen() {
         setCurrentWeek(appState.current_week);
       }
 
-      // Load user's overall stats
-      await loadUserStats(user.id);
+      // Load stats for the initial sport
+      const initialLeague = getSport(getDefaultSport()).league;
+      await loadUserStats(user.id, initialLeague);
       
       // Load sport-specific data
       await loadSportData();
@@ -121,44 +124,39 @@ export default function HomeScreen() {
     }
   };
 
-  const loadUserStats = async (uid: string) => {
+  const loadUserStats = async (uid: string, league?: string) => {
     try {
-      // Get all picks
-      const { data: picks } = await supabase
+      // Get all picks for this user
+      const { data: allPicks } = await supabase
         .from('picks')
-        .select('correct, game_id, week, season')
+        .select('correct, game_id')
         .eq('user_id', uid);
 
-      if (picks) {
-        const correct = picks.filter(p => p.correct === true).length;
-        const wrong = picks.filter(p => p.correct === false).length;
-        const decided = correct + wrong;
+      if (!allPicks) return;
 
-        // Get current week's unlocked games to calculate "upcoming" properly
-        const { data: upcomingGames } = await supabase
+      let picks = allPicks;
+
+      // Filter to the selected sport's league if provided
+      if (league) {
+        const { data: leagueGames } = await supabase
           .from('games')
           .select('id')
-          .eq('week', currentWeek)
-          .eq('season', 2025)
-          .eq('locked', false)
-          .gt('game_date', new Date().toISOString());
-
-        const upcomingGameIds = new Set(upcomingGames?.map(g => g.id) || []);
-        
-        // Upcoming = picks for current week games that haven't started
-        const upcoming = picks.filter(p => 
-          p.week === currentWeek && 
-          p.season === 2025 && 
-          upcomingGameIds.has(p.game_id)
-        ).length;
-
-        setUserStats({
-          correct,
-          wrong,
-          pending: upcoming, // Now shows only current week upcoming
-          winRate: decided > 0 ? Math.round((correct / decided) * 100) : 0
-        });
+          .eq('league', league);
+        const leagueGameIds = new Set(leagueGames?.map(g => g.id) || []);
+        picks = allPicks.filter(p => leagueGameIds.has(p.game_id));
       }
+
+      const correct = picks.filter(p => p.correct === true).length;
+      const wrong = picks.filter(p => p.correct === false).length;
+      const decided = correct + wrong;
+      const pending = picks.filter(p => p.correct === null).length;
+
+      setUserStats({
+        correct,
+        wrong,
+        pending,
+        winRate: decided > 0 ? Math.round((correct / decided) * 100) : 0,
+      });
     } catch (error) {
       console.error('Error loading user stats:', error);
     }
@@ -445,7 +443,7 @@ export default function HomeScreen() {
         {/* Overall Stats Card */}
         {userStats && (
           <View style={styles.statsCard}>
-            <Text style={styles.statsTitle}>Your Prediction Accuracy</Text>
+            <Text style={styles.statsTitle}>{getSport(selectedSport).label} Prediction Accuracy</Text>
             <Text style={styles.statsWinRate}>{userStats.winRate}%</Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
