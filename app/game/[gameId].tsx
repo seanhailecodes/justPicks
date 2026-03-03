@@ -296,11 +296,14 @@ export default function GroupPicksScreen() {
     );
   }
 
+  const pickedTeamName = userPickTeam === 'home' ? gameData.homeTeam : gameData.awayTeam;
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>{'<'}</Text>
+          <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerSubtitle}>
@@ -311,125 +314,116 @@ export default function GroupPicksScreen() {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Game Info Card */}
+        {/* Game Status Card */}
         <View style={styles.gameCard}>
-          <Text style={styles.gameTime}>{gameData.time}</Text>
-          {!gameData.locked && (
+          {gameData.locked ? (
+            <View style={styles.lockedBanner}>
+              <Text style={styles.lockedIcon}>🔒</Text>
+              <Text style={styles.lockedText}>Picks are locked</Text>
+            </View>
+          ) : (
             <View style={styles.lockWarning}>
               <Text style={styles.lockIcon}>🕐</Text>
               <Text style={styles.lockText}>Picks lock in {gameData.timeToLock}</Text>
             </View>
           )}
-          {userPickId && !gameData.locked && (
-            <View style={styles.myPickRow}>
-              <Text style={styles.myPickLabel}>Your pick: <Text style={styles.myPickTeam}>{userPickTeam === 'home' ? gameData.homeTeam : gameData.awayTeam}</Text></Text>
-              <TouchableOpacity onPress={removePick} disabled={removingPick} style={styles.removePickButton}>
-                <Text style={styles.removePickText}>{removingPick ? 'Removing…' : 'Remove Pick'}</Text>
-              </TouchableOpacity>
+
+          {/* Your pick banner */}
+          {userPickId ? (
+            <View style={styles.myPickBanner}>
+              <View style={styles.myPickBannerLeft}>
+                <Text style={styles.myPickCheck}>✓</Text>
+                <View>
+                  <Text style={styles.myPickBannerLabel}>Your pick</Text>
+                  <Text style={styles.myPickBannerTeam}>{pickedTeamName}</Text>
+                </View>
+              </View>
+              {!gameData.locked && (
+                <TouchableOpacity onPress={removePick} disabled={removingPick} style={styles.removePickButton}>
+                  <Text style={styles.removePickText}>{removingPick ? '…' : 'Remove'}</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* Consensus Card */}
         {consensus && (
           <View style={styles.consensusCard}>
             <Text style={styles.consensusTitle}>Community Consensus</Text>
-            
+
+            {/* Progress bar */}
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBarAway, { flex: consensus.awayPercentage }]} />
+              <View style={[styles.progressBarHome, { flex: consensus.homePercentage }]} />
+            </View>
+            <View style={styles.progressLabels}>
+              <Text style={styles.progressLabelAway}>{gameData.awayTeamShort} {consensus.awayPercentage}%</Text>
+              <Text style={styles.progressLabelHome}>{consensus.homePercentage}% {gameData.homeTeamShort}</Text>
+            </View>
+
             <View style={styles.consensusBoxes}>
-              <TouchableOpacity 
-                style={[
-                  styles.consensusBox,
-                  consensus.recommendation === 'away' && styles.consensusBoxActive
-                ]}
-              >
+              <View style={[styles.consensusBox, consensus.recommendation === 'away' && styles.consensusBoxActive]}>
                 <Text style={styles.consensusTeamName}>{gameData.awayTeamShort}</Text>
                 <Text style={styles.consensusSpread}>{gameData.spread.away}</Text>
-                <Text style={styles.consensusCount}>{awayPicks} picks ({consensus.awayPercentage}%)</Text>
-              </TouchableOpacity>
-              
+                <Text style={styles.consensusCount}>{awayPicks} picks</Text>
+              </View>
+
               <Text style={styles.vsText}>vs</Text>
-              
-              <TouchableOpacity 
-                style={[
-                  styles.consensusBox,
-                  consensus.recommendation === 'home' && styles.consensusBoxActive
-                ]}
-              >
+
+              <View style={[styles.consensusBox, consensus.recommendation === 'home' && styles.consensusBoxActive]}>
                 <Text style={styles.consensusTeamName}>{gameData.homeTeamShort}</Text>
                 <Text style={styles.consensusSpread}>{gameData.spread.home}</Text>
-                <Text style={styles.consensusCount}>{homePicks} picks ({consensus.homePercentage}%)</Text>
-              </TouchableOpacity>
+                <Text style={styles.consensusCount}>{homePicks} picks</Text>
+              </View>
             </View>
           </View>
         )}
 
-        {/* Quick Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{homePicks}</Text>
-            <Text style={styles.statLabel}>{gameData.homeTeamShort}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{awayPicks}</Text>
-            <Text style={styles.statLabel}>{gameData.awayTeamShort}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{pendingPicks}</Text>
-            <Text style={styles.statLabel}>Pending</Text>
-          </View>
-        </View>
-
-        {/* Friends' Picks */}
+        {/* Community Picks */}
         <Text style={styles.sectionTitle}>Community Picks</Text>
-        
+
         {friendPicks.length > 0 ? (
           friendPicks.map(friend => (
-            <View key={friend.id} style={styles.pickCard}>
+            <View
+              key={friend.id}
+              style={[styles.pickCard, friend.username === 'You' && styles.pickCardHighlighted]}
+            >
               <View style={styles.pickHeader}>
                 <View style={styles.userInfo}>
-                  <Text style={styles.username}>{friend.username}</Text>
-                  <View style={styles.winRateBadge}>
-                    <Text style={styles.winRateText}>{friend.winRate}% wins</Text>
-                  </View>
+                  <Text style={[styles.username, friend.username === 'You' && styles.usernameYou]}>
+                    {friend.username}
+                  </Text>
                 </View>
-                <View style={styles.pickInfo}>
-                  <View style={[styles.confidenceBadge, { backgroundColor: friend.confidenceColor }]}>
-                    <Text style={styles.confidenceText}>
-                      {friend.confidence}
-                    </Text>
-                  </View>
+                <View style={[styles.confidenceBadge, { backgroundColor: friend.confidenceColor }]}>
+                  <Text style={styles.confidenceText}>{friend.confidence}</Text>
                 </View>
               </View>
-              
-              <View style={styles.pickContent}>
-                <Text style={styles.pickChoice}>{getPickDisplay(friend.pick)}</Text>
-                {friend.reasoning && (
-                  <Text style={styles.reasoning}>"{friend.reasoning}"</Text>
-                )}
-              </View>
+              <Text style={styles.pickChoice}>{getPickDisplay(friend.pick)}</Text>
+              {friend.reasoning && friend.reasoning !== 'No reasoning provided' && (
+                <Text style={styles.reasoning}>"{friend.reasoning}"</Text>
+              )}
             </View>
           ))
         ) : (
           <View style={styles.noPicksCard}>
-            <Text style={styles.noPicksText}>No picks yet for this game</Text>
+            <Text style={styles.noPicksText}>No picks yet</Text>
             <Text style={styles.noPicksSubtext}>Be the first to make a prediction!</Text>
           </View>
         )}
 
-        {/* Your Pick Reminder */}
-        {!gameData.locked && (
-          <TouchableOpacity 
+        {/* CTA — only show if no pick and not locked */}
+        {!userPickId && !gameData.locked && (
+          <TouchableOpacity
             style={styles.makePickButton}
             onPress={() => router.push('/(tabs)/games')}
           >
-            <Text style={styles.makePickButtonText}>
-              Haven't made your pick? Tap here
-            </Text>
+            <Text style={styles.makePickButtonText}>Haven't made your pick? Tap here</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -438,191 +432,135 @@ export default function GroupPicksScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#8E8E93',
-    fontSize: 16,
-  },
+  container: { flex: 1, backgroundColor: '#000' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: '#8E8E93', fontSize: 16 },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#222',
   },
-  backButton: {
-    padding: 8,
-  },
-  backIcon: {
-    color: '#FFF',
-    fontSize: 32,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerSubtitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  headerTime: {
-    color: '#8E8E93',
-    fontSize: 14,
-    marginTop: 2,
-  },
-  headerRight: {
-    width: 48,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
+  backButton: { padding: 8, width: 44 },
+  backIcon: { color: '#FF6B35', fontSize: 36, lineHeight: 36 },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerSubtitle: { color: '#FFF', fontSize: 17, fontWeight: '700' },
+  headerTime: { color: '#8E8E93', fontSize: 13, marginTop: 2 },
+  headerRight: { width: 44 },
+
+  // Scroll
+  content: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+
+  // Game status card
   gameCard: {
     backgroundColor: '#1C1C1E',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
+    gap: 12,
+  },
+  lockedBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  gameTime: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
+  lockedIcon: { fontSize: 16 },
+  lockedText: { color: '#8E8E93', fontSize: 14, fontWeight: '600' },
   lockWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 149, 0, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 149, 0, 0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'center',
+    gap: 6,
   },
-  lockIcon: {
-    marginRight: 6,
-    fontSize: 14,
-  },
-  lockText: {
-    color: '#FF9500',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  myPickRow: {
-    marginTop: 12,
+  lockIcon: { fontSize: 14 },
+  lockText: { color: '#FF9500', fontSize: 14, fontWeight: '600' },
+
+  // Your pick banner
+  myPickBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
+    backgroundColor: 'rgba(52, 199, 89, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  myPickLabel: {
-    color: '#8E8E93',
-    fontSize: 13,
-  },
-  myPickTeam: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
+  myPickBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  myPickCheck: { color: '#34C759', fontSize: 20, fontWeight: '700' },
+  myPickBannerLabel: { color: '#8E8E93', fontSize: 11, fontWeight: '500' },
+  myPickBannerTeam: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   removePickButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: 'rgba(255, 59, 48, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 59, 48, 0.5)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
-  removePickText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  consensusCard: {
-    marginBottom: 20,
-  },
-  consensusTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  consensusBoxes: {
+  removePickText: { color: '#FF3B30', fontSize: 12, fontWeight: '600' },
+
+  // Consensus
+  consensusCard: { marginBottom: 20 },
+  consensusTitle: { color: '#FFF', fontSize: 16, fontWeight: '700', marginBottom: 12 },
+  progressBarContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 6,
+    backgroundColor: '#333',
   },
+  progressBarAway: { backgroundColor: '#8E8E93' },
+  progressBarHome: { backgroundColor: '#FF6B35' },
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  progressLabelAway: { color: '#8E8E93', fontSize: 12, fontWeight: '600' },
+  progressLabelHome: { color: '#FF6B35', fontSize: 12, fontWeight: '600' },
+  consensusBoxes: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   consensusBox: {
     flex: 1,
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  consensusBoxActive: {
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-  },
-  consensusTeamName: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  consensusSpread: {
-    color: '#FF6B35',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  consensusCount: {
-    color: '#8E8E93',
-    fontSize: 12,
-  },
-  vsText: {
-    color: '#8E8E93',
-    fontSize: 14,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-  },
-  statNumber: {
-    color: '#FF6B35',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
+  consensusBoxActive: { borderColor: '#FF6B35' },
+  consensusTeamName: { color: '#FFF', fontSize: 13, fontWeight: '700', marginBottom: 4, textAlign: 'center' },
+  consensusSpread: { color: '#FF6B35', fontSize: 17, fontWeight: '800', marginBottom: 6 },
+  consensusCount: { color: '#8E8E93', fontSize: 12 },
+  vsText: { color: '#555', fontSize: 13, fontWeight: '600' },
+
+  // Community picks
+  sectionTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 12 },
   pickCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  pickCardHighlighted: {
+    borderColor: 'rgba(255, 107, 53, 0.4)',
+    backgroundColor: '#242424',
   },
   pickHeader: {
     flexDirection: 'row',
@@ -630,84 +568,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  userInfo: {
-    flex: 1,
-  },
-  username: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  winRateBadge: {
-    backgroundColor: 'rgba(52, 199, 89, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  winRateText: {
-    color: '#34C759',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pickInfo: {
-    alignItems: 'flex-end',
-  },
-  pickContent: {
-    marginTop: 8,
-  },
-  pickChoice: {
-    color: '#FF6B35',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  confidenceBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidenceText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  reasoning: {
-    color: '#8E8E93',
-    fontSize: 14,
-    lineHeight: 20,
-    fontStyle: 'italic',
-  },
+  userInfo: { flex: 1 },
+  username: { color: '#8E8E93', fontSize: 14, fontWeight: '600' },
+  usernameYou: { color: '#FF6B35' },
+  pickChoice: { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  confidenceBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  confidenceText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  reasoning: { color: '#666', fontSize: 13, fontStyle: 'italic', marginTop: 4 },
+
   noPicksCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
     marginBottom: 20,
   },
-  noPicksText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  noPicksSubtext: {
-    color: '#8E8E93',
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  noPicksText: { color: '#FFF', fontSize: 15, fontWeight: '600', marginBottom: 6 },
+  noPicksSubtext: { color: '#8E8E93', fontSize: 13 },
+
   makePickButton: {
     backgroundColor: '#FF6B35',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 8,
   },
-  makePickButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  makePickButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
