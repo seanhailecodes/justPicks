@@ -215,7 +215,11 @@ export default function GroupPicksScreen() {
   const pendingPicks = Math.max(0, 10 - totalPicks); // Assuming 10 total friends
 
   const handleBack = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/games');
+    }
   };
 
   const getPickDisplay = (pick: string) => {
