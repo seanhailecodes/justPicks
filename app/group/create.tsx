@@ -172,7 +172,11 @@ export default function CreateGroupScreen() {
   };
 
   const handleBack = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/home');
+    }
   };
 
   return (
