@@ -50,7 +50,6 @@ interface UserStats {
 
 export default function HomeScreen() {
   const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport);
-  const sortedSports = useSortedSports(userId);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [upcomingGames, setUpcomingGames] = useState<UpcomingGame[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
@@ -59,6 +58,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
+  const sortedSports = useSortedSports(userId);
 
   const sportScrollRef = useRef<ScrollView>(null);
 
