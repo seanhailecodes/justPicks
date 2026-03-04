@@ -921,9 +921,15 @@ export default function GamesScreen() {
         ) : (
           <View style={styles.noGamesCard}>
             <Text style={styles.noGamesText}>
-              No upcoming {selectedSport.label} games available
+              {isSportInSeason(selectedSport.season)
+                ? `No upcoming ${selectedSport.label} games available`
+                : `${selectedSport.label} is currently out of season`}
             </Text>
-            <Text style={styles.noGamesSubtext}>Check back later for new games</Text>
+            <Text style={styles.noGamesSubtext}>
+              {isSportInSeason(selectedSport.season)
+                ? 'Check back later for new games'
+                : 'Check back when the season starts'}
+            </Text>
           </View>
         )}
 

@@ -64,6 +64,9 @@ export default function HomeScreen() {
 
   // Get current sport config
   const sportConfig = getSportConfig(selectedSport);
+  const selectedSportData = getSport(selectedSport);
+  // Sports with no season tuple (UFC, PGA) are always "in season"
+  const isSelectedSportInSeason = !selectedSportData.season || isSportInSeason(selectedSportData.season);
 
   // Initial load
   useEffect(() => {
@@ -506,7 +509,9 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {sportConfig.scheduleModel === 'week' ? `Week ${currentWeek} Games` : 'Upcoming Games'}
+              {isSelectedSportInSeason
+                ? (sportConfig.scheduleModel === 'week' ? `Week ${currentWeek} Games` : 'Upcoming Games')
+                : 'Off Season'}
             </Text>
             <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/games', params: { sport: selectedSport } })}>
               <Text style={styles.sectionAction}>View All</Text>
@@ -515,7 +520,11 @@ export default function HomeScreen() {
 
           {upcomingGames.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No upcoming games</Text>
+              <Text style={styles.emptyText}>
+                {isSelectedSportInSeason
+                  ? 'No upcoming games'
+                  : `${selectedSportData.label} is currently out of season`}
+              </Text>
             </View>
           ) : (
             upcomingGames.slice(0, 3).map(game => (
