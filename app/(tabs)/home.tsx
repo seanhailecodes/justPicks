@@ -14,13 +14,10 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
-import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, getSport } from '../../services/activeSport';
+import { APP_SPORTS, AppSport, SPORT_EMOJI, getDefaultSport, getSport, isSportInSeason } from '../../services/activeSport';
 
 // Sport logos - uncomment as you add logo files to assets/images/
 const SPORT_LOGOS: Partial<Record<Sport, ImageSourcePropType>> = {};
-
-// Use the master sport list from activeSport service
-const AVAILABLE_SPORTS = APP_SPORTS;
 
 interface UserGroup {
   id: string;
@@ -52,6 +49,7 @@ interface UserStats {
 
 export default function HomeScreen() {
   const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport);
+  const [sortedSports, setSortedSports] = useState<AppSport[]>(APP_SPORTS);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [upcomingGames, setUpcomingGames] = useState<UpcomingGame[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
@@ -60,7 +58,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
-  
+
   const sportScrollRef = useRef<ScrollView>(null);
 
   // Get current sport config
@@ -113,8 +111,11 @@ export default function HomeScreen() {
 
       // Load stats for the initial sport
       const initialLeague = getSport(getDefaultSport()).league;
-      await loadUserStats(user.id, initialLeague);
-      
+      await Promise.all([
+        loadUserStats(user.id, initialLeague),
+        loadSportOrder(user.id),
+      ]);
+
       // Load sport-specific data
       await loadSportData();
     } catch (error) {
@@ -159,6 +160,55 @@ export default function HomeScreen() {
       });
     } catch (error) {
       console.error('Error loading user stats:', error);
+    }
+  };
+
+  const loadSportOrder = async (uid: string) => {
+    try {
+      // Picks from the last 30 days
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+
+      const { data: recentPicks } = await supabase
+        .from('picks')
+        .select('game_id')
+        .eq('user_id', uid)
+        .gte('created_at', since.toISOString());
+
+      if (!recentPicks?.length) {
+        // No recent picks — just sort in-season first, out-of-season last
+        setSortedSports([
+          ...APP_SPORTS.filter(s => isSportInSeason(s.season)),
+          ...APP_SPORTS.filter(s => !isSportInSeason(s.season)),
+        ]);
+        return;
+      }
+
+      // Get league for each picked game
+      const gameIds = recentPicks.map(p => p.game_id);
+      const { data: games } = await supabase
+        .from('games')
+        .select('id, league')
+        .in('id', gameIds);
+
+      // Count picks per league
+      const leagueCount: Record<string, number> = {};
+      games?.forEach(g => {
+        leagueCount[g.league] = (leagueCount[g.league] || 0) + 1;
+      });
+
+      // Sort: in-season by pick count desc, then out-of-season by pick count desc
+      const inSeason = APP_SPORTS
+        .filter(s => isSportInSeason(s.season))
+        .sort((a, b) => (leagueCount[b.league] || 0) - (leagueCount[a.league] || 0));
+
+      const outOfSeason = APP_SPORTS
+        .filter(s => !isSportInSeason(s.season))
+        .sort((a, b) => (leagueCount[b.league] || 0) - (leagueCount[a.league] || 0));
+
+      setSortedSports([...inSeason, ...outOfSeason]);
+    } catch (e) {
+      console.error('Error sorting sports:', e);
     }
   };
 
@@ -385,7 +435,7 @@ export default function HomeScreen() {
         style={styles.sportTabsContainer}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {AVAILABLE_SPORTS.map(({ key: sport, enabled, emoji, label }) => {
+        {sortedSports.map(({ key: sport, enabled, emoji, label }) => {
           const isSelected = selectedSport === sport;
           const logo = SPORT_LOGOS[sport];
 
