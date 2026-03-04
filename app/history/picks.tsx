@@ -298,10 +298,13 @@ export default function PickHistoryScreen() {
             </Text>
           </View>
         ) : (
-          getFilteredPicks().map(pick => (
-            <TouchableOpacity key={pick.id} style={styles.pickCard}>
-              <View style={styles.pickHeader}>
-                <View style={styles.pickHeaderLeft}>
+          getFilteredPicks().map(pick => {
+            const resultColor = getResultColor(pick.correct);
+            const isWeekBased = ['NFL', 'NCAAF'].includes(pick.games?.league ?? '');
+            return (
+              <View key={pick.id} style={[styles.pickCard, { borderLeftColor: resultColor }]}>
+                {/* Top row: league + date + result icon */}
+                <View style={styles.pickHeader}>
                   <View style={styles.pickMeta}>
                     {pick.games?.league && (
                       <View style={styles.leagueBadge}>
@@ -309,65 +312,71 @@ export default function PickHistoryScreen() {
                       </View>
                     )}
                     <Text style={styles.pickDate}>{formatDate(pick.created_at)}</Text>
+                    {pick.pick_type === 'group' && (
+                      <View style={styles.groupBadge}>
+                        <Text style={styles.groupBadgeText}>GROUP</Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.pickGame}>{formatGameTitle(pick)}</Text>
-                  {formatScore(pick) && (
-                    <Text style={styles.finalScore}>Final: {formatScore(pick)}</Text>
-                  )}
+                  <Text style={styles.resultIcon}>{getResultIcon(pick.correct)}</Text>
                 </View>
-                <Text style={styles.resultIcon}>{getResultIcon(pick.correct)}</Text>
-              </View>
 
-              {/* Spread/ML Pick */}
-              {pick.team_picked && (
-                <View style={styles.pickSection}>
-                  <Text style={styles.pickLabel}>PICK</Text>
-                  <View style={styles.pickDetails}>
-                    <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
-                    <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) }]}>
-                      <Text style={styles.confidenceText}>{pick.confidence || 'Medium'}</Text>
+                {/* Game title */}
+                <Text style={styles.pickGame}>{formatGameTitle(pick)}</Text>
+
+                {/* Final score */}
+                {formatScore(pick) && (
+                  <Text style={styles.finalScore}>{formatScore(pick)}</Text>
+                )}
+
+                <View style={styles.divider} />
+
+                {/* Spread/ML Pick */}
+                {pick.team_picked && (
+                  <View style={styles.pickRow}>
+                    <View style={styles.pickRowLeft}>
+                      <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
+                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) + '33', borderColor: getConfidenceColor(pick.confidence) }]}>
+                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>{pick.confidence || 'Medium'}</Text>
+                      </View>
                     </View>
                     {pick.correct !== null && (
-                      <Text style={[styles.pickResult, { color: pick.correct ? '#34C759' : '#FF3B30' }]}>
-                        {pick.correct ? '✓' : '✗'}
+                      <Text style={[styles.pickResultText, { color: pick.correct ? '#34C759' : '#FF3B30' }]}>
+                        {pick.correct ? 'Correct' : 'Incorrect'}
                       </Text>
                     )}
                   </View>
-                </View>
-              )}
+                )}
 
-              {/* O/U Pick */}
-              {pick.over_under_pick && (
-                <View style={styles.pickSection}>
-                  <Text style={styles.pickLabel}>TOTAL</Text>
-                  <View style={styles.pickDetails}>
-                    <Text style={styles.pickChoice}>{formatOverUnderChoice(pick)}</Text>
-                    <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
-                      <Text style={styles.confidenceText}>{pick.over_under_confidence || 'Medium'}</Text>
+                {/* O/U Pick */}
+                {pick.over_under_pick && (
+                  <View style={styles.pickRow}>
+                    <View style={styles.pickRowLeft}>
+                      <Text style={styles.pickChoice}>{formatOverUnderChoice(pick)}</Text>
+                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') + '33', borderColor: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
+                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>{pick.over_under_confidence || 'Medium'}</Text>
+                      </View>
                     </View>
                     {pick.over_under_correct !== null && (
-                      <Text style={[styles.pickResult, { color: pick.over_under_correct ? '#34C759' : '#FF3B30' }]}>
-                        {pick.over_under_correct ? '✓' : '✗'}
+                      <Text style={[styles.pickResultText, { color: pick.over_under_correct ? '#34C759' : '#FF3B30' }]}>
+                        {pick.over_under_correct ? 'Correct' : 'Incorrect'}
                       </Text>
                     )}
                   </View>
-                </View>
-              )}
+                )}
 
-              {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
-                <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
-              )}
+                {/* Reasoning */}
+                {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
+                  <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
+                )}
 
-              <View style={styles.pickFooter}>
-                <Text style={styles.weekText}>
-                  {pick.week ? `Week ${pick.week} • ` : ''}{pick.pick_type === 'group' ? 'GROUP' : 'SOLO'}
-                </Text>
-                <Text style={[styles.resultText, { color: getResultColor(pick.correct) }]}>
-                  {getResultText(pick.correct)}
-                </Text>
+                {/* Week (NFL/NCAAF only) */}
+                {isWeekBased && pick.week ? (
+                  <Text style={styles.weekText}>Week {pick.week}</Text>
+                ) : null}
               </View>
-            </TouchableOpacity>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </SafeAreaView>
@@ -486,22 +495,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9500', // default orange; overridden inline
   },
   pickHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  pickHeaderLeft: {
-    flex: 1,
+    alignItems: 'center',
+    marginBottom: 6,
   },
   pickMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    flex: 1,
   },
   leagueBadge: {
     backgroundColor: '#FF6B3522',
@@ -516,81 +524,82 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  groupBadge: {
+    backgroundColor: '#007AFF22',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  groupBadgeText: {
+    color: '#007AFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   pickDate: {
     color: '#8E8E93',
     fontSize: 12,
   },
+  resultIcon: {
+    fontSize: 20,
+  },
   pickGame: {
     color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   finalScore: {
     color: '#8E8E93',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  resultIcon: {
-    fontSize: 24,
-    marginLeft: 12,
-  },
-  pickSection: {
-    marginBottom: 10,
-  },
-  pickLabel: {
-    color: '#8E8E93',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
     marginBottom: 4,
   },
-  pickDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  divider: {
+    height: 1,
+    backgroundColor: '#2C2C2E',
+    marginVertical: 10,
   },
-  pickChoice: {
-    color: '#FF6B35',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginRight: 12,
-  },
-  pickResult: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  confidenceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidenceText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  scoreText: {
-    color: '#8E8E93',
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  reasoningText: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontStyle: 'italic',
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  pickFooter: {
+  pickRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 6,
   },
-  weekText: {
+  pickRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  pickChoice: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickResultText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  confidenceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  confidenceText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  reasoningText: {
     color: '#8E8E93',
     fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 6,
   },
-  resultText: {
-    fontSize: 12,
-    fontWeight: '600',
+  weekText: {
+    color: '#555',
+    fontSize: 11,
+    marginTop: 8,
   },
 });
