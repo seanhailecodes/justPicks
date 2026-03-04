@@ -16,6 +16,7 @@ import {
 } from '../lib/ai-data-helpers';
 import { useNotificationContext } from '../../components/NotificationContext';
 import { APP_SPORTS, AppSport, isSportInSeason } from '../../services/activeSport';
+import { useSortedSports } from '../../services/useSortedSports';
 
 // Type definitions
 interface GameSpread {
@@ -147,6 +148,7 @@ export default function GamesScreen() {
   };
   
   const [selectedSport, setSelectedSport] = useState<SportConfig>(getInitialSport);
+  const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
   const [session, setSession] = useState<Session | null>(null);
@@ -699,7 +701,7 @@ export default function GamesScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {SPORTS.map(sport => {
+        {sortedSports.map(sport => {
           const isSelected = selectedSport.key === sport.key;
           return (
             <TouchableOpacity
