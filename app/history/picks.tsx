@@ -23,6 +23,7 @@ interface PickHistoryItem {
     home_team: string;
     away_team: string;
     game_date: string;
+    league: string;
     home_score: number | null;
     away_score: number | null;
     over_under_line: number | null;
@@ -31,6 +32,7 @@ interface PickHistoryItem {
 
 export default function PickHistoryScreen() {
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'incorrect', 'upcoming'
+  const [sportFilter, setSportFilter] = useState('all');
   const [pickHistory, setPickHistory] = useState<PickHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,12 +55,27 @@ export default function PickHistoryScreen() {
     }
   };
 
+  // Derive unique leagues from pick history for the sport filter
+  const availableLeagues = ['all', ...Array.from(new Set(
+    pickHistory.map(p => p.games?.league).filter(Boolean) as string[]
+  )).sort()];
+
   const getFilteredPicks = () => {
-    if (filter === 'all') return pickHistory;
-    if (filter === 'correct') return pickHistory.filter(pick => pick.correct === true);
-    if (filter === 'incorrect') return pickHistory.filter(pick => pick.correct === false);
-    if (filter === 'upcoming') return pickHistory.filter(pick => pick.correct === null);
-    return pickHistory;
+    let picks = pickHistory;
+    if (sportFilter !== 'all') picks = picks.filter(p => p.games?.league === sportFilter);
+    if (filter === 'correct') return picks.filter(pick => pick.correct === true);
+    if (filter === 'incorrect') return picks.filter(pick => pick.correct === false);
+    if (filter === 'upcoming') return picks.filter(pick => pick.correct === null);
+    return picks;
+  };
+
+  const getFilteredStats = () => {
+    const picks = sportFilter === 'all' ? pickHistory : pickHistory.filter(p => p.games?.league === sportFilter);
+    return {
+      correct: picks.filter(p => p.correct === true).length,
+      incorrect: picks.filter(p => p.correct === false).length,
+      upcoming: picks.filter(p => p.correct === null).length,
+    };
   };
 
   const getResultColor = (result: boolean | null) => {
@@ -157,14 +174,8 @@ export default function PickHistoryScreen() {
     return `${pick.games.away_team} ${pick.games.away_score} - ${pick.games.home_team} ${pick.games.home_score}`;
   };
 
-  const stats = {
-    total: pickHistory.length,
-    correct: pickHistory.filter(p => p.correct === true).length,
-    incorrect: pickHistory.filter(p => p.correct === false).length,
-    upcoming: pickHistory.filter(p => p.correct === null).length,
-  };
-
-  const winRate = stats.correct + stats.incorrect > 0 
+  const stats = getFilteredStats();
+  const winRate = stats.correct + stats.incorrect > 0
     ? Math.round((stats.correct / (stats.correct + stats.incorrect)) * 100)
     : 0;
 
@@ -222,9 +233,31 @@ export default function PickHistoryScreen() {
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView 
-        horizontal 
+      {/* Sport Filter */}
+      {availableLeagues.length > 2 && (
+        <ScrollView
+          horizontal
+          style={styles.filterContainer}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContent}
+        >
+          {availableLeagues.map(league => (
+            <TouchableOpacity
+              key={league}
+              style={[styles.filterChip, sportFilter === league && styles.filterChipActive]}
+              onPress={() => setSportFilter(league)}
+            >
+              <Text style={[styles.filterChipText, sportFilter === league && styles.filterChipTextActive]}>
+                {league === 'all' ? 'All Sports' : league}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Result Filter Tabs */}
+      <ScrollView
+        horizontal
         style={styles.filterContainer}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterContent}
@@ -236,9 +269,9 @@ export default function PickHistoryScreen() {
             onPress={() => setFilter(filterType)}
           >
             <Text style={[styles.filterChipText, filter === filterType && styles.filterChipTextActive]}>
-              {filterType === 'all' ? 'All Picks' : 
+              {filterType === 'all' ? 'All' :
                filterType === 'correct' ? '✅ Wins' :
-               filterType === 'incorrect' ? '❌ Losses' : '🏈 Upcoming'}
+               filterType === 'incorrect' ? '❌ Losses' : '⏳ Upcoming'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -269,9 +302,15 @@ export default function PickHistoryScreen() {
             <TouchableOpacity key={pick.id} style={styles.pickCard}>
               <View style={styles.pickHeader}>
                 <View style={styles.pickHeaderLeft}>
-                  <Text style={styles.pickDate}>{formatDate(pick.created_at)}</Text>
+                  <View style={styles.pickMeta}>
+                    {pick.games?.league && (
+                      <View style={styles.leagueBadge}>
+                        <Text style={styles.leagueBadgeText}>{pick.games.league}</Text>
+                      </View>
+                    )}
+                    <Text style={styles.pickDate}>{formatDate(pick.created_at)}</Text>
+                  </View>
                   <Text style={styles.pickGame}>{formatGameTitle(pick)}</Text>
-                  {/* Show final score if available */}
                   {formatScore(pick) && (
                     <Text style={styles.finalScore}>Final: {formatScore(pick)}</Text>
                   )}
@@ -282,7 +321,7 @@ export default function PickHistoryScreen() {
               {/* Spread/ML Pick */}
               {pick.team_picked && (
                 <View style={styles.pickSection}>
-                  <Text style={styles.pickLabel}>SPREAD</Text>
+                  <Text style={styles.pickLabel}>PICK</Text>
                   <View style={styles.pickDetails}>
                     <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
                     <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) }]}>
@@ -315,13 +354,13 @@ export default function PickHistoryScreen() {
                 </View>
               )}
 
-              {pick.reasoning && (
+              {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
                 <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
               )}
 
               <View style={styles.pickFooter}>
                 <Text style={styles.weekText}>
-                  Week {pick.week} • {pick.pick_type === 'group' ? 'GROUP' : 'SOLO'}
+                  {pick.week ? `Week ${pick.week} • ` : ''}{pick.pick_type === 'group' ? 'GROUP' : 'SOLO'}
                 </Text>
                 <Text style={[styles.resultText, { color: getResultColor(pick.correct) }]}>
                   {getResultText(pick.correct)}
@@ -458,10 +497,28 @@ const styles = StyleSheet.create({
   pickHeaderLeft: {
     flex: 1,
   },
+  pickMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  leagueBadge: {
+    backgroundColor: '#FF6B3522',
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  leagueBadgeText: {
+    color: '#FF6B35',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   pickDate: {
     color: '#8E8E93',
     fontSize: 12,
-    marginBottom: 4,
   },
   pickGame: {
     color: '#FFF',
