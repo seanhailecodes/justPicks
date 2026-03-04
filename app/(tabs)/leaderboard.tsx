@@ -3,6 +3,7 @@ import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } fr
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { APP_SPORTS, getDefaultSport } from '../../services/activeSport';
+import { useSortedSports } from '../../services/useSortedSports';
 
 // Map master sport list to leaderboard's expected shape
 const SPORTS = APP_SPORTS.map(s => ({
@@ -47,6 +48,10 @@ export default function LeaderboardScreen() {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardPlayer[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const sortedSportOrder = useSortedSports(currentUserId);
+  const sortedSports = sortedSportOrder.length > 0
+    ? sortedSportOrder.map(s => SPORTS.find(ls => ls.id === s.key)).filter(Boolean) as typeof SPORTS
+    : SPORTS;
 
   useEffect(() => {
     loadUserGroups();
@@ -101,7 +106,11 @@ export default function LeaderboardScreen() {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       gamesQuery = gamesQuery.gte('game_date', monthAgo.toISOString());
     } else if (timeframe === 'season') {
-      gamesQuery = gamesQuery.eq('season', 2025);
+      // Dynamically compute season start: July 1 of the current sports year
+      // e.g. in March 2026 → seasonYear = 2025, so start = 2025-07-01
+      const seasonYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+      const seasonStart = new Date(`${seasonYear}-07-01T00:00:00Z`);
+      gamesQuery = gamesQuery.gte('game_date', seasonStart.toISOString());
     }
     // 'all' time has no filter
 
@@ -222,7 +231,7 @@ export default function LeaderboardScreen() {
       <View style={styles.filterSection}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.chipContainer}>
-            {SPORTS.map(sport => (
+            {sortedSports.map(sport => (
               <TouchableOpacity
                 key={sport.id}
                 style={[
