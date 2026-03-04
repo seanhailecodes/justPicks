@@ -35,6 +35,23 @@ export default function PickHistoryScreen() {
   const [sportFilter, setSportFilter] = useState('all');
   const [pickHistory, setPickHistory] = useState<PickHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const isGameInPast = (pick: PickHistoryItem): boolean => {
+    if (!pick.games?.game_date) return false;
+    const dateStr = pick.games.game_date.endsWith('Z')
+      ? pick.games.game_date
+      : pick.games.game_date.replace(' ', 'T') + 'Z';
+    return new Date(dateStr) < new Date();
+  };
 
   useEffect(() => {
     loadPickHistory();
@@ -65,7 +82,8 @@ export default function PickHistoryScreen() {
     if (sportFilter !== 'all') picks = picks.filter(p => p.games?.league === sportFilter);
     if (filter === 'correct') return picks.filter(pick => pick.correct === true);
     if (filter === 'incorrect') return picks.filter(pick => pick.correct === false);
-    if (filter === 'upcoming') return picks.filter(pick => pick.correct === null);
+    if (filter === 'upcoming') return picks.filter(pick => pick.correct === null && !isGameInPast(pick));
+    if (filter === 'unresolved') return picks.filter(pick => pick.correct === null && isGameInPast(pick));
     return picks;
   };
 
@@ -78,21 +96,24 @@ export default function PickHistoryScreen() {
     };
   };
 
-  const getResultColor = (result: boolean | null) => {
-    if (result === true) return '#34C759';
-    if (result === false) return '#FF3B30';
+  const getResultColor = (pick: PickHistoryItem) => {
+    if (pick.correct === true) return '#34C759';
+    if (pick.correct === false) return '#FF3B30';
+    if (isGameInPast(pick)) return '#8E8E93'; // unresolved past game
     return '#FF9500'; // upcoming
   };
 
-  const getResultIcon = (result: boolean | null) => {
-    if (result === true) return '✅';
-    if (result === false) return '❌';
-    return '⏳'; // upcoming
+  const getResultIcon = (pick: PickHistoryItem) => {
+    if (pick.correct === true) return '✅';
+    if (pick.correct === false) return '❌';
+    if (isGameInPast(pick)) return '❓';
+    return '⏳';
   };
 
-  const getResultText = (result: boolean | null) => {
-    if (result === true) return 'Correct';
-    if (result === false) return 'Incorrect';
+  const getResultText = (pick: PickHistoryItem) => {
+    if (pick.correct === true) return 'Correct';
+    if (pick.correct === false) return 'Incorrect';
+    if (isGameInPast(pick)) return 'Unresolved';
     return 'Upcoming';
   };
 
@@ -262,7 +283,7 @@ export default function PickHistoryScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterContent}
       >
-        {['all', 'correct', 'incorrect', 'upcoming'].map(filterType => (
+        {['all', 'correct', 'incorrect', 'upcoming', 'unresolved'].map(filterType => (
           <TouchableOpacity
             key={filterType}
             style={[styles.filterChip, filter === filterType && styles.filterChipActive]}
@@ -271,7 +292,8 @@ export default function PickHistoryScreen() {
             <Text style={[styles.filterChipText, filter === filterType && styles.filterChipTextActive]}>
               {filterType === 'all' ? 'All' :
                filterType === 'correct' ? '✅ Wins' :
-               filterType === 'incorrect' ? '❌ Losses' : '⏳ Upcoming'}
+               filterType === 'incorrect' ? '❌ Losses' :
+               filterType === 'upcoming' ? '⏳ Upcoming' : '❓ Unresolved'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -299,11 +321,17 @@ export default function PickHistoryScreen() {
           </View>
         ) : (
           getFilteredPicks().map(pick => {
-            const resultColor = getResultColor(pick.correct);
+            const resultColor = getResultColor(pick);
             const isWeekBased = ['NFL', 'NCAAF'].includes(pick.games?.league ?? '');
+            const isExpanded = expandedIds.has(pick.id);
             return (
-              <View key={pick.id} style={[styles.pickCard, { borderLeftColor: resultColor }]}>
-                {/* Top row: league + date + result icon */}
+              <TouchableOpacity
+                key={pick.id}
+                activeOpacity={0.85}
+                onPress={() => toggleExpand(pick.id)}
+                style={[styles.pickCard, { borderLeftColor: resultColor }]}
+              >
+                {/* Always visible: meta + game title + result icon */}
                 <View style={styles.pickHeader}>
                   <View style={styles.pickMeta}>
                     {pick.games?.league && (
@@ -318,63 +346,67 @@ export default function PickHistoryScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.resultIcon}>{getResultIcon(pick.correct)}</Text>
+                  <Text style={styles.resultIcon}>{getResultIcon(pick)}</Text>
                 </View>
 
-                {/* Game title */}
-                <Text style={styles.pickGame}>{formatGameTitle(pick)}</Text>
+                <View style={styles.pickTitleRow}>
+                  <Text style={styles.pickGame} numberOfLines={isExpanded ? undefined : 1}>
+                    {formatGameTitle(pick)}
+                  </Text>
+                  <Text style={styles.chevron}>{isExpanded ? '▲' : '▼'}</Text>
+                </View>
 
-                {/* Final score */}
-                {formatScore(pick) && (
-                  <Text style={styles.finalScore}>{formatScore(pick)}</Text>
-                )}
-
-                <View style={styles.divider} />
-
-                {/* Spread/ML Pick */}
-                {pick.team_picked && (
-                  <View style={styles.pickRow}>
-                    <View style={styles.pickRowLeft}>
-                      <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
-                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) + '33', borderColor: getConfidenceColor(pick.confidence) }]}>
-                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>{pick.confidence || 'Medium'}</Text>
-                      </View>
-                    </View>
-                    {pick.correct !== null && (
-                      <Text style={[styles.pickResultText, { color: pick.correct ? '#34C759' : '#FF3B30' }]}>
-                        {pick.correct ? 'Correct' : 'Incorrect'}
-                      </Text>
+                {/* Expanded details */}
+                {isExpanded && (
+                  <>
+                    {formatScore(pick) && (
+                      <Text style={styles.finalScore}>{formatScore(pick)}</Text>
                     )}
-                  </View>
-                )}
 
-                {/* O/U Pick */}
-                {pick.over_under_pick && (
-                  <View style={styles.pickRow}>
-                    <View style={styles.pickRowLeft}>
-                      <Text style={styles.pickChoice}>{formatOverUnderChoice(pick)}</Text>
-                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') + '33', borderColor: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
-                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>{pick.over_under_confidence || 'Medium'}</Text>
+                    <View style={styles.divider} />
+
+                    {pick.team_picked && (
+                      <View style={styles.pickRow}>
+                        <View style={styles.pickRowLeft}>
+                          <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
+                          <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) + '33', borderColor: getConfidenceColor(pick.confidence) }]}>
+                            <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>{pick.confidence || 'Medium'}</Text>
+                          </View>
+                        </View>
+                        {pick.correct !== null && (
+                          <Text style={[styles.pickResultText, { color: pick.correct ? '#34C759' : '#FF3B30' }]}>
+                            {pick.correct ? 'Correct' : 'Incorrect'}
+                          </Text>
+                        )}
                       </View>
-                    </View>
-                    {pick.over_under_correct !== null && (
-                      <Text style={[styles.pickResultText, { color: pick.over_under_correct ? '#34C759' : '#FF3B30' }]}>
-                        {pick.over_under_correct ? 'Correct' : 'Incorrect'}
-                      </Text>
                     )}
-                  </View>
-                )}
 
-                {/* Reasoning */}
-                {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
-                  <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
-                )}
+                    {pick.over_under_pick && (
+                      <View style={styles.pickRow}>
+                        <View style={styles.pickRowLeft}>
+                          <Text style={styles.pickChoice}>{formatOverUnderChoice(pick)}</Text>
+                          <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') + '33', borderColor: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
+                            <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>{pick.over_under_confidence || 'Medium'}</Text>
+                          </View>
+                        </View>
+                        {pick.over_under_correct !== null && (
+                          <Text style={[styles.pickResultText, { color: pick.over_under_correct ? '#34C759' : '#FF3B30' }]}>
+                            {pick.over_under_correct ? 'Correct' : 'Incorrect'}
+                          </Text>
+                        )}
+                      </View>
+                    )}
 
-                {/* Week (NFL/NCAAF only) */}
-                {isWeekBased && pick.week ? (
-                  <Text style={styles.weekText}>Week {pick.week}</Text>
-                ) : null}
-              </View>
+                    {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
+                      <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
+                    )}
+
+                    {isWeekBased && pick.week ? (
+                      <Text style={styles.weekText}>Week {pick.week}</Text>
+                    ) : null}
+                  </>
+                )}
+              </TouchableOpacity>
             );
           })
         )}
@@ -544,11 +576,22 @@ const styles = StyleSheet.create({
   resultIcon: {
     fontSize: 20,
   },
+  pickTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   pickGame: {
     color: '#FFF',
     fontSize: 15,
     fontWeight: '700',
-    marginBottom: 2,
+    flex: 1,
+    marginRight: 8,
+  },
+  chevron: {
+    color: '#555',
+    fontSize: 10,
   },
   finalScore: {
     color: '#8E8E93',
