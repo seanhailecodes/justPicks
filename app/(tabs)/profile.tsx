@@ -4,9 +4,7 @@ import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView
 import { supabase } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
-
-// Use full master sport list — matches home/games screens (disabled ones grayed out)
-const AVAILABLE_SPORTS = APP_SPORTS;
+import { useSortedSports } from '../../services/useSortedSports';
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
@@ -58,7 +56,7 @@ export default function ProfileScreen() {
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const userSports = AVAILABLE_SPORTS;
+  const sortedSports = useSortedSports(userProfile?.id ?? null);
 
   const sportScrollRef = useRef<ScrollView>(null);
 
@@ -348,7 +346,7 @@ export default function ProfileScreen() {
         style={styles.sportTabsContainer}
         contentContainerStyle={styles.sportTabsContent}
       >
-        {userSports.map(({ key: sport, enabled, emoji, label, season }) => {
+        {sortedSports.map(({ key: sport, enabled, emoji, label, season }) => {
           const isSelected = selectedSport === sport;
           const inSeason = enabled && isSportInSeason(season);
           const isComingSoon = !enabled;
