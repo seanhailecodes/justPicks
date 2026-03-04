@@ -349,42 +349,39 @@ export default function PickHistoryScreen() {
                   <Text style={styles.resultIcon}>{getResultIcon(pick)}</Text>
                 </View>
 
+                {/* Collapsed: show picked team + confidence + result */}
                 <View style={styles.pickTitleRow}>
-                  <Text style={styles.pickGame} numberOfLines={isExpanded ? undefined : 1}>
-                    {formatGameTitle(pick)}
-                  </Text>
+                  <View style={styles.pickRowLeft}>
+                    <Text style={styles.pickChoice}>
+                      {pick.team_picked ? formatPickChoice(pick) : formatOverUnderChoice(pick) ?? '—'}
+                    </Text>
+                    {pick.team_picked && (
+                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) + '33', borderColor: getConfidenceColor(pick.confidence) }]}>
+                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>{pick.confidence || 'Medium'}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.chevron}>{isExpanded ? '▲' : '▼'}</Text>
                 </View>
 
                 {/* Expanded details */}
                 {isExpanded && (
                   <>
+                    <View style={styles.divider} />
+
+                    {/* Full matchup */}
+                    <Text style={styles.matchupText}>{formatGameTitle(pick)}</Text>
+
+                    {/* Final score */}
                     {formatScore(pick) && (
                       <Text style={styles.finalScore}>{formatScore(pick)}</Text>
                     )}
 
-                    <View style={styles.divider} />
-
-                    {pick.team_picked && (
-                      <View style={styles.pickRow}>
+                    {/* O/U pick (if separate from spread) */}
+                    {pick.over_under_pick && pick.team_picked && (
+                      <View style={[styles.pickRow, { marginTop: 8 }]}>
                         <View style={styles.pickRowLeft}>
-                          <Text style={styles.pickChoice}>{formatPickChoice(pick)}</Text>
-                          <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) + '33', borderColor: getConfidenceColor(pick.confidence) }]}>
-                            <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>{pick.confidence || 'Medium'}</Text>
-                          </View>
-                        </View>
-                        {pick.correct !== null && (
-                          <Text style={[styles.pickResultText, { color: pick.correct ? '#34C759' : '#FF3B30' }]}>
-                            {pick.correct ? 'Correct' : 'Incorrect'}
-                          </Text>
-                        )}
-                      </View>
-                    )}
-
-                    {pick.over_under_pick && (
-                      <View style={styles.pickRow}>
-                        <View style={styles.pickRowLeft}>
-                          <Text style={styles.pickChoice}>{formatOverUnderChoice(pick)}</Text>
+                          <Text style={styles.pickChoiceSmall}>{formatOverUnderChoice(pick)}</Text>
                           <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') + '33', borderColor: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
                             <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>{pick.over_under_confidence || 'Medium'}</Text>
                           </View>
@@ -593,10 +590,20 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 10,
   },
+  matchupText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    marginBottom: 2,
+  },
   finalScore: {
     color: '#8E8E93',
     fontSize: 12,
     marginBottom: 4,
+  },
+  pickChoiceSmall: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   divider: {
     height: 1,
