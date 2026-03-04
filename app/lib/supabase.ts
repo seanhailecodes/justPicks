@@ -243,7 +243,7 @@ export const getUserPickHistory = async (userId: string) => {
   // Get games data for those IDs
   const { data: games, error: gamesError } = await supabase
     .from('games')
-    .select('id, home_team, away_team, game_date')
+    .select('id, home_team, away_team, game_date, league, home_score, away_score, over_under_line')
     .in('id', gameIds);
 
   if (gamesError) {
