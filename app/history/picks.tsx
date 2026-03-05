@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getUserPickHistory, supabase } from '../lib/supabase';
+import { APP_SPORTS } from '../../services/activeSport';
 
 interface PickHistoryItem {
   id: string;
@@ -30,9 +31,22 @@ interface PickHistoryItem {
   };
 }
 
+// Map DB league value → emoji using the single source of truth
+const getLeagueEmoji = (league: string): string => {
+  const sport = APP_SPORTS.find(s => s.league === league);
+  return sport?.emoji ?? '🏆';
+};
+
+const RESULT_FILTERS = [
+  { key: 'all',       label: 'All',      icon: '' },
+  { key: 'correct',   label: 'Wins',     icon: '✅' },
+  { key: 'incorrect', label: 'Losses',   icon: '❌' },
+  { key: 'upcoming',  label: 'Upcoming', icon: '⏳' },
+];
+
 export default function PickHistoryScreen() {
   const { initialFilter } = useLocalSearchParams<{ initialFilter?: string }>();
-  const [filter, setFilter] = useState(initialFilter ?? 'all'); // 'all', 'correct', 'incorrect', 'upcoming'
+  const [filter, setFilter] = useState(initialFilter ?? 'all');
   const [sportFilter, setSportFilter] = useState('all');
   const [pickHistory, setPickHistory] = useState<PickHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +75,6 @@ export default function PickHistoryScreen() {
   const loadPickHistory = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (user) {
         const history = await getUserPickHistory(user.id);
         setPickHistory(history || []);
@@ -73,127 +86,97 @@ export default function PickHistoryScreen() {
     }
   };
 
-  // Derive unique leagues from pick history for the sport filter
-  const availableLeagues = ['all', ...Array.from(new Set(
-    pickHistory.map(p => p.games?.league).filter(Boolean) as string[]
-  )).sort()];
+  // Derive unique leagues present in history (preserving APP_SPORTS order)
+  const availableLeagues = ['all', ...APP_SPORTS
+    .map(s => s.league)
+    .filter(league => pickHistory.some(p => p.games?.league === league))
+  ];
 
   const getFilteredPicks = () => {
     let picks = pickHistory;
     if (sportFilter !== 'all') picks = picks.filter(p => p.games?.league === sportFilter);
-    if (filter === 'correct') return picks.filter(pick => pick.correct === true);
-    if (filter === 'incorrect') return picks.filter(pick => pick.correct === false);
-    if (filter === 'upcoming') return picks.filter(pick => pick.correct === null && !isGameInPast(pick));
-    if (filter === 'unresolved') return picks.filter(pick => pick.correct === null && isGameInPast(pick));
+    if (filter === 'correct')   return picks.filter(p => p.correct === true);
+    if (filter === 'incorrect') return picks.filter(p => p.correct === false);
+    if (filter === 'upcoming')  return picks.filter(p => p.correct === null && !isGameInPast(p));
     return picks;
   };
 
   const getFilteredStats = () => {
     const picks = sportFilter === 'all' ? pickHistory : pickHistory.filter(p => p.games?.league === sportFilter);
     return {
-      correct: picks.filter(p => p.correct === true).length,
+      correct:   picks.filter(p => p.correct === true).length,
       incorrect: picks.filter(p => p.correct === false).length,
-      upcoming: picks.filter(p => p.correct === null).length,
+      upcoming:  picks.filter(p => p.correct === null && !isGameInPast(p)).length,
     };
   };
 
   const getResultColor = (pick: PickHistoryItem) => {
-    if (pick.correct === true) return '#34C759';
+    if (pick.correct === true)  return '#34C759';
     if (pick.correct === false) return '#FF3B30';
-    if (isGameInPast(pick)) return '#8E8E93'; // unresolved past game
-    return '#FF9500'; // upcoming
+    if (isGameInPast(pick))     return '#8E8E93';
+    return '#FF9500';
   };
 
   const getResultIcon = (pick: PickHistoryItem) => {
-    if (pick.correct === true) return '✅';
+    if (pick.correct === true)  return '✅';
     if (pick.correct === false) return '❌';
-    if (isGameInPast(pick)) return '❓';
+    if (isGameInPast(pick))     return '❓';
     return '⏳';
-  };
-
-  const getResultText = (pick: PickHistoryItem) => {
-    if (pick.correct === true) return 'Correct';
-    if (pick.correct === false) return 'Incorrect';
-    if (isGameInPast(pick)) return 'Unresolved';
-    return 'Upcoming';
   };
 
   const getConfidenceColor = (confidence: string) => {
     switch (confidence?.toLowerCase()) {
-      case 'high': return '#34C759';
+      case 'high':   return '#34C759';
       case 'medium': return '#FF9500';
-      case 'low': return '#FF3B30';
-      default: return '#8E8E93';
+      case 'low':    return '#FF3B30';
+      default:       return '#8E8E93';
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    
-    // Reset times to midnight for accurate day comparison
+    const now  = new Date();
     const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const nowOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    const diffTime = nowOnly.getTime() - dateOnly.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
+    const nowOnly  = new Date(now.getFullYear(),  now.getMonth(),  now.getDate());
+    const diffDays = Math.round((nowOnly.getTime() - dateOnly.getTime()) / 86400000);
     if (diffDays <= 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
-
-  const formatGameTitle = (pick: PickHistoryItem) => {
-    if (pick.games) {
-      return `${pick.games.away_team} @ ${pick.games.home_team}`;
-    }
-    // Fallback to game_id parsing if games data isn't available
-    const parts = pick.game_id.split('_');
-    if (parts.length >= 5) {
-      return `${parts[4].toUpperCase()} @ ${parts[3].toUpperCase()}`;
-    }
-    return pick.game_id;
+    if (diffDays < 7)  return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const formatPickChoice = (pick: PickHistoryItem) => {
-    // For spread/moneyline picks - show actual team name
     if (pick.team_picked && pick.games) {
-      const teamName = pick.team_picked === 'home' ? pick.games.home_team : pick.games.away_team;
-      return teamName;
+      return pick.team_picked === 'home' ? pick.games.home_team : pick.games.away_team;
     }
-    
-    // Fallback if no games data - try to parse from game_id
     if (pick.team_picked) {
       const parts = pick.game_id.split('_');
       if (parts.length >= 5) {
-        const awayTeam = parts[4].toUpperCase();
-        const homeTeam = parts[3].toUpperCase();
-        return pick.team_picked === 'home' ? homeTeam : awayTeam;
+        return pick.team_picked === 'home'
+          ? parts[3].toUpperCase()
+          : parts[4].toUpperCase();
       }
     }
-    
     return pick.team_picked?.toUpperCase() || pick.pick?.toUpperCase() || '';
+  };
+
+  const formatGameTitle = (pick: PickHistoryItem) => {
+    if (pick.games) return `${pick.games.away_team} @ ${pick.games.home_team}`;
+    const parts = pick.game_id.split('_');
+    if (parts.length >= 5) return `${parts[4].toUpperCase()} @ ${parts[3].toUpperCase()}`;
+    return pick.game_id;
   };
 
   const formatOverUnderChoice = (pick: PickHistoryItem) => {
     if (!pick.over_under_pick) return null;
     const line = pick.games?.over_under_line;
-    if (line) {
-      return `${pick.over_under_pick === 'over' ? 'Over' : 'Under'} ${line}`;
-    }
-    return pick.over_under_pick === 'over' ? 'Over' : 'Under';
+    const dir  = pick.over_under_pick === 'over' ? 'Over' : 'Under';
+    return line ? `${dir} ${line}` : dir;
   };
 
   const formatScore = (pick: PickHistoryItem) => {
-    if (!pick.games) return null;
-    // Check for both null and undefined
-    if (pick.games.home_score == null || pick.games.away_score == null) return null;
-    return `${pick.games.away_team} ${pick.games.away_score} - ${pick.games.home_team} ${pick.games.home_score}`;
+    if (!pick.games || pick.games.home_score == null || pick.games.away_score == null) return null;
+    return `${pick.games.away_team} ${pick.games.away_score} – ${pick.games.home_team} ${pick.games.home_score}`;
   };
 
   const stats = getFilteredStats();
@@ -202,11 +185,8 @@ export default function PickHistoryScreen() {
     : 0;
 
   const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)/home');
-    }
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/home');
   };
 
   if (loading) {
@@ -221,7 +201,7 @@ export default function PickHistoryScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={styles.loadingText}>Loading pick history...</Text>
+          <Text style={styles.loadingText}>Loading pick history…</Text>
         </View>
       </SafeAreaView>
     );
@@ -229,6 +209,7 @@ export default function PickHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backIcon}>‹</Text>
@@ -237,70 +218,74 @@ export default function PickHistoryScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      {/* Stats Summary */}
+      {/* Stats bar */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: '#34C759' }]}>{stats.correct}</Text>
           <Text style={styles.statLabel}>Wins</Text>
         </View>
+        <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: '#FF3B30' }]}>{stats.incorrect}</Text>
           <Text style={styles.statLabel}>Losses</Text>
         </View>
+        <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: '#FF6B35' }]}>
-            {winRate}%
-          </Text>
+          <Text style={[styles.statNumber, { color: '#FF9500' }]}>{winRate}%</Text>
           <Text style={styles.statLabel}>Win Rate</Text>
         </View>
       </View>
 
-      {/* Sport Filter */}
+      {/* Sport filter — only shown when 2+ sports present */}
       {availableLeagues.length > 2 && (
         <ScrollView
           horizontal
-          style={styles.filterContainer}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContent}
+          style={styles.tabsContainer}
+          contentContainerStyle={styles.tabsContent}
         >
-          {availableLeagues.map(league => (
-            <TouchableOpacity
-              key={league}
-              style={[styles.filterChip, sportFilter === league && styles.filterChipActive]}
-              onPress={() => setSportFilter(league)}
-            >
-              <Text style={[styles.filterChipText, sportFilter === league && styles.filterChipTextActive]}>
-                {league === 'all' ? 'All Sports' : league}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {availableLeagues.map(league => {
+            const active = sportFilter === league;
+            const emoji  = league === 'all' ? '🏆' : getLeagueEmoji(league);
+            const label  = league === 'all' ? 'All Sports' : league;
+            return (
+              <TouchableOpacity
+                key={league}
+                style={[styles.sportTab, active && styles.sportTabActive]}
+                onPress={() => setSportFilter(league)}
+              >
+                <Text style={styles.sportTabEmoji}>{emoji}</Text>
+                <Text style={[styles.sportTabText, active && styles.sportTabTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       )}
 
-      {/* Result Filter Tabs */}
+      {/* Result filter */}
       <ScrollView
         horizontal
-        style={styles.filterContainer}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterContent}
+        style={styles.tabsContainer}
+        contentContainerStyle={styles.tabsContent}
       >
-        {['all', 'correct', 'incorrect', 'upcoming', 'unresolved'].map(filterType => (
-          <TouchableOpacity
-            key={filterType}
-            style={[styles.filterChip, filter === filterType && styles.filterChipActive]}
-            onPress={() => setFilter(filterType)}
-          >
-            <Text style={[styles.filterChipText, filter === filterType && styles.filterChipTextActive]}>
-              {filterType === 'all' ? 'All' :
-               filterType === 'correct' ? '✅ Wins' :
-               filterType === 'incorrect' ? '❌ Losses' :
-               filterType === 'upcoming' ? '⏳ Upcoming' : '❓ Unresolved'}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {RESULT_FILTERS.map(({ key, label, icon }) => {
+          const active = filter === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[styles.sportTab, active && styles.sportTabActive]}
+              onPress={() => setFilter(key)}
+            >
+              {icon ? <Text style={styles.sportTabEmoji}>{icon}</Text> : null}
+              <Text style={[styles.sportTabText, active && styles.sportTabTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
-      <ScrollView 
+      {/* Pick list */}
+      <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -308,23 +293,17 @@ export default function PickHistoryScreen() {
         {getFilteredPicks().length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>
-              {filter === 'all' ? 'No picks yet' : 
-               filter === 'upcoming' ? 'No upcoming picks' : `No ${filter} picks`}
+              {filter === 'upcoming' ? 'No upcoming picks' : filter === 'all' ? 'No picks yet' : `No ${filter === 'correct' ? 'wins' : 'losses'} yet`}
             </Text>
             <Text style={styles.emptyStateSubtext}>
-              {filter === 'all' 
-                ? 'Start making picks to see your history here!'
-                : filter === 'upcoming'
-                ? 'All your picks have been resolved!'
-                : `You don't have any ${filter} picks yet.`
-              }
+              {filter === 'upcoming' ? 'All your picks have been resolved!' : 'Start making picks to build your history.'}
             </Text>
           </View>
         ) : (
           getFilteredPicks().map(pick => {
             const resultColor = getResultColor(pick);
             const isWeekBased = ['NFL', 'NCAAF'].includes(pick.games?.league ?? '');
-            const isExpanded = expandedIds.has(pick.id);
+            const isExpanded  = expandedIds.has(pick.id);
             return (
               <TouchableOpacity
                 key={pick.id}
@@ -332,12 +311,14 @@ export default function PickHistoryScreen() {
                 onPress={() => toggleExpand(pick.id)}
                 style={[styles.pickCard, { borderLeftColor: resultColor }]}
               >
-                {/* Always visible: meta + game title + result icon */}
+                {/* Top row: league badge + date + group badge + result icon */}
                 <View style={styles.pickHeader}>
                   <View style={styles.pickMeta}>
                     {pick.games?.league && (
                       <View style={styles.leagueBadge}>
-                        <Text style={styles.leagueBadgeText}>{pick.games.league}</Text>
+                        <Text style={styles.leagueBadgeText}>
+                          {getLeagueEmoji(pick.games.league)} {pick.games.league}
+                        </Text>
                       </View>
                     )}
                     <Text style={styles.pickDate}>{formatDate(pick.created_at)}</Text>
@@ -350,15 +331,20 @@ export default function PickHistoryScreen() {
                   <Text style={styles.resultIcon}>{getResultIcon(pick)}</Text>
                 </View>
 
-                {/* Collapsed: show picked team + confidence + result */}
+                {/* Picked team + confidence + chevron */}
                 <View style={styles.pickTitleRow}>
                   <View style={styles.pickRowLeft}>
                     <Text style={styles.pickChoice}>
-                      {pick.team_picked ? formatPickChoice(pick) : formatOverUnderChoice(pick) ?? '—'}
+                      {pick.team_picked ? formatPickChoice(pick) : (formatOverUnderChoice(pick) ?? '—')}
                     </Text>
-                    {pick.team_picked && (
-                      <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.confidence) + '33', borderColor: getConfidenceColor(pick.confidence) }]}>
-                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>{pick.confidence || 'Medium'}</Text>
+                    {pick.confidence && (
+                      <View style={[styles.confidenceBadge, {
+                        backgroundColor: getConfidenceColor(pick.confidence) + '22',
+                        borderColor: getConfidenceColor(pick.confidence),
+                      }]}>
+                        <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.confidence) }]}>
+                          {pick.confidence}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -369,22 +355,21 @@ export default function PickHistoryScreen() {
                 {isExpanded && (
                   <>
                     <View style={styles.divider} />
-
-                    {/* Full matchup */}
                     <Text style={styles.matchupText}>{formatGameTitle(pick)}</Text>
-
-                    {/* Final score */}
                     {formatScore(pick) && (
                       <Text style={styles.finalScore}>{formatScore(pick)}</Text>
                     )}
-
-                    {/* O/U pick (if separate from spread) */}
                     {pick.over_under_pick && pick.team_picked && (
                       <View style={[styles.pickRow, { marginTop: 8 }]}>
                         <View style={styles.pickRowLeft}>
                           <Text style={styles.pickChoiceSmall}>{formatOverUnderChoice(pick)}</Text>
-                          <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') + '33', borderColor: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
-                            <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>{pick.over_under_confidence || 'Medium'}</Text>
+                          <View style={[styles.confidenceBadge, {
+                            backgroundColor: getConfidenceColor(pick.over_under_confidence || 'Medium') + '22',
+                            borderColor: getConfidenceColor(pick.over_under_confidence || 'Medium'),
+                          }]}>
+                            <Text style={[styles.confidenceText, { color: getConfidenceColor(pick.over_under_confidence || 'Medium') }]}>
+                              {pick.over_under_confidence || 'Medium'}
+                            </Text>
                           </View>
                         </View>
                         {pick.over_under_correct !== null && (
@@ -394,11 +379,9 @@ export default function PickHistoryScreen() {
                         )}
                       </View>
                     )}
-
                     {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
                       <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
                     )}
-
                     {isWeekBased && pick.week ? (
                       <Text style={styles.weekText}>Week {pick.week}</Text>
                     ) : null}
@@ -425,79 +408,105 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: '#8E8E93',
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 16,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#1C1C1E',
   },
   backButton: {
-    padding: 8,
+    padding: 4,
+    width: 40,
   },
   backIcon: {
     color: '#FFF',
     fontSize: 32,
+    lineHeight: 34,
   },
   title: {
     color: '#FFF',
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   placeholder: {
     width: 40,
   },
+  // ── Stats bar ──────────────────────────────────────────────
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
+    alignItems: 'center',
     backgroundColor: '#1C1C1E',
     marginHorizontal: 16,
     marginTop: 16,
-    borderRadius: 12,
+    borderRadius: 14,
+    paddingVertical: 16,
   },
   statItem: {
+    flex: 1,
     alignItems: 'center',
   },
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#333',
+  },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   statLabel: {
     color: '#8E8E93',
     fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  filterContainer: {
+  // ── Filter tabs (shared by sport + result rows) ────────────
+  tabsContainer: {
     maxHeight: 50,
-    marginTop: 16,
+    marginTop: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#1C1C1E',
   },
-  filterContent: {
+  tabsContent: {
     paddingHorizontal: 16,
+    paddingVertical: 6,
     gap: 8,
+    alignItems: 'center',
   },
-  filterChip: {
-    backgroundColor: '#2C2C2E',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  sportTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    marginRight: 8,
+    gap: 5,
   },
-  filterChipActive: {
+  sportTabActive: {
     backgroundColor: '#FF6B35',
   },
-  filterChipText: {
-    color: '#8E8E93',
+  sportTabEmoji: {
     fontSize: 14,
+  },
+  sportTabText: {
+    color: '#8E8E93',
+    fontSize: 13,
     fontWeight: '600',
   },
-  filterChipTextActive: {
+  sportTabTextActive: {
     color: '#FFF',
   },
+  // ── Pick list ──────────────────────────────────────────────
   content: {
     flex: 1,
   },
@@ -512,7 +521,7 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     marginBottom: 8,
   },
@@ -521,13 +530,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  // ── Pick card ──────────────────────────────────────────────
   pickCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF9500', // default orange; overridden inline
   },
   pickHeader: {
     flexDirection: 'row',
@@ -538,84 +547,47 @@ const styles = StyleSheet.create({
   pickMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flex: 1,
   },
   leagueBadge: {
-    backgroundColor: '#FF6B3522',
+    backgroundColor: '#FF6B3518',
     borderWidth: 1,
-    borderColor: '#FF6B35',
-    paddingHorizontal: 6,
+    borderColor: '#FF6B3560',
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
   leagueBadgeText: {
     color: '#FF6B35',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
   groupBadge: {
-    backgroundColor: '#007AFF22',
+    backgroundColor: '#007AFF18',
     borderWidth: 1,
-    borderColor: '#007AFF',
-    paddingHorizontal: 6,
+    borderColor: '#007AFF60',
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
   groupBadgeText: {
     color: '#007AFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
   },
   pickDate: {
-    color: '#8E8E93',
+    color: '#636366',
     fontSize: 12,
+    fontWeight: '500',
   },
   resultIcon: {
-    fontSize: 20,
+    fontSize: 18,
   },
   pickTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  pickGame: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '700',
-    flex: 1,
-    marginRight: 8,
-  },
-  chevron: {
-    color: '#555',
-    fontSize: 10,
-  },
-  matchupText: {
-    color: '#8E8E93',
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  finalScore: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  pickChoiceSmall: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#2C2C2E',
-    marginVertical: 10,
-  },
-  pickRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
   },
   pickRowLeft: {
     flexDirection: 'row',
@@ -627,6 +599,38 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
+    flexShrink: 1,
+  },
+  chevron: {
+    color: '#48484A',
+    fontSize: 10,
+    marginLeft: 8,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#2C2C2E',
+    marginVertical: 10,
+  },
+  matchupText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  finalScore: {
+    color: '#636366',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  pickChoiceSmall: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pickRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   pickResultText: {
     fontSize: 13,
@@ -643,13 +647,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   reasoningText: {
-    color: '#8E8E93',
+    color: '#636366',
     fontSize: 12,
     fontStyle: 'italic',
     marginTop: 6,
+    lineHeight: 17,
   },
   weekText: {
-    color: '#555',
+    color: '#48484A',
     fontSize: 11,
     marginTop: 8,
   },
