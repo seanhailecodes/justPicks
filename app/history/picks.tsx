@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getUserPickHistory, supabase } from '../lib/supabase';
@@ -31,7 +31,8 @@ interface PickHistoryItem {
 }
 
 export default function PickHistoryScreen() {
-  const [filter, setFilter] = useState('all'); // 'all', 'correct', 'incorrect', 'upcoming'
+  const { initialFilter } = useLocalSearchParams<{ initialFilter?: string }>();
+  const [filter, setFilter] = useState(initialFilter ?? 'all'); // 'all', 'correct', 'incorrect', 'upcoming'
   const [sportFilter, setSportFilter] = useState('all');
   const [pickHistory, setPickHistory] = useState<PickHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);

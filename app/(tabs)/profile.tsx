@@ -431,12 +431,18 @@ export default function ProfileScreen() {
               <Text style={styles.picksSummaryValue}>{currentStats.totalPicks}</Text>
               <Text style={styles.picksSummaryLabel}>Total Picks</Text>
             </View>
-            <View style={styles.picksSummaryItem}>
+            <TouchableOpacity
+              style={styles.picksSummaryItem}
+              onPress={() => router.push('/history/picks?initialFilter=upcoming')}
+              disabled={currentStats.upcomingPicks === 0}
+            >
               <Text style={[styles.picksSummaryValue, { color: '#FF9500' }]}>
                 {currentStats.upcomingPicks}
               </Text>
-              <Text style={styles.picksSummaryLabel}>Pending</Text>
-            </View>
+              <Text style={[styles.picksSummaryLabel, currentStats.upcomingPicks > 0 && { color: '#FF9500' }]}>
+                Pending {currentStats.upcomingPicks > 0 ? '›' : ''}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Breakdown */}
