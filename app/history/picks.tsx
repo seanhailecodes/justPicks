@@ -47,10 +47,10 @@ export default function PickHistoryScreen() {
   };
 
   const isGameInPast = (pick: PickHistoryItem): boolean => {
-    if (!pick.games?.game_date) return false;
-    const dateStr = pick.games.game_date.endsWith('Z')
-      ? pick.games.game_date
-      : pick.games.game_date.replace(' ', 'T') + 'Z';
+    // Use game_date if available; fall back to created_at for orphaned picks
+    // whose game record no longer exists — they are always in the past.
+    const raw = pick.games?.game_date ?? pick.created_at;
+    const dateStr = raw.endsWith('Z') ? raw : raw.replace(' ', 'T') + 'Z';
     return new Date(dateStr) < new Date();
   };
 
