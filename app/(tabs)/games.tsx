@@ -148,10 +148,11 @@ export default function GamesScreen() {
   };
   
   const [selectedSport, setSelectedSport] = useState<SportConfig>(getInitialSport);
-  const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
   const [session, setSession] = useState<Session | null>(null);
+  // NOTE: must stay AFTER session declaration to avoid hook ordering crash
+  const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
