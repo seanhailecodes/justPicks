@@ -299,12 +299,9 @@ export default function GamesScreen() {
 
   const loadGamesFromDatabase = async (picksToUse?: Map<string, any>, sportOverride?: SportConfig) => {
     try {
-      // Use start of today (UTC midnight) instead of exact now.
-      // Game times in the DB may be stored in local time without timezone info,
-      // so comparing against exact UTC now can cause same-day games to be
-      // incorrectly filtered out. The `locked` field handles games that have started.
-      const startOfToday = new Date();
-      startOfToday.setUTCHours(0, 0, 0, 0);
+      // Filter from 3 hours ago so games in progress still show,
+      // but yesterday's stale unlocked games are excluded.
+      const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
 
       // Always use the explicit sport override to avoid stale closure bugs
       const sport = sportOverride ?? selectedSport;
@@ -314,7 +311,7 @@ export default function GamesScreen() {
         .select('*')
         .eq('league', sport.league)
         .eq('locked', false)
-        .gte('game_date', startOfToday.toISOString())
+        .gte('game_date', cutoff.toISOString())
         .order('game_date', { ascending: true })
         .limit(50); // Get next 50 upcoming games
 
