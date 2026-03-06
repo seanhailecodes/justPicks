@@ -32,22 +32,15 @@ Deno.serve(async (req) => {
       throw new Error("Missing environment variables");
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // Fetch PGA Tour head-to-head matchup odds from The Odds API.
-    // Each "event" returned is a player vs. player matchup, not a round result.
-    const oddsResponse = await fetch(
-      `https://api.the-odds-api.com/v4/sports/golf_pga_tour/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=h2h&oddsFormat=american&bookmakers=draftkings,fanduel`
+    // NOTE: Golf player-vs-player matchup odds are not available in The Odds API
+    // at the current subscription tier. Only outright tournament winner markets
+    // exist (golf_masters_tournament_winner, golf_us_open_winner, etc.).
+    // This function is temporarily disabled until a suitable sport key is confirmed.
+    console.log("[fetch-golf-games] Golf matchup odds not available — skipping fetch.");
+    return new Response(
+      JSON.stringify({ success: true, gamesCount: 0, message: "Golf matchup odds not available in current Odds API plan" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
-
-    if (!oddsResponse.ok) {
-      const body = await oddsResponse.text();
-      throw new Error(`Odds API error ${oddsResponse.status}: ${body}`);
-    }
-
-    const oddsData = await oddsResponse.json();
-    const remainingRequests = oddsResponse.headers.get("x-requests-remaining");
-    console.log(`Fetched ${oddsData.length} golf matchups. Requests remaining: ${remainingRequests}`);
 
     const games = oddsData.map((event: any) => {
       // The Odds API assigns one golfer as "home" and one as "away" arbitrarily
