@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     // Fetch UFC fight odds. Each event is a fight between two fighters.
     // We only need h2h (who wins the fight) — no spread or totals for MMA picks.
     const oddsResponse = await fetch(
-      `https://api.the-odds-api.com/v4/sports/mma_ufc/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=h2h&oddsFormat=american&bookmakers=draftkings,fanduel`
+      `https://api.the-odds-api.com/v4/sports/mma_mixed_martial_arts/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=h2h&oddsFormat=american&bookmakers=draftkings,fanduel`
     );
 
     if (!oddsResponse.ok) {

@@ -1,4 +1,4 @@
-import { supabase } from './supabase'; // Adjust path to your supabase config
+import { supabase, getCurrentSeason } from './supabase'; // Adjust path to your supabase config
 
 export interface Friend {
   id: string;
@@ -103,7 +103,7 @@ export async function getGroupStats(userId: string): Promise<GroupStats> {
     .from('picks')
     .select('*', { count: 'exact', head: true })
     .eq('week', 2)
-    .eq('season', 2025);
+    .eq('season', getCurrentSeason());
 
   // Get pending games count
   const { count: pendingPicks } = await supabase
@@ -495,7 +495,7 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
           .from('games')
           .select('id, locked')
           .eq('week', currentWeek)
-          .eq('season', 2025);
+          .eq('season', getCurrentSeason());
 
         let activePicks = 0;
         let pendingPicks = 0;

@@ -2,8 +2,7 @@
 // AI DATA COLLECTION HELPERS
 // Add to your lib/ folder
 // ============================================
-
-import { supabase } from './supabase';
+import { supabase, getCurrentSeason } from './supabase';
 
 // ============================================
 // TYPES
@@ -80,7 +79,7 @@ export const trackGameView = async (
   userId: string,
   gameId: string,
   week: number,
-  season: number = 2025
+  season: number = getCurrentSeason()
 ): Promise<void> => {
   try {
     // Check if view exists
@@ -259,7 +258,7 @@ export const getUnpickedViews = async (
 export const getTeamSituation = async (
   team: string,
   week: number,
-  season: number = 2025
+  season: number = getCurrentSeason()
 ): Promise<TeamSituation | null> => {
   const { data, error } = await supabase
     .from('team_situations')
@@ -280,7 +279,7 @@ export const getTeamSituation = async (
  */
 export const getWeekTeamSituations = async (
   week: number,
-  season: number = 2025
+  season: number = getCurrentSeason()
 ): Promise<TeamSituation[]> => {
   const { data, error } = await supabase
     .from('team_situations')
@@ -315,7 +314,7 @@ export const upsertTeamSituation = async (
     .from('team_situations')
     .upsert({
       ...situation,
-      season: situation.season || 2025,
+      season: situation.season || getCurrentSeason(),
       updated_at: new Date().toISOString()
     }, { onConflict: 'team,week,season' });
 
@@ -334,7 +333,7 @@ export const populateWeekTeamSituations = async (
 ): Promise<{ success: boolean; count: number; error?: string }> => {
   const payload = situations.map(s => ({
     ...s,
-    season: s.season || 2025,
+    season: s.season || getCurrentSeason(),
     updated_at: new Date().toISOString()
   }));
 

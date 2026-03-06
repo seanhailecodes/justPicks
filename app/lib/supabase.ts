@@ -17,6 +17,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// ========== SEASON UTILITY ==========
+/**
+ * Returns the current season year dynamically.
+ * Seasons are named for the year they START (e.g. 2025 = 2025-26 NBA season).
+ * July 1 is the cutoff: Jan–Jun belongs to the previous year's season.
+ */
+export const getCurrentSeason = (): number => {
+  const now = new Date();
+  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+};
+
 // ========== AUTH FUNCTIONS ==========
 
 export const signIn = async (email: string, password: string) => {
@@ -125,7 +136,7 @@ export const populateWeekGames = async (weekNumber: number, games: any[]) => {
     return {
       id: game.id,
       week: game.week,
-      season: 2025,
+      season: getCurrentSeason(),
       home_team: game.homeTeamShort,
       away_team: game.awayTeamShort,
       home_spread: getSpreadValue(game.spread.home),
@@ -332,7 +343,7 @@ export const savePick = async (userId: string, pickData: {
       pick_type: pickData.pick_type,
       groups: pickData.groups || [],
       reasoning: pickData.reasoning || '',
-      season: 2025,
+      season: getCurrentSeason(),
       week: pickData.week,
     };
 
@@ -626,7 +637,7 @@ export const getUserStats = async (userId: string) => {
       .from('games')
       .select('id, locked, game_date')
       .eq('week', currentWeek)
-      .eq('season', 2025);
+      .eq('season', getCurrentSeason());
 
     // Create a set of game IDs that are still upcoming (not locked)
     const upcomingGameIds = new Set(
@@ -680,18 +691,18 @@ export const getUserStats = async (userId: string) => {
     // Calculate for different time periods
     // Last Week = most recently completed week
     const lastWeek = currentWeek > 1 ? currentWeek - 1 : currentWeek;
-    const lastWeekPicks = picks?.filter(pick => pick.week === lastWeek && pick.season === 2025) || [];
+    const lastWeekPicks = picks?.filter(pick => pick.week === lastWeek && pick.season === getCurrentSeason()) || [];
     
     // Last Month = last 4 weeks including current
     const lastMonthStartWeek = Math.max(1, currentWeek - 3);
     const lastMonthPicks = picks?.filter(pick => 
       pick.week >= lastMonthStartWeek && 
       pick.week <= currentWeek && 
-      pick.season === 2025
+      pick.season === getCurrentSeason()
     ) || [];
     
     // Season = all picks from 2025 season (or all picks if season field doesn't exist)
-    const seasonPicks = picks?.filter(pick => !pick.season || pick.season === 2025) || [];
+    const seasonPicks = picks?.filter(pick => !pick.season || pick.season === getCurrentSeason()) || [];
     
     // All Time = all picks ever
     const allTimePicks = picks || [];
@@ -729,7 +740,7 @@ export const getUserStats = async (userId: string) => {
     // Only count picks for current week games that haven't started yet
     const upcomingPicks = picks?.filter(pick => 
       pick.week === currentWeek && 
-      pick.season === 2025 &&
+      pick.season === getCurrentSeason() &&
       upcomingGameIds.has(pick.game_id)
     ).length || 0;
 

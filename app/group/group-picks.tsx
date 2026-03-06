@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentSeason } from '../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 import { Sport } from '../../services/pickrating';
 
@@ -177,7 +177,7 @@ export default function GroupPicksScreen() {
         // NFL: Filter by week
         gamesQuery = gamesQuery
           .eq('week', selectedWeek)
-          .eq('season', 2025);
+          .eq('season', getCurrentSeason());
       } else {
         // NBA/NCAAB/Soccer: Get games from last 7 days + next 3 days
         const now = new Date();
