@@ -1,5 +1,7 @@
 {
+  "ignoreCommand": "git diff HEAD^ HEAD --name-only | grep -qE \"^app/|^package\\.json|^app\\.json|^vercel\\.json\"",
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
   ]
 }
+
