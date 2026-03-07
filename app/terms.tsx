@@ -26,17 +26,25 @@ export default function TermsScreen() {
           BetLess is a sports pick tracking application. It allows users to log predictions on sporting events, track their accuracy over time, and compete with friends in groups. BetLess does not facilitate, process, or enable real-money gambling of any kind. The optional wager tracking feature is a personal logging tool only — BetLess never holds, transfers, or processes funds.
         </Text>
 
-        <Text style={styles.sectionTitle}>2. Eligibility</Text>
+        <Text style={styles.sectionTitle}>2. Purpose & Intended Use</Text>
+        <Text style={styles.body}>
+          BetLess was created with a specific and deliberate purpose: to serve as a tool that encourages users to engage with sports prediction as a skill-based activity, entirely independent of financial wagering. It is the express intent of BetLess and its operators that use of this application reduce, or altogether eliminate, a user's participation in real-money sports gambling.{'\n\n'}
+          Users are hereby informed that, in the opinion of BetLess and consistent with a substantial body of peer-reviewed academic literature published in the fields of behavioral economics, psychology, and public health, the probability of achieving a sustained positive financial outcome through sports wagering is low. Research consistently demonstrates that the structural mechanics of sports betting markets — including the house margin ("juice" or "vig"), cognitive biases such as the illusion of control and outcome bias, and the inherent unpredictability of athletic competition — combine to make long-term profitable wagering statistically improbable for the overwhelming majority of participants.{'\n\n'}
+          Notable peer-reviewed findings in this area include studies published in the <Text style={styles.italic}>Journal of Gambling Studies</Text>, the <Text style={styles.italic}>Journal of Behavioral Addictions</Text>, and economic research from institutions including Oxford, Harvard, and the National Bureau of Economic Research, which collectively support the conclusion that most sports bettors experience net financial losses over time.{'\n\n'}
+          By accepting these Terms, you acknowledge that you have been informed of these findings. BetLess expressly encourages all users to treat sports prediction as entertainment and competition rather than as a source of income or financial gain. The goal of this platform is not to make you a better bettor — it is to make betting unnecessary.
+        </Text>
+
+        <Text style={styles.sectionTitle}>3. Eligibility</Text>
         <Text style={styles.body}>
           You must be at least 17 years old to use BetLess. By creating an account, you confirm that you meet this requirement. If you are under 17, please do not use the app.
         </Text>
 
-        <Text style={styles.sectionTitle}>3. Your Account</Text>
+        <Text style={styles.sectionTitle}>4. Your Account</Text>
         <Text style={styles.body}>
           You are responsible for maintaining the security of your account and password. You agree not to share your credentials with others. You are responsible for all activity that occurs under your account. Notify us immediately if you suspect unauthorized access.
         </Text>
 
-        <Text style={styles.sectionTitle}>4. Acceptable Use</Text>
+        <Text style={styles.sectionTitle}>5. Acceptable Use</Text>
         <Text style={styles.body}>
           You agree not to:{'\n\n'}
           • Use BetLess for any unlawful purpose{'\n'}
@@ -47,42 +55,42 @@ export default function TermsScreen() {
           We reserve the right to suspend or terminate accounts that violate these terms.
         </Text>
 
-        <Text style={styles.sectionTitle}>5. No Gambling</Text>
+        <Text style={styles.sectionTitle}>6. No Gambling</Text>
         <Text style={styles.body}>
           BetLess is not a gambling platform. No real money is wagered, won, or lost through BetLess. The wager tracking feature is a private, optional logging tool and does not constitute gambling. Users are solely responsible for any real-money gambling activity they engage in outside of BetLess. BetLess expressly disclaims any responsibility for such activity.
         </Text>
 
-        <Text style={styles.sectionTitle}>6. Picks & Accuracy</Text>
+        <Text style={styles.sectionTitle}>7. Picks & Accuracy</Text>
         <Text style={styles.body}>
           Pick results are graded based on official game outcomes and odds data from third-party providers. While we strive for accuracy, we cannot guarantee that all results are graded correctly or in real time. If you believe a pick was graded in error, contact us through the Support screen.
         </Text>
 
-        <Text style={styles.sectionTitle}>7. Groups</Text>
+        <Text style={styles.sectionTitle}>8. Groups</Text>
         <Text style={styles.body}>
           Group admins are responsible for managing their groups in accordance with these terms. We reserve the right to remove groups or members that violate our policies. Group leaderboards are for entertainment purposes only.
         </Text>
 
-        <Text style={styles.sectionTitle}>8. Intellectual Property</Text>
+        <Text style={styles.sectionTitle}>9. Intellectual Property</Text>
         <Text style={styles.body}>
           All content, design, and code within BetLess is owned by or licensed to us. You may not reproduce, distribute, or create derivative works without our written permission. You retain ownership of any content you submit (such as usernames and group names), but grant us a license to display it within the app.
         </Text>
 
-        <Text style={styles.sectionTitle}>9. Disclaimer of Warranties</Text>
+        <Text style={styles.sectionTitle}>10. Disclaimer of Warranties</Text>
         <Text style={styles.body}>
           BetLess is provided "as is" without warranties of any kind. We do not guarantee uninterrupted service, error-free operation, or the accuracy of sports data. Use of the app is at your own risk.
         </Text>
 
-        <Text style={styles.sectionTitle}>10. Limitation of Liability</Text>
+        <Text style={styles.sectionTitle}>11. Limitation of Liability</Text>
         <Text style={styles.body}>
           To the fullest extent permitted by law, BetLess and its operators shall not be liable for any indirect, incidental, or consequential damages arising from your use of the app, including any real-money gambling losses incurred outside the app.
         </Text>
 
-        <Text style={styles.sectionTitle}>11. Changes to These Terms</Text>
+        <Text style={styles.sectionTitle}>12. Changes to These Terms</Text>
         <Text style={styles.body}>
           We may update these terms at any time. We will notify you of significant changes via the app or email. Continued use of BetLess after changes constitutes acceptance of the updated terms.
         </Text>
 
-        <Text style={styles.sectionTitle}>12. Contact</Text>
+        <Text style={styles.sectionTitle}>13. Contact</Text>
         <Text style={styles.body}>
           Questions about these terms? Reach us through the Support screen in the app or at:{'\n\n'}
           seanhaile.codes@gmail.com{'\n'}
@@ -120,4 +128,5 @@ const styles = StyleSheet.create({
   },
   body: { color: '#CCC', fontSize: 14, lineHeight: 23, marginBottom: 28 },
   bold: { color: '#FFF', fontWeight: '600' },
+  italic: { fontStyle: 'italic', color: '#CCC' },
 });
