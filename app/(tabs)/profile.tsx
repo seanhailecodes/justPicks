@@ -63,9 +63,6 @@ export default function ProfileScreen() {
 
   const menuItems = [
     { id: 'history', title: 'Pick History', icon: '📊' },
-    { id: 'friends', title: 'Friends & Groups', icon: '👥' },
-    { id: 'privacy', title: 'Privacy Settings', icon: '🔒' },
-    { id: 'account', title: 'Account Settings', icon: '⚙️' },
     { id: 'support', title: 'Support', icon: '❓' },
   ];
 
@@ -245,8 +242,8 @@ export default function ProfileScreen() {
   const handleMenuPress = (itemId: string) => {
     if (itemId === 'history') {
       router.push('/history/picks');
-    } else {
-      console.log('Navigate to:', itemId);
+    } else if (itemId === 'support') {
+      router.push('/support');
     }
   };
 
