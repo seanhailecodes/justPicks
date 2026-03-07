@@ -105,10 +105,19 @@ export default function PickHistoryScreen() {
 
   const getFilteredStats = () => {
     const picks = sportFilter === 'all' ? pickHistory : pickHistory.filter(p => p.games?.league === sportFilter);
+    const wageredPicks = picks.filter(p => p.wager_amount != null);
+    const resolvedWagers = wageredPicks.filter(p => p.correct !== null);
+    const pnlTotal = resolvedWagers.reduce((sum, p) => {
+      return sum + (p.correct ? calculatePayout(p.wager_amount!) : -p.wager_amount!);
+    }, 0);
+    const currency = wageredPicks.length > 0 ? (wageredPicks[wageredPicks.length - 1].currency || 'USD') : 'USD';
     return {
-      correct:   picks.filter(p => p.correct === true).length,
-      incorrect: picks.filter(p => p.correct === false).length,
-      upcoming:  picks.filter(p => p.correct === null && !isGameInPast(p)).length,
+      correct:       picks.filter(p => p.correct === true).length,
+      incorrect:     picks.filter(p => p.correct === false).length,
+      upcoming:      picks.filter(p => p.correct === null && !isGameInPast(p)).length,
+      wagersEntered: wageredPicks.length,
+      pnl:           resolvedWagers.length > 0 ? parseFloat(pnlTotal.toFixed(2)) : null,
+      pnlCurrency:   currency,
     };
   };
 
@@ -225,16 +234,27 @@ export default function PickHistoryScreen() {
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: '#34C759' }]}>{stats.correct}</Text>
           <Text style={styles.statLabel}>Wins</Text>
+          {stats.wagersEntered > 0 && (
+            <Text style={styles.statSublabel}>{stats.wagersEntered} wagered</Text>
+          )}
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: '#FF3B30' }]}>{stats.incorrect}</Text>
           <Text style={styles.statLabel}>Losses</Text>
+          {stats.wagersEntered > 0 && (
+            <Text style={styles.statSublabel}> </Text>
+          )}
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, { color: '#FF9500' }]}>{winRate}%</Text>
           <Text style={styles.statLabel}>Win Rate</Text>
+          {stats.pnl != null && (
+            <Text style={[styles.statSublabel, { color: stats.pnl >= 0 ? '#34C759' : '#FF3B30', fontWeight: '700' }]}>
+              {stats.pnl >= 0 ? '+' : ''}{getCurrencySymbol(stats.pnlCurrency)}{Math.abs(stats.pnl).toFixed(2)}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -333,7 +353,7 @@ export default function PickHistoryScreen() {
                   <Text style={styles.resultIcon}>{getResultIcon(pick)}</Text>
                 </View>
 
-                {/* Picked team + confidence + chevron */}
+                {/* Picked team + confidence + wager + chevron */}
                 <View style={styles.pickTitleRow}>
                   <View style={styles.pickRowLeft}>
                     <Text style={styles.pickChoice}>
@@ -350,7 +370,18 @@ export default function PickHistoryScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.chevron}>{isExpanded ? '▲' : '▼'}</Text>
+                  <View style={styles.pickCardRight}>
+                    {pick.wager_amount != null && (
+                      <Text style={[
+                        styles.inlineWager,
+                        pick.correct === true  && styles.inlineWagerWon,
+                        pick.correct === false && styles.inlineWagerLost,
+                      ]}>
+                        {getCurrencySymbol(pick.currency || 'USD')}{pick.wager_amount.toFixed(2)}
+                      </Text>
+                    )}
+                    <Text style={styles.chevron}>{isExpanded ? '▲' : '▼'}</Text>
+                  </View>
                 </View>
 
                 {/* Expanded details */}
@@ -489,6 +520,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  statSublabel: {
+    color: '#636366',
+    fontSize: 11,
+    marginTop: 3,
+    fontWeight: '500',
+  },
   // ── Filter tabs (shared by sport + result rows) ────────────
   tabsContainer: {
     maxHeight: 50,
@@ -619,6 +656,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     flexShrink: 1,
+  },
+  pickCardRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inlineWager: {
+    color: '#636366',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inlineWagerWon: {
+    color: '#34C759',
+  },
+  inlineWagerLost: {
+    color: '#FF3B30',
   },
   chevron: {
     color: '#48484A',
