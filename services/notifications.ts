@@ -177,28 +177,32 @@ export const STRUGGLING_WEEK_MESSAGES = [
   }
 ];
 
-// Pick confirmation messages - BETLESS BRAND: hype but pro-health, anti-gambling
+// Pick confirmation messages - BETLESS BRAND: hype titles, strong anti-gambling messages
 export const PICK_CONFIRMATION_MESSAGES = [
-  { title: "PICK SAVED! 🎯", message: "Zero dollars risked. All the bragging rights earned." },
-  { title: "YOU'RE IN!", message: "Call made. No wallet needed — just your sports IQ." },
-  { title: "LET'S GOOO!", message: "Pick saved. Prove you know your stuff, for free." },
-  { title: "THAT'S THE CALL. 💥", message: "Confirmed. This is what sports should feel like — no stress, no stakes." },
-  { title: "ON THE BOARD!", message: "You're in the game. Best part? Nothing to lose but bragging rights." },
-  { title: "DIALED IN.", message: "Pick confirmed. Sports knowledge > gambling. Always." },
-  { title: "CLEAN PICK. ✅", message: "Saved. No lines, no juice, no regret — just the game." },
-  { title: "YOUR CALL!", message: "Pick saved. Go enjoy the game the way it was meant to be enjoyed." },
-  { title: "IN THE BOOKS.", message: "Confirmed. The only thing on the line is respect from your crew." },
-  { title: "GAME ON. 🔥", message: "You've made your call — zero cost, maximum fun." },
-  { title: "PICKS > BETS.", message: "Pick locked. Compete with your friends, keep your wallet closed." }
+  { title: "YOU'RE IN! 🎯", message: "Be careful champ — you worked hard for that money." },
+  { title: "PICK SAVED! ✅", message: "Never chase losses. The next pick doesn't owe you anything." },
+  { title: "LET'S GOOO!", message: "In the end, only the book wins. BetLess — and keep more." },
+  { title: "LOCKED IN. 🔐", message: "The house has an edge on every single bet. Your picks here? Free." },
+  { title: "ON THE BOARD!", message: "Sports are more fun when your wallet isn't on the line." },
+  { title: "DIALED IN.", message: "Real talk — sportsbooks are built to take your money. This isn't that." },
+  { title: "THAT'S THE CALL.", message: "The best bet you'll ever make is no bet at all." },
+  { title: "GAME ON. 🔥", message: "If you feel the urge to make it real money — pause. Talk to someone you trust." },
+  { title: "YOUR CALL!", message: "Streaks end. Don't let a hot hand talk you into opening a sportsbook app." },
+  { title: "IN THE BOOKS.", message: "You can't out-smart the vig. But you can opt out of it entirely — and you did." },
+  { title: "PICKS > BETS.", message: "No deposit, no withdrawal, no regret. That's the BetLess way." },
+  { title: "CONFIDENT? 👊", message: "Even the sharpest bettors lose long-term. Enjoy the pick — protect the bag." },
+  { title: "CLEAN PICK.", message: "Gambling is engineered to feel like skill. BetLess proves you don't need it." },
+  { title: "CALLED IT!", message: "Win or lose, you won't be checking your bank balance after this. That's the point." },
+  { title: "ALL DAY. 💪", message: "The urge to 'make it interesting' with real money is the trap. You're already past it." }
 ];
 
 // Multiple picks saved at once - BETLESS BRAND
 export const MULTI_PICK_CONFIRMATION_MESSAGES = [
-  { title: "YOU'RE IN!", message: "{count} picks saved. Pure sports knowledge, zero dollars down." },
-  { title: "ALL DAY! 🔥", message: "{count} calls on the board. This is how sports should feel." },
-  { title: "PICKS SAVED!", message: "{count} predictions locked. Bragging rights incoming — no buy-in required." },
-  { title: "CLEAN SLATE. ✅", message: "{count} picks confirmed. No risk, no regret, all reward." },
-  { title: "LET'S RIDE! 💥", message: "{count} picks dropped. You're here for the love of the game — and it shows." }
+  { title: "YOU'RE IN! 🎯", message: "{count} picks saved. Be careful champ — you worked hard for that money." },
+  { title: "BIG SLATE! 🔥", message: "{count} calls locked. In the end, only the book wins. Not today." },
+  { title: "PICKS SAVED! ✅", message: "{count} predictions down. Never chase losses — these cost you nothing." },
+  { title: "ALL DAY.", message: "{count} picks confirmed. The house always has an edge. This? Purely yours." },
+  { title: "LET'S GOOO!", message: "{count} picks locked. No deposit. No regret. That's BetLess." }
 ];
 
 // ============================================
