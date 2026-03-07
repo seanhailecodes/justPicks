@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Modal,
@@ -72,6 +72,29 @@ export default function PicksTicket({
   const currencySymbol = getCurrencySymbol(deviceCurrency);
   const [wagerToggles, setWagerToggles] = useState<Record<string, boolean>>({});
   const [wagerInputs, setWagerInputs] = useState<Record<string, string>>({});
+
+  // Sweeping highlight animation for "Did you bet it?" label
+  const WAGER_LABEL = 'Did you bet it?';
+  const sweepAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sweepAnim, {
+          toValue: WAGER_LABEL.length,
+          duration: 1200,
+          useNativeDriver: false,
+        }),
+        Animated.delay(800),
+        Animated.timing(sweepAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
   const toggleWager = (pickKey: string) => {
     setWagerToggles(prev => ({ ...prev, [pickKey]: !prev[pickKey] }));
@@ -394,16 +417,32 @@ export default function PicksTicket({
 
                     {/* Wager Row */}
                     <View style={styles.wagerRow}>
-                      <TouchableOpacity
-                        style={styles.wagerToggleRow}
-                        onPress={() => toggleWager(pickKey)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.wagerLabel}>💰 Did you bet it?</Text>
-                        <View style={[styles.wagerToggle, wagerToggles[pickKey] && styles.wagerToggleOn]}>
-                          <View style={[styles.wagerToggleThumb, wagerToggles[pickKey] && styles.wagerToggleThumbOn]} />
-                        </View>
-                      </TouchableOpacity>
+                      <View style={styles.wagerToggleRow}>
+                        {/* Animated sweeping label — also tappable */}
+                        <TouchableOpacity onPress={() => toggleWager(pickKey)} activeOpacity={0.7}>
+                          <Text style={styles.wagerLabelRow}>
+                            <Text style={styles.wagerEmoji}>💰 </Text>
+                            {WAGER_LABEL.split('').map((char, i) => {
+                              const color = sweepAnim.interpolate({
+                                inputRange: [i, i + 1],
+                                outputRange: ['rgba(255,255,255,0.35)', '#FF6B35'],
+                                extrapolate: 'clamp',
+                              });
+                              return (
+                                <Animated.Text key={i} style={[styles.wagerChar, { color }]}>
+                                  {char}
+                                </Animated.Text>
+                              );
+                            })}
+                          </Text>
+                        </TouchableOpacity>
+                        {/* Toggle switch */}
+                        <TouchableOpacity onPress={() => toggleWager(pickKey)} activeOpacity={0.7}>
+                          <View style={[styles.wagerToggle, wagerToggles[pickKey] && styles.wagerToggleOn]}>
+                            <View style={[styles.wagerToggleThumb, wagerToggles[pickKey] && styles.wagerToggleThumbOn]} />
+                          </View>
+                        </TouchableOpacity>
+                      </View>
                       {wagerToggles[pickKey] && (
                         <View style={styles.wagerInputRow}>
                           <Text style={styles.currencySymbol}>{currencySymbol}</Text>
@@ -855,10 +894,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  wagerLabel: {
-    color: 'rgba(255,255,255,0.55)',
+  wagerLabelRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+  },
+  wagerEmoji: {
     fontSize: 13,
-    fontWeight: '500',
+    color: 'rgba(255,255,255,0.55)',
+  },
+  wagerChar: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   wagerToggle: {
     width: 38,
