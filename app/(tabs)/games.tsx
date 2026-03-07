@@ -627,12 +627,14 @@ export default function GamesScreen() {
         spread_size: spreadSize,
         spread_category: spreadCategory,
         picked_favorite: isSpread ? pickedFavorite : null,
-        picked_team: isSpread 
-          ? (pick.side === 'home' ? game.homeTeam : game.awayTeam) 
+        picked_team: isSpread
+          ? (pick.side === 'home' ? game.homeTeam : game.awayTeam)
           : null,
-        opponent_team: isSpread 
-          ? (pick.side === 'home' ? game.awayTeam : game.homeTeam) 
+        opponent_team: isSpread
+          ? (pick.side === 'home' ? game.awayTeam : game.homeTeam)
           : null,
+        wager_amount: pick.wagerAmount ?? null,
+        currency: pick.currency ?? null,
       };
 
       console.log('Saving pick with data:', JSON.stringify(pickData, null, 2));

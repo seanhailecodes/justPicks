@@ -105,7 +105,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🔄 Reset Button",
-    message: "Not your week, and that's okay! The beauty of justPicks is there's nothing to lose but pride. Fresh start ahead!"
+    message: "Not your week, and that's okay! The beauty of BetLess is there's nothing to lose but pride. Fresh start ahead!"
   },
   {
     title: "🌧️ Rainy Days",
@@ -121,7 +121,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🌪️ Wild Week",
-    message: "Upsets happen! Imagine if real money was on the line - yikes. Thankfully, justPicks keeps it stress-free."
+    message: "Upsets happen! Imagine if real money was on the line - yikes. Thankfully, BetLess keeps it stress-free."
   },
   {
     title: "🤷 It Happens",
@@ -145,7 +145,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🎪 The Show Goes On",
-    message: "Not every act is a hit. The great news? Tomorrow's a new show, and your ticket (to justPicks) is always free!"
+    message: "Not every act is a hit. The great news? Tomorrow's a new show, and your ticket (to BetLess) is always free!"
   },
   {
     title: "🔮 Crystal Ball Cloudy",
@@ -153,7 +153,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🎢 Part of the Ride",
-    message: "Ups and downs make the journey exciting! With justPicks, the lows never cost you - just reset and go again."
+    message: "Ups and downs make the journey exciting! With BetLess, the lows never cost you - just reset and go again."
   },
   {
     title: "☀️ Sunny Days Ahead",
@@ -169,7 +169,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🌊 Ride the Wave",
-    message: "Every wave has its dips. Stay afloat knowing that justPicks is about the journey, not gambling on outcomes."
+    message: "Every wave has its dips. Stay afloat knowing that BetLess is about the journey, not gambling on outcomes."
   },
   {
     title: "💡 Silver Lining",
@@ -268,8 +268,8 @@ export function getPickConfirmationMessage(pickCount: number = 1): { title: stri
 // ============================================
 
 export const NOTIFICATION_STORAGE_KEYS = {
-  LAST_WEEKLY_CHECK: 'justpicks_last_weekly_notification',
-  WEEKLY_CHECK_WEEK: 'justpicks_weekly_check_week_number'
+  LAST_WEEKLY_CHECK: 'betless_last_weekly_notification',
+  WEEKLY_CHECK_WEEK: 'betless_weekly_check_week_number'
 };
 
 /**

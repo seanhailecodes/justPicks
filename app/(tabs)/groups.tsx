@@ -127,13 +127,13 @@ export default function GroupsScreen() {
         return;
       }
 
-  const inviteLink = `https://just-picks-baby.vercel.app/join/${inviteCode}`;
-      // Alternative deep link: justpicks://join/${inviteCode}
+  const inviteLink = `https://betless.io/join/${inviteCode}`;
+      // Alternative deep link: betless://join/${inviteCode}
 
       const result = await Share.share({
-        message: `Join my group "${selectedGroupForInvite.name}" on JustPicks! 🏈\n\nUse code: ${inviteCode}`,
+        message: `Join my group "${selectedGroupForInvite.name}" on BetLess! 🏈\n\nUse code: ${inviteCode}`,
         url: inviteLink,
-        title: `Join ${selectedGroupForInvite.name} on JustPicks`,
+        title: `Join ${selectedGroupForInvite.name} on BetLess`,
     });
 
       if (result.action === Share.sharedAction) {

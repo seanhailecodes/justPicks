@@ -36,7 +36,7 @@ export default function FindFriendsScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>How justPicks Works</Text>
+          <Text style={styles.infoTitle}>How BetLess Works</Text>
           <View style={styles.infoItem}>
             <Text style={styles.infoIcon}>🎯</Text>
             <Text style={styles.infoText}>Make picks on any game - track them privately or share with friends</Text>

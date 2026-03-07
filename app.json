@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "justPicks",
-    "slug": "justPicks",
+    "name": "BetLess",
+    "slug": "betless",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "justpicks",
+    "scheme": "betless",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.seanhaile.justPicks",
+      "bundleIdentifier": "com.seanhaile.betless",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -21,7 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.seanhaile.justPicks"
+      "package": "com.seanhaile.betless"
     },
     "web": {
       "bundler": "metro",

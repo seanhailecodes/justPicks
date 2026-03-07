@@ -106,7 +106,7 @@ export default function RegisterScreen() {
             <View style={styles.logo}>
               <Text style={styles.logoIcon}>⚡</Text>
             </View>
-            <Text style={styles.title}>justPicks</Text>
+            <Text style={styles.title}>BetLess</Text>
             <Text style={styles.subtitle}>Sports Picks with Friends</Text>
           </View>
 
@@ -159,7 +159,7 @@ export default function RegisterScreen() {
                 maxLength={10}
               />
               <Text style={styles.helperText}>
-                You must be 13 or older to use justPicks
+                You must be 13 or older to use BetLess
               </Text>
               {birthDate.length === 10 && !isValidAge && (
                 <Text style={styles.errorText}>

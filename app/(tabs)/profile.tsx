@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -21,6 +21,7 @@ interface SportStats {
   lastWeek?: { record: string; winRate: number };
   lastMonth?: { record: string; winRate: number };
   season?: { record: string; winRate: number };
+  pnl?: { amount: number; currency: string } | null;
 }
 
 interface UserProfile {
@@ -202,6 +203,17 @@ export default function ProfileScreen() {
       const lmLosses = lastMonthPicks.filter(p => p.correct === false).length;
       const lmTotal = lmWins + lmLosses;
 
+      // P&L — only for decided picks that have a wager_amount
+      const wageredPicks = picks.filter(p => p.wager_amount != null && p.correct !== null);
+      let pnl: { amount: number; currency: string } | null = null;
+      if (wageredPicks.length > 0) {
+        const currency = wageredPicks[wageredPicks.length - 1].currency || 'USD';
+        const total = wageredPicks.reduce((sum, p) => {
+          return sum + (p.correct ? calculatePayout(p.wager_amount) : -p.wager_amount);
+        }, 0);
+        pnl = { amount: parseFloat(total.toFixed(2)), currency };
+      }
+
       const stats: SportStats = {
         totalPicks: decidedPicks,
         correctPicks,
@@ -213,6 +225,7 @@ export default function ProfileScreen() {
         tier: getTierFromWinRate(winRate),
         lastWeek: lwTotal > 0 ? { record: `${lwWins}-${lwLosses}`, winRate: Math.round((lwWins / lwTotal) * 100) } : undefined,
         lastMonth: lmTotal > 0 ? { record: `${lmWins}-${lmLosses}`, winRate: Math.round((lmWins / lmTotal) * 100) } : undefined,
+        pnl,
       };
 
       setSportStats(prev => ({ ...prev, [sport]: stats }));
@@ -444,6 +457,21 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* P&L row — only shown when user has wagered picks */}
+          {currentStats.pnl != null && (
+            <View style={styles.pnlRow}>
+              <Text style={styles.pnlLabel}>💰 Season P&L</Text>
+              <Text style={[
+                styles.pnlValue,
+                { color: currentStats.pnl.amount >= 0 ? '#34C759' : '#FF3B30' }
+              ]}>
+                {currentStats.pnl.amount >= 0 ? '+' : ''}
+                {getCurrencySymbol(currentStats.pnl.currency)}
+                {Math.abs(currentStats.pnl.amount).toFixed(2)}
+              </Text>
+            </View>
+          )}
 
           {/* Breakdown */}
           <View style={styles.breakdownSection}>
@@ -748,6 +776,27 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 12,
     marginTop: 4,
+  },
+  pnlRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#2C2C2E',
+    marginTop: 4,
+  },
+  pnlLabel: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pnlValue: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   breakdownSection: {
     borderTopWidth: 1,

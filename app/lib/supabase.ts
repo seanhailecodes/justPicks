@@ -28,6 +28,62 @@ export const getCurrentSeason = (): number => {
   return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 };
 
+// ========== WAGER UTILITIES ==========
+
+/**
+ * Standard -110 juice payout calculation.
+ * A $10 bet wins $9.09 profit (100/110 × wager).
+ */
+export const calculatePayout = (wager: number): number => {
+  return parseFloat((wager * 100 / 110).toFixed(2));
+};
+
+/**
+ * Net P&L for a pick given wager amount and result.
+ * Win:  +payout (e.g. +9.09 on $10)
+ * Loss: -wager  (e.g. -10.00)
+ */
+export const calculatePickPnL = (wager: number, correct: boolean): number => {
+  return correct ? calculatePayout(wager) : -wager;
+};
+
+/**
+ * Detect the device's currency code from locale (ISO 4217).
+ * Falls back to USD if detection fails.
+ */
+export const getDeviceCurrency = (): string => {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+    const region = locale.split('-')[1]?.toUpperCase() ?? '';
+    const map: Record<string, string> = {
+      US: 'USD', CA: 'CAD', GB: 'GBP', AU: 'AUD', NZ: 'NZD',
+      FR: 'EUR', DE: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR',
+      BE: 'EUR', PT: 'EUR', AT: 'EUR', IE: 'EUR', FI: 'EUR',
+      JP: 'JPY', CN: 'CNY', IN: 'INR', BR: 'BRL', MX: 'MXN',
+      ZA: 'ZAR', NG: 'NGN', KE: 'KES', SG: 'SGD', HK: 'HKD',
+    };
+    return map[region] ?? 'USD';
+  } catch {
+    return 'USD';
+  }
+};
+
+/**
+ * Get the currency symbol for a given ISO 4217 currency code.
+ */
+export const getCurrencySymbol = (currency: string): string => {
+  try {
+    return (0).toLocaleString(undefined, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).replace(/[\d\s,.]/g, '').trim() || '$';
+  } catch {
+    return '$';
+  }
+};
+
 // ========== AUTH FUNCTIONS ==========
 
 export const signIn = async (email: string, password: string) => {
@@ -317,6 +373,8 @@ export const savePick = async (userId: string, pickData: {
   picked_team?: string | null;
   opponent_team?: string | null;
   pick_source?: string | null;
+  wager_amount?: number | null;
+  currency?: string | null;
 }): Promise<{ success: boolean; data?: any; error?: string }> => {
   try {
     // First, check if a pick already exists for this game
@@ -345,6 +403,8 @@ export const savePick = async (userId: string, pickData: {
       reasoning: pickData.reasoning || '',
       season: getCurrentSeason(),
       week: pickData.week,
+      wager_amount: pickData.wager_amount ?? null,
+      currency: pickData.currency ?? null,
     };
 
     if (isSpreadOrML) {

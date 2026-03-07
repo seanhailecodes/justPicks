@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getUserPickHistory, supabase } from '../lib/supabase';
+import { getUserPickHistory, supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import { APP_SPORTS } from '../../services/activeSport';
 
 interface PickHistoryItem {
@@ -20,6 +20,8 @@ interface PickHistoryItem {
   week: number;
   season: number;
   pick_type: string;
+  wager_amount?: number | null;
+  currency?: string | null;
   games?: {
     home_team: string;
     away_team: string;
@@ -382,6 +384,23 @@ export default function PickHistoryScreen() {
                     {pick.reasoning && pick.reasoning !== 'No reasoning provided' && (
                       <Text style={styles.reasoningText}>"{pick.reasoning}"</Text>
                     )}
+                    {pick.wager_amount != null && (
+                      <View style={styles.wagerRow}>
+                        <Text style={styles.wagerText}>
+                          💰 Wagered {getCurrencySymbol(pick.currency || 'USD')}{pick.wager_amount.toFixed(2)}
+                        </Text>
+                        {pick.correct === true && (
+                          <Text style={styles.wagerWon}>
+                            +{getCurrencySymbol(pick.currency || 'USD')}{calculatePayout(pick.wager_amount).toFixed(2)}
+                          </Text>
+                        )}
+                        {pick.correct === false && (
+                          <Text style={styles.wagerLost}>
+                            -{getCurrencySymbol(pick.currency || 'USD')}{pick.wager_amount.toFixed(2)}
+                          </Text>
+                        )}
+                      </View>
+                    )}
                     {isWeekBased && pick.week ? (
                       <Text style={styles.weekText}>Week {pick.week}</Text>
                     ) : null}
@@ -657,5 +676,25 @@ const styles = StyleSheet.create({
     color: '#48484A',
     fontSize: 11,
     marginTop: 8,
+  },
+  wagerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  wagerText: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  wagerWon: {
+    color: '#34C759',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  wagerLost: {
+    color: '#FF3B30',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
