@@ -101,7 +101,7 @@ const FAQ_DATA: FAQSection[] = [
       },
       {
         question: 'How do I delete my account?',
-        answer: 'Tap the chat button below and we'll take care of it right away.',
+        answer: "Tap the chat button below and we'll take care of it right away.",
       },
     ],
   },
