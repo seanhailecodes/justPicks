@@ -96,7 +96,7 @@ export default function LoginScreen() {
         email: email.trim(),
         password: password,
         options: {
-          emailRedirectTo: 'https://just-picks-baby.vercel.app/callback',
+          emailRedirectTo: 'https://betless.io/callback',
         }
       });
 
@@ -140,7 +140,7 @@ export default function LoginScreen() {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: Platform.OS === 'web'
         ? `${window.location.origin}/reset-password`
-        : 'justpicks://reset-password',
+        : 'betless://reset-password',
     });
 
     setLoading(false);
@@ -158,7 +158,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        <Text style={styles.title}>Welcome to JustPicks</Text>
+        <Text style={styles.title}>Welcome to BetLess</Text>
         
         {/* Show invite context banner */}
         {hasInviteContext && (

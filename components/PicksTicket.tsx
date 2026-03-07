@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
-import { 
-  Animated, 
-  Modal, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
+import {
+  Animated,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
-  TouchableOpacity, 
+  TouchableOpacity,
   View,
   Dimensions,
   Keyboard
 } from 'react-native';
-import { supabase } from '../app/lib/supabase';
+import { supabase, getDeviceCurrency, getCurrencySymbol } from '../app/lib/supabase';
 
 export interface TicketPick {
   gameId: string;
@@ -24,6 +24,8 @@ export interface TicketPick {
   odds: string;             // e.g., "-110"
   confidence: 'Low' | 'Medium' | 'High';
   notes?: string;           // Optional notes/reasoning
+  wagerAmount?: number | null;  // Optional real-money wager
+  currency?: string;            // ISO 4217 code, e.g. "USD"
 }
 
 interface UserGroup {
@@ -59,11 +61,36 @@ export default function PicksTicket({
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [pickType, setPickType] = useState<'solo' | 'group'>('solo');
   const [slideAnim] = useState(new Animated.Value(0));
-  
+
   // Autocomplete state
   const [pastReasonings, setPastReasonings] = useState<string[]>([]);
   const [focusedPickKey, setFocusedPickKey] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  // Wager state — tracks which picks have "bet it" toggled on + raw input text
+  const deviceCurrency = getDeviceCurrency();
+  const currencySymbol = getCurrencySymbol(deviceCurrency);
+  const [wagerToggles, setWagerToggles] = useState<Record<string, boolean>>({});
+  const [wagerInputs, setWagerInputs] = useState<Record<string, string>>({});
+
+  const toggleWager = (pickKey: string) => {
+    setWagerToggles(prev => ({ ...prev, [pickKey]: !prev[pickKey] }));
+    if (!wagerToggles[pickKey]) {
+      // Toggling ON — focus input (handled via ref would be ideal; this clears stale value)
+      setWagerInputs(prev => ({ ...prev, [pickKey]: prev[pickKey] || '' }));
+    }
+  };
+
+  const handleWagerChange = (pickKey: string, gameId: string, betType: string, text: string) => {
+    // Only allow numbers and a single decimal point
+    const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+    setWagerInputs(prev => ({ ...prev, [pickKey]: cleaned }));
+    const amount = parseFloat(cleaned);
+    onUpdatePick(gameId, betType, {
+      wagerAmount: isNaN(amount) ? null : amount,
+      currency: deviceCurrency,
+    });
+  };
 
   // Filter groups to only show those matching current sport
   const filteredGroups = userGroups.filter(g => 
@@ -345,7 +372,7 @@ export default function PicksTicket({
                         onBlur={handleNotesBlur}
                         maxLength={200}
                       />
-                      
+
                       {/* Suggestions Dropdown */}
                       {showSuggestions && (
                         <View style={styles.suggestionsContainer}>
@@ -361,6 +388,39 @@ export default function PicksTicket({
                               </Text>
                             </TouchableOpacity>
                           ))}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Wager Row */}
+                    <View style={styles.wagerRow}>
+                      <TouchableOpacity
+                        style={styles.wagerToggleRow}
+                        onPress={() => toggleWager(pickKey)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.wagerLabel}>💰 Did you bet it?</Text>
+                        <View style={[styles.wagerToggle, wagerToggles[pickKey] && styles.wagerToggleOn]}>
+                          <View style={[styles.wagerToggleThumb, wagerToggles[pickKey] && styles.wagerToggleThumbOn]} />
+                        </View>
+                      </TouchableOpacity>
+                      {wagerToggles[pickKey] && (
+                        <View style={styles.wagerInputRow}>
+                          <Text style={styles.currencySymbol}>{currencySymbol}</Text>
+                          <TextInput
+                            style={styles.wagerInput}
+                            placeholder="0.00"
+                            placeholderTextColor="rgba(255,255,255,0.3)"
+                            value={wagerInputs[pickKey] || ''}
+                            onChangeText={(text) => handleWagerChange(pickKey, pick.gameId, pick.betType, text)}
+                            keyboardType="decimal-pad"
+                            maxLength={10}
+                          />
+                          {pick.wagerAmount ? (
+                            <Text style={styles.wagerPotentialWin}>
+                              to win {currencySymbol}{(pick.wagerAmount * 100 / 110).toFixed(2)}
+                            </Text>
+                          ) : null}
                         </View>
                       )}
                     </View>
@@ -782,5 +842,71 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  // ── Wager styles ────────────────────────────────────────────
+  wagerRow: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 8,
+  },
+  wagerToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  wagerLabel: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  wagerToggle: {
+    width: 38,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  wagerToggleOn: {
+    backgroundColor: '#FF6B35',
+  },
+  wagerToggleThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFF',
+    alignSelf: 'flex-start',
+  },
+  wagerToggleThumbOn: {
+    alignSelf: 'flex-end',
+  },
+  wagerInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  currencySymbol: {
+    color: '#FF6B35',
+    fontSize: 16,
+    fontWeight: '700',
+    marginRight: 4,
+  },
+  wagerInput: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    minWidth: 70,
+    flex: 1,
+  },
+  wagerPotentialWin: {
+    color: '#34C759',
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 8,
   },
 });
