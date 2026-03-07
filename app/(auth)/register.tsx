@@ -1,6 +1,6 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 
 export default function RegisterScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -168,7 +168,16 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            <TouchableOpacity 
+            {/* Anti-gambling disclosure */}
+            <View style={styles.disclosureCard}>
+              <Text style={styles.disclosureTitle}>⚠️ Important Notice</Text>
+              <Text style={styles.disclosureText}>
+                BetLess is not a gambling platform and does not facilitate real-money wagering of any kind. By creating an account, you acknowledge that BetLess is intended solely as a sports prediction tracking tool.{'\n\n'}
+                You further acknowledge that, consistent with peer-reviewed academic research, the long-term probability of achieving a positive financial outcome through sports betting is low for the vast majority of participants. BetLess encourages you to engage with sports without gambling.
+              </Text>
+            </View>
+
+            <TouchableOpacity
               style={styles.termsContainer}
               onPress={() => setAgreedToTerms(!agreedToTerms)}
             >
@@ -176,9 +185,10 @@ export default function RegisterScreen() {
                 {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
               </View>
               <Text style={styles.termsText}>
-                I'm 13 or older and agree to the{' '}
-                <Text style={styles.link}>Terms of Service</Text> and{' '}
-                <Text style={styles.link}>Privacy Policy</Text>
+                I am 13 or older, I understand that BetLess is not a gambling platform, and I agree to the{' '}
+                <Text style={styles.link} onPress={() => router.push('/terms')}>Terms of Service</Text>
+                {' '}and{' '}
+                <Text style={styles.link} onPress={() => router.push('/privacy')}>Privacy Policy</Text>
               </Text>
             </TouchableOpacity>
 
@@ -320,6 +330,26 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 13,
     marginTop: 4,
+  },
+  disclosureCard: {
+    backgroundColor: '#1C1C1E',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  disclosureTitle: {
+    color: '#FF6B35',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  disclosureText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    lineHeight: 19,
   },
   termsContainer: {
     flexDirection: 'row',
