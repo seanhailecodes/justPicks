@@ -196,6 +196,17 @@ export default function SupportScreen() {
             <Text style={styles.chatButtonText}>💬 Start a Chat</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Legal links */}
+        <View style={styles.legalRow}>
+          <TouchableOpacity onPress={() => router.push('/privacy')}>
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalDivider}>·</Text>
+          <TouchableOpacity onPress={() => router.push('/terms')}>
+            <Text style={styles.legalLink}>Terms of Service</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -315,5 +326,21 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 8,
+  },
+  legalLink: {
+    color: '#8E8E93',
+    fontSize: 13,
+    textDecorationLine: 'underline',
+  },
+  legalDivider: {
+    color: '#555',
+    fontSize: 13,
   },
 });
