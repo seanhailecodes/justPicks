@@ -75,16 +75,40 @@ const FAQ_DATA: FAQSection[] = [
     title: '👥 Groups',
     items: [
       {
+        question: 'How do I create a group?',
+        answer: "Tap the Groups tab at the bottom of the screen, then tap \"Create Group.\" Give your group a name, choose whether it's public or private, and you're done. You'll be the group admin.",
+      },
+      {
+        question: 'How do I invite people to my group?',
+        answer: 'From your group page, tap \"Invite\" to generate a unique invite link. Share it anywhere — text, iMessage, WhatsApp, whatever. Anyone who taps it gets taken straight into your group.',
+      },
+      {
         question: 'How do I join a group?',
-        answer: 'Ask a friend to share their invite link, or browse public groups from the Groups tab at the bottom of the screen.',
+        answer: "Tap an invite link from a friend and you'll be added automatically. You can also browse public groups from the Groups tab and tap \"Join.\"",
+      },
+      {
+        question: 'How do group picks work?',
+        answer: "Every member makes their own picks independently — nobody can see each other's picks until the game starts. After games are graded, everyone's results are visible on the group leaderboard.",
       },
       {
         question: 'How does the group leaderboard work?',
-        answer: 'Rankings are based on win rate across all picks made within the group. The more picks, the more accurate the ranking.',
+        answer: 'The leaderboard ranks members by win rate on picks made within the group. The more picks a member makes, the more accurate their ranking. Ties are broken by total number of picks.',
+      },
+      {
+        question: "What's the difference between public and private groups?",
+        answer: 'Public groups are discoverable in the Browse Groups section and anyone can join. Private groups are invite-only — only people with your link can find and join them.',
       },
       {
         question: 'Can I be in multiple groups?',
-        answer: 'Yes — join as many as you like.',
+        answer: 'Yes — join as many as you like. Your picks count toward every group you belong to.',
+      },
+      {
+        question: 'Can I remove someone from my group?',
+        answer: 'Yes, if you are the group admin. Go to your group, tap the member, and select Remove. They will no longer appear on the leaderboard.',
+      },
+      {
+        question: 'How do I leave a group?',
+        answer: "Open the group, tap the settings icon in the top right, and select \"Leave Group.\" Your past picks will be removed from that group's leaderboard.",
       },
     ],
   },
