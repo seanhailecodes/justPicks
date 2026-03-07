@@ -1,5 +1,5 @@
 /**
- * Notification system for justPicks
+ * Notification system for BetLess
  * - Pick confirmations
  * - Weekly performance summaries
  * - Anti-gambling messaging woven throughout
@@ -177,28 +177,28 @@ export const STRUGGLING_WEEK_MESSAGES = [
   }
 ];
 
-// Pick confirmation messages - HYPE SPORTS THEMED
+// Pick confirmation messages - BETLESS BRAND: hype but pro-health, anti-gambling
 export const PICK_CONFIRMATION_MESSAGES = [
-  { title: "YOU'RE IN!", message: "Pick locked. No cap, this one's hitting." },
-  { title: "LOCKED. 🔐", message: "Your pick is in — can't stop you now." },
-  { title: "LET'S GOOO!", message: "Pick saved. Go watch it happen." },
-  { title: "THAT'S IT. 💥", message: "Call made. Trust your gut." },
-  { title: "PICK'S DOWN!", message: "You're on the board. Eyes on the game." },
-  { title: "DIALED IN.", message: "Pick confirmed. You already know." },
-  { title: "YOU'RE SET.", message: "Locked and loaded. Now let it ride." },
-  { title: "RUN IT! 🏃", message: "Pick saved. Your moment is coming." },
-  { title: "IN THE BOOKS.", message: "Confirmed. Now go touch grass." },
-  { title: "GAME ON. 🔥", message: "You've made your call — let it cook." },
-  { title: "DO WORK!", message: "Pick locked. Now go handle business." }
+  { title: "PICK SAVED! 🎯", message: "Zero dollars risked. All the bragging rights earned." },
+  { title: "YOU'RE IN!", message: "Call made. No wallet needed — just your sports IQ." },
+  { title: "LET'S GOOO!", message: "Pick saved. Prove you know your stuff, for free." },
+  { title: "THAT'S THE CALL. 💥", message: "Confirmed. This is what sports should feel like — no stress, no stakes." },
+  { title: "ON THE BOARD!", message: "You're in the game. Best part? Nothing to lose but bragging rights." },
+  { title: "DIALED IN.", message: "Pick confirmed. Sports knowledge > gambling. Always." },
+  { title: "CLEAN PICK. ✅", message: "Saved. No lines, no juice, no regret — just the game." },
+  { title: "YOUR CALL!", message: "Pick saved. Go enjoy the game the way it was meant to be enjoyed." },
+  { title: "IN THE BOOKS.", message: "Confirmed. The only thing on the line is respect from your crew." },
+  { title: "GAME ON. 🔥", message: "You've made your call — zero cost, maximum fun." },
+  { title: "PICKS > BETS.", message: "Pick locked. Compete with your friends, keep your wallet closed." }
 ];
 
-// Multiple picks saved at once - HYPE SPORTS THEMED
+// Multiple picks saved at once - BETLESS BRAND
 export const MULTI_PICK_CONFIRMATION_MESSAGES = [
-  { title: "YOU'RE IN!", message: "{count} picks locked. You didn't come to play around." },
-  { title: "ALL DAY! 🔥", message: "{count} picks on the board. This is your week." },
-  { title: "LOCKED IN!", message: "{count} predictions dropped. Let's see 'em hit." },
-  { title: "BIG TICKET.", message: "{count} picks saved — go get 'em." },
-  { title: "FULL SEND! 💥", message: "{count} picks confirmed. Trust the process." }
+  { title: "YOU'RE IN!", message: "{count} picks saved. Pure sports knowledge, zero dollars down." },
+  { title: "ALL DAY! 🔥", message: "{count} calls on the board. This is how sports should feel." },
+  { title: "PICKS SAVED!", message: "{count} predictions locked. Bragging rights incoming — no buy-in required." },
+  { title: "CLEAN SLATE. ✅", message: "{count} picks confirmed. No risk, no regret, all reward." },
+  { title: "LET'S RIDE! 💥", message: "{count} picks dropped. You're here for the love of the game — and it shows." }
 ];
 
 // ============================================
