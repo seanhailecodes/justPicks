@@ -32,7 +32,7 @@ export const APP_SPORTS: AppSport[] = [
   { key: 'soccer',label: 'Soccer', emoji: '⚽', league: 'SOCCER', enabled: true,  displayMode: 'name', season: [8, 1, 5, 31]   },
   { key: 'ncaaf', label: 'NCAAF',  emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name', season: [8, 24, 1, 20]  },
   { key: 'nhl',   label: 'NHL',    emoji: '🏒', league: 'NHL',   enabled: true,  displayMode: 'code', season: [10, 1, 6, 30]  },
-  { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: true,  displayMode: 'code', season: [3, 20, 10, 31] },
+  { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: true,  displayMode: 'code', season: [2, 20, 10, 31] },
   { key: 'ufc',   label: 'UFC',    emoji: '🥊', league: 'UFC',   enabled: true,  displayMode: 'fighter'                       },
   { key: 'pga',   label: 'Golf',   emoji: '⛳', league: 'PGA',   enabled: true,  displayMode: 'name'                          },
 ];
@@ -55,7 +55,7 @@ export const SPORT_EMOJI: Partial<Record<Sport, string>> = Object.fromEntries(
  * so mid-season sports are detected correctly regardless of current month.
  */
 export function isSportInSeason(season?: [number, number, number, number]): boolean {
-  if (!season) return false;
+  if (!season) return true; // no season restriction = year-round (e.g. UFC, Golf)
   const [startMonth, startDay, endMonth, endDay] = season;
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
