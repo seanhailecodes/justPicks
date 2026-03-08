@@ -177,7 +177,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   }
 ];
 
-// Pick confirmation messages - BETLESS BRAND: hype titles, strong anti-gambling messages
+// Pick confirmation messages WITH wager - BETLESS BRAND: hype titles, strong anti-gambling messages
 export const PICK_CONFIRMATION_MESSAGES = [
   { title: "YOU'RE IN! 🎯", message: "Be careful champ — you worked hard for that money." },
   { title: "PICK SAVED! ✅", message: "Never chase losses. The next pick doesn't owe you anything." },
@@ -196,13 +196,41 @@ export const PICK_CONFIRMATION_MESSAGES = [
   { title: "ALL DAY. 💪", message: "The urge to 'make it interesting' with real money is the trap. You're already past it." }
 ];
 
-// Multiple picks saved at once - BETLESS BRAND
+// Pick confirmation messages WITHOUT wager - pure hype, no money talk
+export const PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
+  { title: "YOU'RE IN! 🎯", message: "Pick locked. Let's see how your read plays out." },
+  { title: "PICK SAVED! ✅", message: "Called it. Now sit back and watch the game." },
+  { title: "LET'S GOOO!", message: "Your pick is on the board. Bragging rights on the line." },
+  { title: "LOCKED IN. 🔐", message: "Confidence noted. May the sports gods be with you." },
+  { title: "ON THE BOARD!", message: "Pick submitted. This is what sports knowledge is for." },
+  { title: "DIALED IN.", message: "You've done the research. Trust the process." },
+  { title: "THAT'S THE CALL.", message: "Bold move. Let's see if the tape agrees." },
+  { title: "GAME ON. 🔥", message: "Pick saved — now go watch and enjoy the game." },
+  { title: "YOUR CALL!", message: "Locked in. Proof that sports are fun without the stakes." },
+  { title: "IN THE BOOKS.", message: "Your prediction is set. Just pure sports instinct." },
+  { title: "PICKS > BETS.", message: "No skin in the game — just skill. That's the move." },
+  { title: "CONFIDENT? 👊", message: "Pick's in. The only thing on the line is your pride." },
+  { title: "CLEAN PICK.", message: "Saved. Compete with friends, keep the stress out." },
+  { title: "CALLED IT!", message: "We'll see. Either way, you played it smart." },
+  { title: "ALL DAY. 💪", message: "Locked and loaded. This is how sports should feel." }
+];
+
+// Multiple picks saved at once - WITH wager
 export const MULTI_PICK_CONFIRMATION_MESSAGES = [
   { title: "YOU'RE IN! 🎯", message: "{count} picks saved. Be careful champ — you worked hard for that money." },
   { title: "BIG SLATE! 🔥", message: "{count} calls locked. In the end, only the book wins. Not today." },
   { title: "PICKS SAVED! ✅", message: "{count} predictions down. Never chase losses — these cost you nothing." },
   { title: "ALL DAY.", message: "{count} picks confirmed. The house always has an edge. This? Purely yours." },
   { title: "LET'S GOOO!", message: "{count} picks locked. No deposit. No regret. That's BetLess." }
+];
+
+// Multiple picks saved at once - WITHOUT wager
+export const MULTI_PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
+  { title: "BIG SLATE! 🎯", message: "{count} picks locked in. Let's see how your reads hold up." },
+  { title: "LET'S GOOO! 🔥", message: "{count} calls on the board. Pure sports instinct — no stakes required." },
+  { title: "PICKS SAVED! ✅", message: "{count} predictions locked. Bragging rights are officially on the line." },
+  { title: "ALL DAY. 💪", message: "{count} picks confirmed. You did the work — now let the games decide." },
+  { title: "STACKED! 🏆", message: "{count} picks in. This is what competing with friends is all about." }
 ];
 
 // ============================================
@@ -254,12 +282,15 @@ export function getWeeklyPerformanceMessage(
 
 /**
  * Get pick confirmation message
+ * @param pickCount - number of picks saved
+ * @param hasWager - true if any pick has a wager amount entered
  */
-export function getPickConfirmationMessage(pickCount: number = 1): { title: string; message: string } {
+export function getPickConfirmationMessage(pickCount: number = 1, hasWager: boolean = false): { title: string; message: string } {
   if (pickCount === 1) {
-    return getRandomMessage(PICK_CONFIRMATION_MESSAGES);
+    return getRandomMessage(hasWager ? PICK_CONFIRMATION_MESSAGES : PICK_CONFIRMATION_MESSAGES_NO_WAGER);
   } else {
-    const msg = getRandomMessage(MULTI_PICK_CONFIRMATION_MESSAGES);
+    const pool = hasWager ? MULTI_PICK_CONFIRMATION_MESSAGES : MULTI_PICK_CONFIRMATION_MESSAGES_NO_WAGER;
+    const msg = getRandomMessage(pool);
     return {
       title: msg.title,
       message: msg.message.replace('{count}', pickCount.toString())
