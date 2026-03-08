@@ -36,7 +36,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(mode === 'signup');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const TERMS_VERSION = '2026-03-08';
   
   // Show context if user came from an invite
   const pendingGroupCode = getPendingGroupCode();
@@ -91,12 +94,22 @@ export default function LoginScreen() {
     setLoading(true);
 
     if (isSignUp) {
+      if (!agreedToTerms) {
+        showAlert('Error', 'Please accept the Terms of Service and Privacy Policy to continue.', setMessage);
+        setLoading(false);
+        return;
+      }
+
       // Sign up - requires email verification
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
         options: {
           emailRedirectTo: 'https://betless.io/callback',
+          data: {
+            accepted_terms_at: new Date().toISOString(),
+            accepted_terms_version: TERMS_VERSION,
+          },
         }
       });
 
@@ -209,10 +222,35 @@ export default function LoginScreen() {
           autoCorrect={false}
         />
 
+        {isSignUp && (
+          <>
+            <View style={styles.disclosureCard}>
+              <Text style={styles.disclosureTitle}>⚠️ Important Notice</Text>
+              <Text style={styles.disclosureText}>
+                BetLess is not a gambling platform and does not facilitate real-money wagering of any kind. Consistent with peer-reviewed academic research, the long-term probability of achieving a positive financial outcome through sports betting is low for the vast majority of participants.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.termsContainer}
+              onPress={() => setAgreedToTerms(!agreedToTerms)}
+            >
+              <View style={styles.checkbox}>
+                {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.termsText}>
+                I understand BetLess is not a gambling platform and I agree to the{' '}
+                <Text style={styles.termsLink} onPress={() => router.push('/terms')}>Terms of Service</Text>
+                {' '}and{' '}
+                <Text style={styles.termsLink} onPress={() => router.push('/privacy')}>Privacy Policy</Text>
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, isSignUp && !agreedToTerms && styles.buttonDisabled]}
           onPress={handleAuth}
-          disabled={loading}
+          disabled={loading || (isSignUp && !agreedToTerms)}
         >
           <Text style={styles.buttonText}>
             {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Log In'}
@@ -356,12 +394,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
   },
+  disclosureCard: {
+    backgroundColor: '#1C1C1E',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 14,
+    marginTop: 8,
+  },
+  disclosureTitle: {
+    color: '#FF6B35',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  disclosureText: {
+    color: '#8E8E93',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+    borderRadius: 4,
+    marginRight: 10,
+    marginTop: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmark: {
+    color: '#FF6B35',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  termsText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 19,
+  },
+  termsLink: {
+    color: '#FF6B35',
+    textDecorationLine: 'underline',
+  },
   button: {
     backgroundColor: '#FF6B35',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
+  },
+  buttonDisabled: {
+    backgroundColor: '#333',
   },
   buttonText: {
     color: '#FFF',

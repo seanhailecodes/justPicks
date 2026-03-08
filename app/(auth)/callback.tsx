@@ -102,10 +102,24 @@ export default function AuthCallback() {
       }
     };
 
-    const handlePostAuthRedirect = () => {
+    const handlePostAuthRedirect = async () => {
+      // Save terms acceptance to profiles table if present in user metadata
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.user_metadata?.accepted_terms_at) {
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            accepted_terms_at: user.user_metadata.accepted_terms_at,
+            accepted_terms_version: user.user_metadata.accepted_terms_version ?? null,
+          }, { onConflict: 'id' });
+        }
+      } catch (e) {
+        console.warn('Could not save terms acceptance:', e);
+      }
+
       const pendingInvite = getPendingInvite();
       const pendingGroupCode = getPendingGroupCode();
-      
+
       if (pendingInvite) {
         router.replace(`/accept-invite/${pendingInvite}`);
       } else if (pendingGroupCode) {
