@@ -28,7 +28,7 @@ interface NotificationContextType {
     type?: 'success' | 'great' | 'struggling' | 'info',
     buttonText?: string
   ) => void;
-  showPickConfirmation: (pickCount?: number) => void;
+  showPickConfirmation: (pickCount?: number, hasWager?: boolean) => void;
   checkWeeklyPerformance: (wins: number, losses: number) => Promise<void>;
 }
 
@@ -76,9 +76,11 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
   /**
    * Show pick confirmation notification
+   * @param pickCount - number of picks saved
+   * @param hasWager - true if any pick had a wager amount entered
    */
-  const showPickConfirmation = useCallback((pickCount: number = 1) => {
-    const msg = getPickConfirmationMessage(pickCount);
+  const showPickConfirmation = useCallback((pickCount: number = 1, hasWager: boolean = false) => {
+    const msg = getPickConfirmationMessage(pickCount, hasWager);
     showNotification(msg.title, msg.message, 'success');
   }, [showNotification]);
 

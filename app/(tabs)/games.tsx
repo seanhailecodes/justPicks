@@ -646,8 +646,9 @@ export default function GamesScreen() {
       await Promise.all(pickPromises);
       setPendingPicks([]);
       
-      // Show notification modal
-      showPickConfirmation(picks.length);
+      // Show notification modal — use anti-gambling messaging only when a wager was entered
+      const hasWager = picks.some(p => p.wagerAmount != null && p.wagerAmount > 0);
+      showPickConfirmation(picks.length, hasWager);
       
       refreshUserPicks();
     } catch (error) {
