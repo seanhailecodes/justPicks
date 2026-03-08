@@ -212,7 +212,12 @@ export const PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "CONFIDENT? 👊", message: "Pick's in. The only thing on the line is your pride." },
   { title: "CLEAN PICK.", message: "Saved. Compete with friends, keep the stress out." },
   { title: "CALLED IT!", message: "We'll see. Either way, you played it smart." },
-  { title: "ALL DAY. 💪", message: "Locked and loaded. This is how sports should feel." }
+  { title: "ALL DAY. 💪🏽", message: "Locked and loaded. This is how sports should feel." },
+  { title: "NO BETS? NICE! 💪🏽", message: "Keep that paper in your pocket, player. Real ones watch for free." },
+  { title: "PAPER PROTECTED. 💪🏽", message: "No bets, no stress. You're out here proving the pick — not chasing a payout." },
+  { title: "BROKE NOTHING. 💪🏽", message: "Your wallet's safe, your pick is locked. That's the whole move." },
+  { title: "SMART MONEY. 💪🏽", message: "No bets? That IS the smart money. Pick's in — enjoy the game for free." },
+  { title: "KEEP STACKIN'. 💪🏽", message: "Pick saved, bank untouched. This is what playing smart looks like." }
 ];
 
 // Multiple picks saved at once - WITH wager
@@ -229,8 +234,10 @@ export const MULTI_PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "BIG SLATE! 🎯", message: "{count} picks locked in. Let's see how your reads hold up." },
   { title: "LET'S GOOO! 🔥", message: "{count} calls on the board. Pure sports instinct — no stakes required." },
   { title: "PICKS SAVED! ✅", message: "{count} predictions locked. Bragging rights are officially on the line." },
-  { title: "ALL DAY. 💪", message: "{count} picks confirmed. You did the work — now let the games decide." },
-  { title: "STACKED! 🏆", message: "{count} picks in. This is what competing with friends is all about." }
+  { title: "ALL DAY. 💪🏽", message: "{count} picks confirmed. You did the work — now let the games decide." },
+  { title: "STACKED! 🏆", message: "{count} picks in. This is what competing with friends is all about." },
+  { title: "NO BETS? NICE! 💪🏽", message: "{count} picks locked. Paper stays in your pocket — that's the whole point." },
+  { title: "KEEP STACKIN'. 💪🏽", message: "{count} picks, zero dollars risked. Play the game, protect the bag." }
 ];
 
 // ============================================
