@@ -288,6 +288,25 @@ export const getUserPicks = async (userId: string, weekNumber?: number) => {
   return { success: true, data: picksWithGames };
 };
 
+/**
+ * Update only the wager amount on an existing pick (e.g. for in-progress games)
+ */
+export const updatePickWager = async (
+  userId: string,
+  gameId: string,
+  wagerAmount: number | null,
+  currency: string | null
+): Promise<{ success: boolean; error?: string }> => {
+  const { error } = await supabase
+    .from('picks')
+    .update({ wager_amount: wagerAmount, currency })
+    .eq('user_id', userId)
+    .eq('game_id', gameId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+};
+
 export const getUserPickHistory = async (userId: string) => {
   // First get the picks
   const { data: picks, error: picksError } = await supabase

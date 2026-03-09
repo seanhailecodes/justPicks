@@ -4,10 +4,10 @@ import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import { Session } from '@supabase/supabase-js';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getUserPicks, savePick, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
+import { getUserPicks, savePick, updatePickWager, getCurrencySymbol, getDeviceCurrency, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
 import { getUserGroups } from '../lib/database';
 import { 
   trackGameView, 
@@ -151,6 +151,11 @@ export default function GamesScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [userPicks, setUserPicks] = useState<Map<string, any>>(new Map());
   const [session, setSession] = useState<Session | null>(null);
+  const [highlightedGameId, setHighlightedGameId] = useState<string | null>(null);
+  const [lockedWagerEditing, setLockedWagerEditing] = useState<Record<string, boolean>>({});
+  const [lockedWagerText, setLockedWagerText] = useState<Record<string, string>>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+  const gameYPositions = useRef<Record<string, number>>({});
   // NOTE: must stay AFTER session declaration to avoid hook ordering crash
   const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
@@ -174,6 +179,21 @@ export default function GamesScreen() {
       }
     }
   }, [params.sport]);
+
+  // Handle incoming gameId param — highlight and scroll to the target game
+  useEffect(() => {
+    if (params.gameId) {
+      const gid = params.gameId as string;
+      setHighlightedGameId(gid);
+      setTimeout(() => {
+        const y = gameYPositions.current[gid];
+        if (y != null) {
+          scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
+        }
+        setTimeout(() => setHighlightedGameId(null), 3000);
+      }, 400);
+    }
+  }, [params.gameId, games]);
 
   const autoResolveWeek = async () => {
     if (!currentWeekNumber) return;
@@ -271,6 +291,7 @@ export default function GamesScreen() {
       if (result.success && result.data) {
         result.data.forEach(pick => {
           picksMap.set(pick.game_id, {
+            id: pick.id,
             pick: pick.team_picked,
             pickType: pick.pick_type,
             confidence: pick.confidence,
@@ -278,6 +299,8 @@ export default function GamesScreen() {
             reasoning: pick.reasoning,
             overUnderPick: pick.over_under_pick,
             overUnderConfidence: pick.over_under_confidence,
+            wager_amount: pick.wager_amount ?? null,
+            currency: pick.currency ?? null,
           });
         });
       }
@@ -461,6 +484,27 @@ export default function GamesScreen() {
       return 'LOCKED';
     } catch {
       return 'Soon';
+    }
+  };
+
+  const handleLockedWagerSave = async (gameId: string) => {
+    if (!session?.user?.id) return;
+    const text = lockedWagerText[gameId] || '';
+    const amount = parseFloat(text);
+    const wagerAmount = isNaN(amount) || amount <= 0 ? null : amount;
+    const currency = getDeviceCurrency();
+
+    const result = await updatePickWager(session.user.id, gameId, wagerAmount, currency);
+    if (result.success) {
+      setUserPicks(prev => {
+        const next = new Map(prev);
+        const existing = next.get(gameId) || {};
+        next.set(gameId, { ...existing, wager_amount: wagerAmount, currency });
+        return next;
+      });
+      setLockedWagerEditing(prev => ({ ...prev, [gameId]: false }));
+    } else {
+      Alert.alert('Error', 'Could not save wager. Please try again.');
     }
   };
 
@@ -728,8 +772,9 @@ export default function GamesScreen() {
         })}
       </ScrollView>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -765,8 +810,21 @@ export default function GamesScreen() {
                   return false;
                 };
                 
+                const isHighlighted = game.originalId === highlightedGameId;
+                const savedWager = userPicks.get(game.originalId!)?.wager_amount ?? null;
+                const savedCurrency = userPicks.get(game.originalId!)?.currency ?? getDeviceCurrency();
+                const currencySymbol = getCurrencySymbol(savedCurrency);
+
                 return (
-                  <View key={game.id} style={[styles.gameCard, isLocked && styles.gameCardLocked]}>
+                  <View
+                    key={game.id}
+                    style={[styles.gameCard, isLocked && styles.gameCardLocked, isHighlighted && styles.gameCardHighlighted]}
+                    onLayout={(e) => {
+                      if (game.originalId) {
+                        gameYPositions.current[game.originalId] = e.nativeEvent.layout.y;
+                      }
+                    }}
+                  >
                     {/* Column Headers */}
                     <View style={styles.gridHeader}>
                       <View style={styles.teamColumnHeader} />
@@ -914,6 +972,62 @@ export default function GamesScreen() {
                         <Text style={styles.timeToLock}>⏱ {timeToLock}</Text>
                       )}
                     </View>
+
+                    {/* Wager row for locked games where user already has a pick */}
+                    {isLocked && game.selectedPick && (
+                      <View style={styles.lockedWagerRow}>
+                        {lockedWagerEditing[game.originalId!] ? (
+                          <View style={styles.lockedWagerInputRow}>
+                            <Text style={styles.lockedWagerCurrency}>{currencySymbol}</Text>
+                            <TextInput
+                              style={styles.lockedWagerInput}
+                              placeholder="0.00"
+                              placeholderTextColor="rgba(255,255,255,0.3)"
+                              keyboardType="decimal-pad"
+                              returnKeyType="done"
+                              autoFocus
+                              value={lockedWagerText[game.originalId!] || ''}
+                              onChangeText={(t) => {
+                                const cleaned = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                setLockedWagerText(prev => ({ ...prev, [game.originalId!]: cleaned }));
+                              }}
+                              onSubmitEditing={() => handleLockedWagerSave(game.originalId!)}
+                            />
+                            <TouchableOpacity
+                              style={styles.lockedWagerSaveBtn}
+                              onPress={() => handleLockedWagerSave(game.originalId!)}
+                            >
+                              <Text style={styles.lockedWagerSaveBtnText}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.lockedWagerCancelBtn}
+                              onPress={() => setLockedWagerEditing(prev => ({ ...prev, [game.originalId!]: false }))}
+                            >
+                              <Text style={styles.lockedWagerCancelBtnText}>✕</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : savedWager != null ? (
+                          <TouchableOpacity
+                            style={styles.lockedWagerSet}
+                            onPress={() => {
+                              setLockedWagerText(prev => ({ ...prev, [game.originalId!]: savedWager.toString() }));
+                              setLockedWagerEditing(prev => ({ ...prev, [game.originalId!]: true }));
+                            }}
+                          >
+                            <Text style={styles.lockedWagerSetText}>
+                              💰 {currencySymbol}{savedWager.toFixed(2)} wagered · Edit
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.addWagerBtn}
+                            onPress={() => setLockedWagerEditing(prev => ({ ...prev, [game.originalId!]: true }))}
+                          >
+                            <Text style={styles.addWagerBtnText}>💰 Add Wager</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
                   </View>
                 );
               })}
@@ -1086,6 +1200,11 @@ const styles = StyleSheet.create({
   gameCardLocked: {
     opacity: 0.6,
   },
+  gameCardHighlighted: {
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+    opacity: 1,
+  },
   gridHeader: {
     flexDirection: 'row',
     paddingHorizontal: 12,
@@ -1203,6 +1322,75 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 13,
     fontWeight: '600',
+  },
+  lockedWagerRow: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  addWagerBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,107,53,0.15)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,53,0.4)',
+  },
+  addWagerBtnText: {
+    color: '#FF6B35',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  lockedWagerSet: {
+    alignSelf: 'flex-start',
+  },
+  lockedWagerSetText: {
+    color: '#34C759',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  lockedWagerInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  lockedWagerCurrency: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  lockedWagerInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,53,0.5)',
+  },
+  lockedWagerSaveBtn: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  lockedWagerSaveBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  lockedWagerCancelBtn: {
+    padding: 6,
+  },
+  lockedWagerCancelBtnText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 14,
   },
   noGamesCard: {
     backgroundColor: '#1C1C1E',
