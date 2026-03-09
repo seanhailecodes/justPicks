@@ -371,7 +371,7 @@ export default function PickHistoryScreen() {
                     )}
                   </View>
                   <View style={styles.pickCardRight}>
-                    {pick.wager_amount != null && (
+                    {pick.wager_amount != null ? (
                       <Text style={[
                         styles.inlineWager,
                         pick.correct === true  && styles.inlineWagerWon,
@@ -379,6 +379,16 @@ export default function PickHistoryScreen() {
                       ]}>
                         {getCurrencySymbol(pick.currency || 'USD')}{pick.wager_amount.toFixed(2)}
                       </Text>
+                    ) : pick.correct === null && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const league = pick.games?.league?.toLowerCase() || 'nba';
+                          router.push(`/(tabs)/games?gameId=${pick.game_id}&sport=${league}`);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.addWagerLink}>💰 Add</Text>
+                      </TouchableOpacity>
                     )}
                     <Text style={styles.chevron}>{isExpanded ? '▲' : '▼'}</Text>
                   </View>
@@ -665,6 +675,11 @@ const styles = StyleSheet.create({
   inlineWager: {
     color: '#636366',
     fontSize: 13,
+    fontWeight: '600',
+  },
+  addWagerLink: {
+    color: '#FF6B35',
+    fontSize: 12,
     fontWeight: '600',
   },
   inlineWagerWon: {
