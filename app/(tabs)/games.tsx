@@ -154,6 +154,7 @@ export default function GamesScreen() {
   const [highlightedGameId, setHighlightedGameId] = useState<string | null>(null);
   const [lockedWagerEditing, setLockedWagerEditing] = useState<Record<string, boolean>>({});
   const [lockedWagerText, setLockedWagerText] = useState<Record<string, string>>({});
+  const [lockedToWinText, setLockedToWinText] = useState<Record<string, string>>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const gameYPositions = useRef<Record<string, number>>({});
   // NOTE: must stay AFTER session declaration to avoid hook ordering crash
@@ -489,17 +490,20 @@ export default function GamesScreen() {
 
   const handleLockedWagerSave = async (gameId: string) => {
     if (!session?.user?.id) return;
-    const text = lockedWagerText[gameId] || '';
-    const amount = parseFloat(text);
-    const wagerAmount = isNaN(amount) || amount <= 0 ? null : amount;
+    const wagerText = lockedWagerText[gameId] || '';
+    const toWinText = lockedToWinText[gameId] || '';
+    const wagerAmount = parseFloat(wagerText);
+    const potentialWin = parseFloat(toWinText);
+    const finalWager = isNaN(wagerAmount) || wagerAmount <= 0 ? null : wagerAmount;
+    const finalToWin = isNaN(potentialWin) || potentialWin <= 0 ? null : potentialWin;
     const currency = getDeviceCurrency();
 
-    const result = await updatePickWager(session.user.id, gameId, wagerAmount, currency);
+    const result = await updatePickWager(session.user.id, gameId, finalWager, finalToWin, currency);
     if (result.success) {
       setUserPicks(prev => {
         const next = new Map(prev);
         const existing = next.get(gameId) || {};
-        next.set(gameId, { ...existing, wager_amount: wagerAmount, currency });
+        next.set(gameId, { ...existing, wager_amount: finalWager, potential_win: finalToWin, currency });
         return next;
       });
       setLockedWagerEditing(prev => ({ ...prev, [gameId]: false }));
@@ -678,6 +682,7 @@ export default function GamesScreen() {
           ? (pick.side === 'home' ? game.awayTeam : game.homeTeam)
           : null,
         wager_amount: pick.wagerAmount ?? null,
+        potential_win: pick.potentialWin ?? null,
         currency: pick.currency ?? null,
       };
 
@@ -977,45 +982,68 @@ export default function GamesScreen() {
                     {isLocked && game.selectedPick && (
                       <View style={styles.lockedWagerRow}>
                         {lockedWagerEditing[game.originalId!] ? (
-                          <View style={styles.lockedWagerInputRow}>
-                            <Text style={styles.lockedWagerCurrency}>{currencySymbol}</Text>
-                            <TextInput
-                              style={styles.lockedWagerInput}
-                              placeholder="0.00"
-                              placeholderTextColor="rgba(255,255,255,0.3)"
-                              keyboardType="decimal-pad"
-                              returnKeyType="done"
-                              autoFocus
-                              value={lockedWagerText[game.originalId!] || ''}
-                              onChangeText={(t) => {
-                                const cleaned = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                                setLockedWagerText(prev => ({ ...prev, [game.originalId!]: cleaned }));
-                              }}
-                              onSubmitEditing={() => handleLockedWagerSave(game.originalId!)}
-                            />
-                            <TouchableOpacity
-                              style={styles.lockedWagerSaveBtn}
-                              onPress={() => handleLockedWagerSave(game.originalId!)}
-                            >
-                              <Text style={styles.lockedWagerSaveBtnText}>Save</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles.lockedWagerCancelBtn}
-                              onPress={() => setLockedWagerEditing(prev => ({ ...prev, [game.originalId!]: false }))}
-                            >
-                              <Text style={styles.lockedWagerCancelBtnText}>✕</Text>
-                            </TouchableOpacity>
+                          <View style={styles.lockedWagerEditBlock}>
+                            <View style={styles.lockedWagerInputRow}>
+                              <Text style={styles.lockedWagerLabel}>Risking</Text>
+                              <Text style={styles.lockedWagerCurrency}>{currencySymbol}</Text>
+                              <TextInput
+                                style={styles.lockedWagerInput}
+                                placeholder="0.00"
+                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                keyboardType="decimal-pad"
+                                returnKeyType="next"
+                                autoFocus
+                                value={lockedWagerText[game.originalId!] || ''}
+                                onChangeText={(t) => {
+                                  const cleaned = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                  setLockedWagerText(prev => ({ ...prev, [game.originalId!]: cleaned }));
+                                }}
+                              />
+                            </View>
+                            <View style={styles.lockedWagerInputRow}>
+                              <Text style={styles.lockedWagerLabel}>To win</Text>
+                              <Text style={styles.lockedWagerCurrency}>{currencySymbol}</Text>
+                              <TextInput
+                                style={styles.lockedWagerInput}
+                                placeholder="0.00"
+                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                keyboardType="decimal-pad"
+                                returnKeyType="done"
+                                value={lockedToWinText[game.originalId!] || ''}
+                                onChangeText={(t) => {
+                                  const cleaned = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                  setLockedToWinText(prev => ({ ...prev, [game.originalId!]: cleaned }));
+                                }}
+                                onSubmitEditing={() => handleLockedWagerSave(game.originalId!)}
+                              />
+                            </View>
+                            <View style={styles.lockedWagerActions}>
+                              <TouchableOpacity
+                                style={styles.lockedWagerSaveBtn}
+                                onPress={() => handleLockedWagerSave(game.originalId!)}
+                              >
+                                <Text style={styles.lockedWagerSaveBtnText}>Save</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.lockedWagerCancelBtn}
+                                onPress={() => setLockedWagerEditing(prev => ({ ...prev, [game.originalId!]: false }))}
+                              >
+                                <Text style={styles.lockedWagerCancelBtnText}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         ) : savedWager != null ? (
                           <TouchableOpacity
                             style={styles.lockedWagerSet}
                             onPress={() => {
+                              const savedToWin = userPicks.get(game.originalId!)?.potential_win ?? null;
                               setLockedWagerText(prev => ({ ...prev, [game.originalId!]: savedWager.toString() }));
+                              setLockedToWinText(prev => ({ ...prev, [game.originalId!]: savedToWin?.toString() || '' }));
                               setLockedWagerEditing(prev => ({ ...prev, [game.originalId!]: true }));
                             }}
                           >
                             <Text style={styles.lockedWagerSetText}>
-                              💰 {currencySymbol}{savedWager.toFixed(2)} wagered · Edit
+                              💰 {currencySymbol}{savedWager.toFixed(2)} risked · Edit
                             </Text>
                           </TouchableOpacity>
                         ) : (
@@ -1351,6 +1379,23 @@ const styles = StyleSheet.create({
     color: '#34C759',
     fontSize: 13,
     fontWeight: '600',
+  },
+  lockedWagerEditBlock: {
+    gap: 6,
+  },
+  lockedWagerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  lockedWagerLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 11,
+    fontWeight: '600',
+    width: 48,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   lockedWagerInputRow: {
     flexDirection: 'row',

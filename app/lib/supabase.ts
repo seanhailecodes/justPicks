@@ -295,11 +295,12 @@ export const updatePickWager = async (
   userId: string,
   gameId: string,
   wagerAmount: number | null,
+  potentialWin: number | null,
   currency: string | null
 ): Promise<{ success: boolean; error?: string }> => {
   const { error } = await supabase
     .from('picks')
-    .update({ wager_amount: wagerAmount, currency })
+    .update({ wager_amount: wagerAmount, potential_win: potentialWin, currency })
     .eq('user_id', userId)
     .eq('game_id', gameId);
 
@@ -393,6 +394,7 @@ export const savePick = async (userId: string, pickData: {
   opponent_team?: string | null;
   pick_source?: string | null;
   wager_amount?: number | null;
+  potential_win?: number | null;
   currency?: string | null;
 }): Promise<{ success: boolean; data?: any; error?: string }> => {
   try {
@@ -423,6 +425,7 @@ export const savePick = async (userId: string, pickData: {
       season: getCurrentSeason(),
       week: pickData.week,
       wager_amount: pickData.wager_amount ?? null,
+      potential_win: pickData.potential_win ?? null,
       currency: pickData.currency ?? null,
     };
 

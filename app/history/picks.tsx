@@ -21,6 +21,7 @@ interface PickHistoryItem {
   season: number;
   pick_type: string;
   wager_amount?: number | null;
+  potential_win?: number | null;
   currency?: string | null;
   games?: {
     home_team: string;
@@ -108,7 +109,8 @@ export default function PickHistoryScreen() {
     const wageredPicks = picks.filter(p => p.wager_amount != null);
     const resolvedWagers = wageredPicks.filter(p => p.correct !== null);
     const pnlTotal = resolvedWagers.reduce((sum, p) => {
-      return sum + (p.correct ? calculatePayout(p.wager_amount!) : -p.wager_amount!);
+      const payout = p.potential_win ?? calculatePayout(p.wager_amount!);
+      return sum + (p.correct ? payout : -p.wager_amount!);
     }, 0);
     const currency = wageredPicks.length > 0 ? (wageredPicks[wageredPicks.length - 1].currency || 'USD') : 'USD';
     return {
@@ -432,7 +434,7 @@ export default function PickHistoryScreen() {
                         </Text>
                         {pick.correct === true && (
                           <Text style={styles.wagerWon}>
-                            +{getCurrencySymbol(pick.currency || 'USD')}{calculatePayout(pick.wager_amount).toFixed(2)}
+                            +{getCurrencySymbol(pick.currency || 'USD')}{(pick.potential_win ?? calculatePayout(pick.wager_amount!)).toFixed(2)}
                           </Text>
                         )}
                         {pick.correct === false && (
