@@ -24,8 +24,9 @@ export interface TicketPick {
   odds: string;             // e.g., "-110"
   confidence: 'Low' | 'Medium' | 'High';
   notes?: string;           // Optional notes/reasoning
-  wagerAmount?: number | null;  // Optional real-money wager
-  currency?: string;            // ISO 4217 code, e.g. "USD"
+  wagerAmount?: number | null;   // Optional real-money wager
+  potentialWin?: number | null;  // User-entered payout if correct (varies by odds)
+  currency?: string;             // ISO 4217 code, e.g. "USD"
 }
 
 interface UserGroup {
@@ -72,6 +73,7 @@ export default function PicksTicket({
   const currencySymbol = getCurrencySymbol(deviceCurrency);
   const [wagerToggles, setWagerToggles] = useState<Record<string, boolean>>({});
   const [wagerInputs, setWagerInputs] = useState<Record<string, string>>({});
+  const [toWinInputs, setToWinInputs] = useState<Record<string, string>>({});
 
   // Sweeping highlight animation for "Did you bet it?" label
   const WAGER_LABEL = 'Did you bet it?';
@@ -105,13 +107,21 @@ export default function PicksTicket({
   };
 
   const handleWagerChange = (pickKey: string, gameId: string, betType: string, text: string) => {
-    // Only allow numbers and a single decimal point
     const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
     setWagerInputs(prev => ({ ...prev, [pickKey]: cleaned }));
     const amount = parseFloat(cleaned);
     onUpdatePick(gameId, betType, {
       wagerAmount: isNaN(amount) ? null : amount,
       currency: deviceCurrency,
+    });
+  };
+
+  const handleToWinChange = (pickKey: string, gameId: string, betType: string, text: string) => {
+    const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+    setToWinInputs(prev => ({ ...prev, [pickKey]: cleaned }));
+    const amount = parseFloat(cleaned);
+    onUpdatePick(gameId, betType, {
+      potentialWin: isNaN(amount) ? null : amount,
     });
   };
 
@@ -444,22 +454,33 @@ export default function PicksTicket({
                         </TouchableOpacity>
                       </View>
                       {wagerToggles[pickKey] && (
-                        <View style={styles.wagerInputRow}>
-                          <Text style={styles.currencySymbol}>{currencySymbol}</Text>
-                          <TextInput
-                            style={styles.wagerInput}
-                            placeholder="0.00"
-                            placeholderTextColor="rgba(255,255,255,0.3)"
-                            value={wagerInputs[pickKey] || ''}
-                            onChangeText={(text) => handleWagerChange(pickKey, pick.gameId, pick.betType, text)}
-                            keyboardType="decimal-pad"
-                            maxLength={10}
-                          />
-                          {pick.wagerAmount ? (
-                            <Text style={styles.wagerPotentialWin}>
-                              to win {currencySymbol}{(pick.wagerAmount * 100 / 110).toFixed(2)}
-                            </Text>
-                          ) : null}
+                        <View style={styles.wagerInputRows}>
+                          <View style={styles.wagerInputRow}>
+                            <Text style={styles.wagerInputLabel}>Risking</Text>
+                            <Text style={styles.currencySymbol}>{currencySymbol}</Text>
+                            <TextInput
+                              style={styles.wagerInput}
+                              placeholder="0.00"
+                              placeholderTextColor="rgba(255,255,255,0.3)"
+                              value={wagerInputs[pickKey] || ''}
+                              onChangeText={(text) => handleWagerChange(pickKey, pick.gameId, pick.betType, text)}
+                              keyboardType="decimal-pad"
+                              maxLength={10}
+                            />
+                          </View>
+                          <View style={styles.wagerInputRow}>
+                            <Text style={styles.wagerInputLabel}>To win</Text>
+                            <Text style={styles.currencySymbol}>{currencySymbol}</Text>
+                            <TextInput
+                              style={styles.wagerInput}
+                              placeholder="0.00"
+                              placeholderTextColor="rgba(255,255,255,0.3)"
+                              value={toWinInputs[pickKey] || ''}
+                              onChangeText={(text) => handleToWinChange(pickKey, pick.gameId, pick.betType, text)}
+                              keyboardType="decimal-pad"
+                              maxLength={10}
+                            />
+                          </View>
                         </View>
                       )}
                     </View>
@@ -927,10 +948,21 @@ const styles = StyleSheet.create({
   wagerToggleThumbOn: {
     alignSelf: 'flex-end',
   },
+  wagerInputRows: {
+    marginTop: 8,
+    gap: 6,
+  },
+  wagerInputLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    fontWeight: '600',
+    width: 52,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   wagerInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 8,
     paddingHorizontal: 10,
