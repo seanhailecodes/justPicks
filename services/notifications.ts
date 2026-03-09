@@ -216,8 +216,13 @@ export const PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "NO BETS? NICE! 💪🏽", message: "Keep that paper in your pocket, player. Real ones watch for free." },
   { title: "PAPER PROTECTED. 💪🏽", message: "No bets, no stress. You're out here proving the pick — not chasing a payout." },
   { title: "BROKE NOTHING. 💪🏽", message: "Your wallet's safe, your pick is locked. That's the whole move." },
-  { title: "SMART MONEY. 💪🏽", message: "No bets? That IS the smart money. Pick's in — enjoy the game for free." },
-  { title: "KEEP STACKIN'. 💪🏽", message: "Pick saved, bank untouched. This is what playing smart looks like." }
+  { title: "SMART MONEY. 💪🏽", message: "No bets? Now THAT is smart money." },
+  { title: "GITTY UP! 🤠", message: "Pick saved, bank untouched. Gitty up partner!" },
+  { title: "WELL DONE PLAYA'. 💪🏽", message: "Pick locked, wallet closed. That's how we do it." },
+  { title: "STRAIGHT LIKE THAT. 🎯", message: "No bet, no sweat. Just pure game knowledge on display." },
+  { title: "DIFFERENT BREED. 💪🏽", message: "Most people open the app and lose. You came here instead. Big difference." },
+  { title: "THAT'S PLAYA MOVES. 🏆", message: "Pick saved, money untouched. You already know what it is." },
+  { title: "HOLD YA PAPER. 🤠", message: "Ride or die for the pick — not the payout. That's the BetLess way." }
 ];
 
 // Multiple picks saved at once - WITH wager
@@ -237,7 +242,9 @@ export const MULTI_PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "ALL DAY. 💪🏽", message: "{count} picks confirmed. You did the work — now let the games decide." },
   { title: "STACKED! 🏆", message: "{count} picks in. This is what competing with friends is all about." },
   { title: "NO BETS? NICE! 💪🏽", message: "{count} picks locked. Paper stays in your pocket — that's the whole point." },
-  { title: "KEEP STACKIN'. 💪🏽", message: "{count} picks, zero dollars risked. Play the game, protect the bag." }
+  { title: "HOLD YA PAPER. 🤠", message: "{count} picks, zero dollars risked. Gitty up partner!" },
+  { title: "THAT'S PLAYA MOVES. 🏆", message: "{count} calls locked. Well done playa' — wallet closed, picks open." },
+  { title: "DIFFERENT BREED. 💪🏽", message: "{count} picks in, money out of the equation. That's the whole game right there." }
 ];
 
 // ============================================
