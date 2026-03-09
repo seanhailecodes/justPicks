@@ -180,7 +180,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
 // Pick confirmation messages WITH wager - BETLESS BRAND: hype titles, strong anti-gambling messages
 export const PICK_CONFIRMATION_MESSAGES = [
   { title: "YOU'RE IN! 🎯", message: "Be careful champ — you worked hard for that money." },
-  { title: "PICK SAVED! ✅", message: "Never chase losses. The next pick doesn't owe you anything." },
+  { title: "PICK SAVED! ✅", message: "Never chase losses. The next pick doesn't owe you — don't know, don't care." },
   { title: "LET'S GOOO!", message: "In the end, only the book wins. BetLess — and keep more." },
   { title: "LOCKED IN. 🔐", message: "The house has an edge on every single bet. Your picks here? Free." },
   { title: "ON THE BOARD!", message: "Sports are more fun when your wallet isn't on the line." },
@@ -191,7 +191,7 @@ export const PICK_CONFIRMATION_MESSAGES = [
   { title: "IN THE BOOKS.", message: "You can't out-smart the vig. But you can opt out of it entirely — and you did." },
   { title: "PICKS > BETS.", message: "No deposit, no withdrawal, no regret. That's the BetLess way." },
   { title: "CONFIDENT? 👊", message: "Even the sharpest bettors lose long-term. Enjoy the pick — protect the bag." },
-  { title: "CLEAN PICK.", message: "Gambling is engineered to feel like skill. BetLess proves you don't need it." },
+  { title: "CLEAN PICK.", message: "Gambling is engineered to feel like skill. BetLess too — proves you don't need that wager. Good luck." },
   { title: "CALLED IT!", message: "Win or lose, you won't be checking your bank balance after this. That's the point." },
   { title: "ALL DAY. 💪", message: "The urge to 'make it interesting' with real money is the trap. You're already past it." }
 ];
