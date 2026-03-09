@@ -220,7 +220,7 @@ export const PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "GITTY UP! 🤠", message: "Pick saved, bank untouched. Gitty up partner!" },
   { title: "WELL DONE PLAYA'. 💪🏽", message: "Pick locked, wallet closed. That's how we do it." },
   { title: "STRAIGHT LIKE THAT. 🎯", message: "No bet, no sweat. Just pure game knowledge on display." },
-  { title: "DIFFERENT BREED. 💪🏽", message: "Most people open the app and lose. You came here instead. Big difference." },
+  { title: "DIFFERENT BREED. 💪🏽", message: "While others are on sportsbooks bleeding cash, you're here proving your pick. Different breed." },
   { title: "THAT'S PLAYA MOVES. 🏆", message: "Pick saved, money untouched. You already know what it is." },
   { title: "HOLD YA PAPER. 🤠", message: "Ride or die for the pick — not the payout. That's the BetLess way." }
 ];
@@ -244,7 +244,7 @@ export const MULTI_PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "NO BETS? NICE! 💪🏽", message: "{count} picks locked. Paper stays in your pocket — that's the whole point." },
   { title: "HOLD YA PAPER. 🤠", message: "{count} picks, zero dollars risked. Gitty up partner!" },
   { title: "THAT'S PLAYA MOVES. 🏆", message: "{count} calls locked. Well done playa' — wallet closed, picks open." },
-  { title: "DIFFERENT BREED. 💪🏽", message: "{count} picks in, money out of the equation. That's the whole game right there." }
+  { title: "DIFFERENT BREED. 💪🏽", message: "{count} picks in. While others are on sportsbooks bleeding cash, you're here. Different breed." }
 ];
 
 // ============================================
