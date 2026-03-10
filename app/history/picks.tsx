@@ -113,6 +113,30 @@ export default function PickHistoryScreen() {
       return sum + (p.correct ? payout : -p.wager_amount!);
     }, 0);
     const currency = wageredPicks.length > 0 ? (wageredPicks[wageredPicks.length - 1].currency || 'USD') : 'USD';
+
+    // Streak: picks are returned newest-first from history, oldest-first for streak calc
+    const resolved = [...picks]
+      .filter(p => p.correct !== null)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    let currentStreak = 0;
+    let streakType: 'win' | 'loss' | 'none' = 'none';
+    let bestStreak = 0;
+    let runningWin = 0;
+    if (resolved.length > 0) {
+      const newest = [...resolved].reverse();
+      const first = newest[0].correct;
+      streakType = first ? 'win' : 'loss';
+      for (const p of newest) {
+        if (p.correct === first) currentStreak++;
+        else break;
+      }
+      for (const p of resolved) {
+        if (p.correct === true) { runningWin++; if (runningWin > bestStreak) bestStreak = runningWin; }
+        else runningWin = 0;
+      }
+    }
+
     return {
       correct:       picks.filter(p => p.correct === true).length,
       incorrect:     picks.filter(p => p.correct === false).length,
@@ -120,6 +144,9 @@ export default function PickHistoryScreen() {
       wagersEntered: wageredPicks.length,
       pnl:           resolvedWagers.length > 0 ? parseFloat(pnlTotal.toFixed(2)) : null,
       pnlCurrency:   currency,
+      currentStreak,
+      streakType,
+      bestStreak,
     };
   };
 
@@ -259,6 +286,27 @@ export default function PickHistoryScreen() {
           )}
         </View>
       </View>
+
+      {/* Streak banner */}
+      {stats.currentStreak >= 2 && (
+        <View style={[
+          styles.streakBanner,
+          stats.streakType === 'win' ? styles.streakBannerWin : styles.streakBannerLoss,
+        ]}>
+          <Text style={styles.streakBannerEmoji}>
+            {stats.streakType === 'win' ? '🔥' : '🥶'}
+          </Text>
+          <Text style={[
+            styles.streakBannerText,
+            stats.streakType === 'win' ? styles.streakBannerTextWin : styles.streakBannerTextLoss,
+          ]}>
+            {stats.currentStreak} {stats.streakType === 'win' ? 'win' : 'loss'} streak
+            {stats.streakType === 'win' && stats.bestStreak > stats.currentStreak
+              ? `  ·  Best: ${stats.bestStreak}`
+              : ''}
+          </Text>
+        </View>
+      )}
 
       {/* Sport filter — only shown when 2+ sports present */}
       {availableLeagues.length > 2 && (
@@ -537,6 +585,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 3,
     fontWeight: '500',
+  },
+  // ── Streak banner ──────────────────────────────────────────
+  streakBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  streakBannerWin: {
+    backgroundColor: '#34C75918',
+    borderWidth: 1,
+    borderColor: '#34C75950',
+  },
+  streakBannerLoss: {
+    backgroundColor: '#FF3B3018',
+    borderWidth: 1,
+    borderColor: '#FF3B3050',
+  },
+  streakBannerEmoji: {
+    fontSize: 18,
+  },
+  streakBannerText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  streakBannerTextWin: {
+    color: '#34C759',
+  },
+  streakBannerTextLoss: {
+    color: '#FF3B30',
   },
   // ── Filter tabs (shared by sport + result rows) ────────────
   tabsContainer: {
