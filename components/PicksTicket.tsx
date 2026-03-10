@@ -966,7 +966,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.45)',
     fontSize: 12,
     fontWeight: '600',
-    width: 52,
+    width: 68,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
