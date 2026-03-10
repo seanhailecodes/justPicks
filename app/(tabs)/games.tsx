@@ -997,6 +997,16 @@ export default function GamesScreen() {
                                 onChangeText={(t) => {
                                   const cleaned = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                                   setLockedWagerText(prev => ({ ...prev, [game.originalId!]: cleaned }));
+                                  // Auto-suggest -110 payout if user hasn't set "to win" yet
+                                  const amount = parseFloat(cleaned);
+                                  if (!isNaN(amount) && amount > 0) {
+                                    setLockedToWinText(prev => {
+                                      if (!prev[game.originalId!]) {
+                                        return { ...prev, [game.originalId!]: (amount * 100 / 110).toFixed(2) };
+                                      }
+                                      return prev;
+                                    });
+                                  }
                                 }}
                               />
                             </View>
