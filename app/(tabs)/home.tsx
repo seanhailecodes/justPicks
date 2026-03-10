@@ -46,6 +46,9 @@ interface UserStats {
   wrong: number;
   pending: number;
   winRate: number;
+  currentStreak: number;
+  streakType: 'win' | 'loss' | 'none';
+  bestStreak: number;
 }
 
 export default function HomeScreen() {
@@ -131,8 +134,9 @@ export default function HomeScreen() {
       // Get all picks for this user
       const { data: allPicks } = await supabase
         .from('picks')
-        .select('correct, game_id')
-        .eq('user_id', uid);
+        .select('correct, game_id, created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: true });
 
       if (!allPicks) return;
 
@@ -153,11 +157,40 @@ export default function HomeScreen() {
       const decided = correct + wrong;
       const pending = picks.filter(p => p.correct === null).length;
 
+      // Streak calculation on resolved picks (oldest→newest order)
+      const resolved = picks.filter(p => p.correct !== null);
+      let currentStreak = 0;
+      let streakType: 'win' | 'loss' | 'none' = 'none';
+      let bestStreak = 0;
+      let runningWinStreak = 0;
+      if (resolved.length > 0) {
+        // Walk newest→oldest for current streak
+        const newest = [...resolved].reverse();
+        const first = newest[0].correct;
+        streakType = first ? 'win' : 'loss';
+        for (const p of newest) {
+          if (p.correct === first) currentStreak++;
+          else break;
+        }
+        // Walk oldest→newest for best win streak
+        for (const p of resolved) {
+          if (p.correct === true) {
+            runningWinStreak++;
+            if (runningWinStreak > bestStreak) bestStreak = runningWinStreak;
+          } else {
+            runningWinStreak = 0;
+          }
+        }
+      }
+
       setUserStats({
         correct,
         wrong,
         pending,
         winRate: decided > 0 ? Math.round((correct / decided) * 100) : 0,
+        currentStreak,
+        streakType,
+        bestStreak,
       });
     } catch (error) {
       console.error('Error loading user stats:', error);
@@ -437,7 +470,25 @@ export default function HomeScreen() {
         {userStats && (
           <View style={styles.statsCard}>
             <Text style={styles.statsTitle}>{getSport(selectedSport).label} Prediction Accuracy</Text>
-            <Text style={styles.statsWinRate}>{userStats.winRate}%</Text>
+            <View style={styles.statsTopRow}>
+              <Text style={styles.statsWinRate}>{userStats.winRate}%</Text>
+              {userStats.currentStreak > 0 && (
+                <View style={[
+                  styles.streakBadge,
+                  userStats.streakType === 'win' ? styles.streakBadgeWin : styles.streakBadgeLoss,
+                ]}>
+                  <Text style={styles.streakEmoji}>
+                    {userStats.streakType === 'win' ? '🔥' : '🥶'}
+                  </Text>
+                  <Text style={[
+                    styles.streakText,
+                    userStats.streakType === 'win' ? styles.streakTextWin : styles.streakTextLoss,
+                  ]}>
+                    {userStats.currentStreak} {userStats.streakType === 'win' ? 'W' : 'L'} streak
+                  </Text>
+                </View>
+              )}
+            </View>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statValueGreen}>{userStats.correct}</Text>
@@ -452,6 +503,11 @@ export default function HomeScreen() {
                 <Text style={styles.statLabel}>Upcoming</Text>
               </View>
             </View>
+            {userStats.bestStreak > 1 && (
+              <Text style={styles.bestStreakText}>
+                🏆 Best win streak: {userStats.bestStreak}
+              </Text>
+            )}
           </View>
         )}
 
@@ -690,11 +746,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
+  statsTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   statsWinRate: {
     color: '#FF6B35',
     fontSize: 48,
     fontWeight: 'bold',
-    marginBottom: 16,
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+    marginBottom: 6,
+  },
+  streakBadgeWin: {
+    backgroundColor: '#34C75920',
+    borderWidth: 1,
+    borderColor: '#34C75960',
+  },
+  streakBadgeLoss: {
+    backgroundColor: '#FF3B3020',
+    borderWidth: 1,
+    borderColor: '#FF3B3060',
+  },
+  streakEmoji: {
+    fontSize: 16,
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  streakTextWin: {
+    color: '#34C759',
+  },
+  streakTextLoss: {
+    color: '#FF3B30',
+  },
+  bestStreakText: {
+    color: '#636366',
+    fontSize: 12,
+    marginTop: 12,
+    textAlign: 'center',
   },
   statsRow: {
     flexDirection: 'row',
