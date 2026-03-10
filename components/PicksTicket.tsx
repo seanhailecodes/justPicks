@@ -110,21 +110,20 @@ export default function PicksTicket({
     const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
     setWagerInputs(prev => ({ ...prev, [pickKey]: cleaned }));
     const amount = parseFloat(cleaned);
-    // Auto-suggest standard -110 payout in the "to win" field if user hasn't set it yet
-    if (!isNaN(amount) && amount > 0) {
-      setToWinInputs(prev => {
-        if (!prev[pickKey]) {
-          const suggested = (amount * 100 / 110).toFixed(2);
-          onUpdatePick(gameId, betType, { potentialWin: parseFloat(suggested) });
-          return { ...prev, [pickKey]: suggested };
-        }
-        return prev;
-      });
-    }
+
+    // Always update wager on the pick
     onUpdatePick(gameId, betType, {
       wagerAmount: isNaN(amount) ? null : amount,
       currency: deviceCurrency,
     });
+
+    // Auto-suggest -110 payout in "to win" if user hasn't typed there yet
+    // Do this outside any state setter to avoid side-effect bugs
+    if (!isNaN(amount) && amount > 0 && !toWinInputs[pickKey]) {
+      const suggested = (amount * 100 / 110).toFixed(2);
+      setToWinInputs(prev => ({ ...prev, [pickKey]: suggested }));
+      onUpdatePick(gameId, betType, { potentialWin: parseFloat(suggested) });
+    }
   };
 
   const handleToWinChange = (pickKey: string, gameId: string, betType: string, text: string) => {
