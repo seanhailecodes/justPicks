@@ -1403,7 +1403,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.45)',
     fontSize: 11,
     fontWeight: '600',
-    width: 48,
+    width: 64,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
