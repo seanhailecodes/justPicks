@@ -478,21 +478,40 @@ export default function PicksTicket({
                               maxLength={10}
                             />
                           </View>
-                          {!!wagerInputs[pickKey] && (
-                            <View style={styles.wagerInputRow}>
-                              <Text style={styles.wagerInputLabel}>To win</Text>
-                              <Text style={styles.currencySymbol}>{currencySymbol}</Text>
-                              <TextInput
-                                style={styles.wagerInput}
-                                placeholder="0.00"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={toWinInputs[pickKey] || ''}
-                                onChangeText={(text) => handleToWinChange(pickKey, pick.gameId, pick.betType, text)}
-                                keyboardType="decimal-pad"
-                                maxLength={10}
-                              />
-                            </View>
-                          )}
+                          {!!wagerInputs[pickKey] && (() => {
+                            const riskAmt = parseFloat(wagerInputs[pickKey] || '0');
+                            const winAmt  = parseFloat(toWinInputs[pickKey]  || '0');
+                            const breakEven = riskAmt > 0 && winAmt > 0
+                              ? ((riskAmt / (riskAmt + winAmt)) * 100).toFixed(1)
+                              : null;
+                            const bookTake = riskAmt > 0 && winAmt > 0
+                              ? (riskAmt - winAmt).toFixed(2)
+                              : null;
+                            return (
+                              <>
+                                <View style={styles.wagerInputRow}>
+                                  <Text style={styles.wagerInputLabel}>To win ✏️</Text>
+                                  <Text style={styles.currencySymbol}>{currencySymbol}</Text>
+                                  <TextInput
+                                    style={[styles.wagerInput, styles.wagerInputEditable]}
+                                    placeholder="from your book"
+                                    placeholderTextColor="rgba(255,107,53,0.45)"
+                                    value={toWinInputs[pickKey] || ''}
+                                    onChangeText={(text) => handleToWinChange(pickKey, pick.gameId, pick.betType, text)}
+                                    keyboardType="decimal-pad"
+                                    maxLength={10}
+                                  />
+                                </View>
+                                {breakEven && bookTake && parseFloat(bookTake) > 0 && (
+                                  <View style={styles.vigWarning}>
+                                    <Text style={styles.vigWarningText}>
+                                      🏦 Book pockets {currencySymbol}{bookTake} on this bet — you need to win {breakEven}% of picks just to break even.
+                                    </Text>
+                                  </View>
+                                )}
+                              </>
+                            );
+                          })()}
                         </View>
                       )}
                     </View>
@@ -992,6 +1011,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 70,
     flex: 1,
+  },
+  wagerInputEditable: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,107,53,0.5)',
+    paddingBottom: 2,
+    color: '#FF6B35',
+  },
+  vigWarning: {
+    marginTop: 6,
+    backgroundColor: 'rgba(255,59,48,0.1)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: '#FF3B30',
+  },
+  vigWarningText: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 11,
+    lineHeight: 16,
   },
   wagerPotentialWin: {
     color: '#34C759',
