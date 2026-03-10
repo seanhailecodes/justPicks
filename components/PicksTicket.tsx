@@ -478,19 +478,21 @@ export default function PicksTicket({
                               maxLength={10}
                             />
                           </View>
-                          <View style={styles.wagerInputRow}>
-                            <Text style={styles.wagerInputLabel}>To win</Text>
-                            <Text style={styles.currencySymbol}>{currencySymbol}</Text>
-                            <TextInput
-                              style={styles.wagerInput}
-                              placeholder="0.00"
-                              placeholderTextColor="rgba(255,255,255,0.3)"
-                              value={toWinInputs[pickKey] || ''}
-                              onChangeText={(text) => handleToWinChange(pickKey, pick.gameId, pick.betType, text)}
-                              keyboardType="decimal-pad"
-                              maxLength={10}
-                            />
-                          </View>
+                          {!!wagerInputs[pickKey] && (
+                            <View style={styles.wagerInputRow}>
+                              <Text style={styles.wagerInputLabel}>To win</Text>
+                              <Text style={styles.currencySymbol}>{currencySymbol}</Text>
+                              <TextInput
+                                style={styles.wagerInput}
+                                placeholder="0.00"
+                                placeholderTextColor="rgba(255,255,255,0.3)"
+                                value={toWinInputs[pickKey] || ''}
+                                onChangeText={(text) => handleToWinChange(pickKey, pick.gameId, pick.betType, text)}
+                                keyboardType="decimal-pad"
+                                maxLength={10}
+                              />
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>
