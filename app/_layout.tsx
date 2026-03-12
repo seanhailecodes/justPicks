@@ -11,6 +11,7 @@ export default function RootLayout() {
         <Stack.Screen name="group/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="game/[gameId]" options={{ headerShown: false }} />
         <Stack.Screen name="history/picks" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       </Stack>
     </NotificationProvider>
   );
