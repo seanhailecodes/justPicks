@@ -13,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import storage from '../lib/storage';
+import { ONBOARDING_KEY } from '../onboarding';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, AppSport, SPORT_EMOJI, getDefaultSport, getSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -87,13 +89,20 @@ export default function HomeScreen() {
 
   const loadInitialData = async () => {
     try {
-      // Get current user
+      // Get current user first — must be authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.replace('/(auth)/login');
         return;
       }
       setUserId(user.id);
+
+      // Show onboarding once for new/first-time users
+      const onboardingDone = await storage.getItem(ONBOARDING_KEY);
+      if (!onboardingDone) {
+        router.replace('/onboarding');
+        return;
+      }
 
       // Get user profile
       const { data: profile } = await supabase
