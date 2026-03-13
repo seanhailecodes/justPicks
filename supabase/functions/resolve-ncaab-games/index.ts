@@ -131,10 +131,25 @@ Deno.serve(async (req) => {
             correct = pick.team_picked === winner
           }
 
-          await supabase
+          const { error: pickUpdateError } = await supabase
             .from('picks')
             .update({ correct })
             .eq('id', pick.id)
+
+          if (!pickUpdateError) {
+            const resultText = correct === true ? '✅ Correct!' : correct === false ? '❌ Incorrect' : '🤝 Push'
+            fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+              body: JSON.stringify({
+                userId: pick.user_id,
+                title: `NCAAB Pick ${resultText}`,
+                body: `${game.away_team} @ ${game.home_team} — Final: ${awayScoreNum}-${homeScoreNum}`,
+                url: '/history/picks',
+                tag: `pick-${pick.id}`,
+              }),
+            }).catch((e: Error) => console.warn('Push notify failed:', e))
+          }
         }
       }
 

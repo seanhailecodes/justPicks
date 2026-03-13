@@ -152,6 +152,19 @@ Deno.serve(async (req) => {
         if (!pickUpdateError) {
           picksResolved++
           console.log(`  Pick ${pick.id}: Spread=${spreadCorrect}, O/U=${overUnderCorrect}`)
+
+          const resultText = spreadCorrect === true ? '✅ Correct!' : spreadCorrect === false ? '❌ Incorrect' : '🤝 Push'
+          fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+            body: JSON.stringify({
+              userId: pick.user_id,
+              title: `NHL Pick ${resultText}`,
+              body: `${game.away_team} @ ${game.home_team} — Final: ${awayScore}-${homeScore}`,
+              url: '/history/picks',
+              tag: `pick-${pick.id}`,
+            }),
+          }).catch((e: Error) => console.warn('Push notify failed:', e))
         }
       }
     }
