@@ -105,7 +105,9 @@ export default function LoginScreen() {
         email: email.trim(),
         password: password,
         options: {
-          emailRedirectTo: 'https://betless.io/callback',
+          emailRedirectTo: Platform.OS === 'web' && typeof window !== 'undefined'
+              ? `${window.location.origin}/callback`
+              : 'justpicks://callback',
           data: {
             accepted_terms_at: new Date().toISOString(),
             accepted_terms_version: TERMS_VERSION,

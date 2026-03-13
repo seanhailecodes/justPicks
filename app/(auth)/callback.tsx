@@ -28,26 +28,38 @@ export default function AuthCallback() {
       try {
         console.log('Auth callback params:', params);
 
-        // ON WEB: Supabase puts tokens in URL hash (#access_token=...)
+        // ON WEB: handle all URL formats Supabase may use
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          // PKCE flow: ?code=xxx (newer Supabase)
+          const searchParams = new URLSearchParams(window.location.search);
+          const code = searchParams.get('code');
+          if (code) {
+            console.log('Found PKCE code, exchanging for session...');
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.error('Error exchanging code:', error);
+              router.replace('/(auth)/login');
+              return;
+            }
+            handlePostAuthRedirect();
+            return;
+          }
+
+          // Legacy implicit flow: #access_token=xxx
           const hashParams = new URLSearchParams(window.location.hash.substring(1));
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
-          
           if (accessToken && refreshToken) {
             console.log('Found tokens in URL hash, setting session...');
             const { error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
-            
             if (error) {
               console.error('Error setting session:', error);
               router.replace('/(auth)/login');
               return;
             }
-            
-            // Session set successfully
             handlePostAuthRedirect();
             return;
           }
