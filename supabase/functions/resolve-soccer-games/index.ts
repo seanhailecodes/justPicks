@@ -125,16 +125,35 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Update picks for this game
-      const { error: picksError } = await supabase
+      // Update picks for this game (per-pick for push notifications)
+      const { data: picks, error: picksSelectError } = await supabase
         .from('picks')
-        .update({
-          correct: push ? null : supabase.sql`CASE WHEN team_picked = ${homeCovered ? 'home' : 'away'} THEN true ELSE false END`,
-        })
+        .select('id, user_id, team_picked')
         .eq('game_id', game.id)
 
-      if (picksError) {
-        console.error(`Error updating picks for game ${game.id}:`, picksError)
+      if (!picksSelectError && picks) {
+        for (const pick of picks) {
+          const correct = push ? null : pick.team_picked === (homeCovered ? 'home' : 'away')
+          const { error: pickUpdateError } = await supabase
+            .from('picks')
+            .update({ correct })
+            .eq('id', pick.id)
+
+          if (!pickUpdateError) {
+            const resultText = correct === true ? '✅ Correct!' : correct === false ? '❌ Incorrect' : '🤝 Push'
+            fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+              body: JSON.stringify({
+                userId: pick.user_id,
+                title: `Soccer Pick ${resultText}`,
+                body: `${game.away_team} @ ${game.home_team} — Final: ${awayScoreNum}-${homeScoreNum}`,
+                url: '/history/picks',
+                tag: `pick-${pick.id}`,
+              }),
+            }).catch((e: Error) => console.warn('Push notify failed:', e))
+          }
+        }
       }
 
       resolvedCount++

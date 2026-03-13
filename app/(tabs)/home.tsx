@@ -15,6 +15,7 @@ import {
 import { supabase } from '../lib/supabase';
 import storage from '../lib/storage';
 import { ONBOARDING_KEY } from '../onboarding';
+import PushEnrollmentBanner from '../../components/PushEnrollmentBanner';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, AppSport, SPORT_EMOJI, getDefaultSport, getSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -475,6 +476,9 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B35" />
         }
       >
+        {/* Push notification enrollment banner */}
+        <PushEnrollmentBanner />
+
         {/* Overall Stats Card */}
         {userStats && (
           <View style={styles.statsCard}>
