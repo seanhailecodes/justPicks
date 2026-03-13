@@ -7,8 +7,10 @@ export default function AuthLayout() {
       animation: 'slide_from_right'
     }}>
       <Stack.Screen name="login" />
-      <Stack.Screen name="register" />  
+      <Stack.Screen name="register" />
+      <Stack.Screen name="verify" />
       <Stack.Screen name="find-friends" />
+      <Stack.Screen name="callback" />
 
     </Stack>
   );
