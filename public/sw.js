@@ -23,7 +23,7 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     icon: '/assets/images/icon.png',
     badge: '/assets/images/favicon.png',
-    tag: data.tag || 'betless-notification',
+    tag: data.tag || 'dontbet-notification',
     data: { url: data.url || '/' },
     requireInteraction: false,
   };
