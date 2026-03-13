@@ -127,8 +127,8 @@ export default function GroupsScreen() {
         return;
       }
 
-  const inviteLink = `https://betless.io/join/${inviteCode}`;
-      // Alternative deep link: betless://join/${inviteCode}
+  const inviteLink = `https://dontbet.online/join/${inviteCode}`;
+      // Alternative deep link: dontbet://join/${inviteCode}
 
       const result = await Share.share({
         message: `Join my group "${selectedGroupForInvite.name}" on BetLess! 🏈\n\nUse code: ${inviteCode}`,

@@ -94,7 +94,7 @@ export default function TermsScreen() {
         <Text style={styles.body}>
           Questions about these terms? Reach us through the Support screen in the app or at:{'\n\n'}
           seanhaile.codes@gmail.com{'\n'}
-          betless.io
+          dontbet.online
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -30,8 +30,8 @@ serve(async (req) => {
           <h2>You've been invited!</h2>
           <p>${inviterName} has invited you to join their group "${groupName}" on BetLess.</p>
           <p>Click the link below to accept the invitation:</p>
-          <a href="betless://accept-invite/${inviteId}" style="background-color: #FF6B35; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Accept Invitation</a>
-          <p>Or copy and paste this link: betless://accept-invite/${inviteId}</p>
+          <a href="dontbet://accept-invite/${inviteId}" style="background-color: #FF6B35; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Accept Invitation</a>
+          <p>Or copy and paste this link: dontbet://accept-invite/${inviteId}</p>
           <p>This invitation expires in 7 days.</p>
         `,
       }),

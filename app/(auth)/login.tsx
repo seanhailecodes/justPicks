@@ -155,7 +155,7 @@ export default function LoginScreen() {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: Platform.OS === 'web'
         ? `${window.location.origin}/reset-password`
-        : 'betless://reset-password',
+        : 'dontbet://reset-password',
     });
 
     setLoading(false);

@@ -1,16 +1,16 @@
 {
   "expo": {
     "name": "BetLess",
-    "slug": "betless",
+    "slug": "dontbet",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "betless",
+    "scheme": "dontbet",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.seanhaile.betless",
+      "bundleIdentifier": "com.seanhaile.dontbet",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -21,7 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.seanhaile.betless"
+      "package": "com.seanhaile.dontbet"
     },
     "web": {
       "bundler": "metro",

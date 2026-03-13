@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   try {
     const VAPID_PUBLIC_KEY  = Deno.env.get('VAPID_PUBLIC_KEY')
     const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')
-    const VAPID_SUBJECT     = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@betless.io'
+    const VAPID_SUBJECT     = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@dontbet.online'
 
     if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
       throw new Error('VAPID keys not configured')
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
     const payload: PushPayload = await req.json()
-    const { userId, broadcast, title, body, url = '/', tag = 'betless' } = payload
+    const { userId, broadcast, title, body, url = '/', tag = 'dontbet' } = payload
 
     if (!userId && !broadcast) {
       throw new Error('Provide userId or broadcast: true')
