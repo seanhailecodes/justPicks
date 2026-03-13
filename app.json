@@ -26,7 +26,12 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "DontBet",
+      "shortName": "DontBet",
+      "description": "Track your sports picks. Skip the bet. Prove your knowledge without losing money.",
+      "themeColor": "#FF6B35",
+      "backgroundColor": "#000000"
     },
     "plugins": [
       "expo-router",
