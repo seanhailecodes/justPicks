@@ -6,34 +6,31 @@ import { supabase } from './lib/supabase';
 export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Listen for PASSWORD_RECOVERY event
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth event:', event);
-      
+
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked the recovery link and Supabase exchanged the token
         setReady(true);
         setInitializing(false);
       } else if (event === 'SIGNED_IN' && session) {
-        // Already signed in, check if this is from a recovery flow
         setReady(true);
         setInitializing(false);
       }
     });
 
-    // Also check if we already have a session (in case the event already fired)
     const checkExistingSession = async () => {
-      // Give Supabase a moment to process the URL hash
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (session) {
         setReady(true);
       } else {
@@ -43,10 +40,8 @@ export default function ResetPasswordScreen() {
     };
 
     if (Platform.OS === 'web') {
-      // Check for hash in URL (Supabase sends tokens in hash)
       const hash = window.location.hash;
       if (hash && hash.includes('type=recovery')) {
-        // Let onAuthStateChange handle it, but set a timeout fallback
         setTimeout(() => {
           if (initializing) {
             checkExistingSession();
@@ -81,15 +76,12 @@ export default function ResetPasswordScreen() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password
-      });
+      const { error } = await supabase.auth.updateUser({ password });
 
       if (error) {
         Alert.alert('Error', error.message);
       } else {
         if (Platform.OS === 'web') {
-          // Show inline message for web
           alert('Password updated successfully!');
           router.replace('/(tabs)/home');
         } else {
@@ -124,7 +116,7 @@ export default function ResetPasswordScreen() {
         <View style={styles.centered}>
           <Text style={styles.errorIcon}>❌</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.button}
             onPress={() => router.replace('/(auth)/login')}
           >
@@ -148,34 +140,44 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>Enter your new password below</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="New password (min 6 characters)"
-          placeholderTextColor="#666"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            placeholder="New password (min 6 characters)"
+            placeholderTextColor="#666"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(v => !v)}>
+            <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+          </TouchableOpacity>
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm new password"
-          placeholderTextColor="#666"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            placeholder="Confirm new password"
+            placeholderTextColor="#666"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry={!showConfirmPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirmPassword(v => !v)}>
+            <Text style={styles.eyeIcon}>{showConfirmPassword ? '🙈' : '👁️'}</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -227,13 +229,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
+  inputWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+  },
   input: {
     backgroundColor: '#1C1C1E',
     borderRadius: 8,
     padding: 16,
+    paddingRight: 52,
     color: '#FFF',
     fontSize: 16,
-    marginBottom: 16,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 4,
+  },
+  eyeIcon: {
+    fontSize: 20,
   },
   button: {
     backgroundColor: '#FF6B35',
