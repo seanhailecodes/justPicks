@@ -166,27 +166,36 @@ export default function GroupPicksScreen() {
         return;
       }
 
-      // Build games query based on sport
+      // Pick-driven: fetch picks shared to this group first, then load only those games
+      const now = new Date();
+      const { data: groupPicks } = await supabase
+        .from('picks')
+        .select('game_id')
+        .contains('groups', [groupId])
+        .in('user_id', memberIds);
+
+      const pickedGameIds = [...new Set(groupPicks?.map(p => p.game_id) || [])];
+
+      if (pickedGameIds.length === 0) {
+        setGamesData([]);
+        setFriendPicksByGame({});
+        setLoading(false);
+        return;
+      }
+
+      // Load only games that have picks AND are upcoming (not yet final)
       let gamesQuery = supabase
         .from('games')
         .select('*')
-        .eq('league', groupInfo.sport.toUpperCase())
+        .in('id', pickedGameIds)
+        .neq('game_status', 'final')
+        .gte('game_date', now.toISOString())
         .order('game_date', { ascending: true });
 
       if (groupInfo.sport === 'nfl') {
-        // NFL: upcoming games this week
         gamesQuery = gamesQuery
           .eq('week', selectedWeek)
-          .eq('season', getCurrentSeason())
-          .neq('game_status', 'final');
-      } else {
-        // NBA/NCAAB/Soccer: upcoming games in the next 48 hours
-        const now = new Date();
-        const fortyEightHoursAhead = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
-        gamesQuery = gamesQuery
-          .gte('game_date', now.toISOString())
-          .lte('game_date', fortyEightHoursAhead.toISOString());
+          .eq('season', getCurrentSeason());
       }
 
       const { data: games, error: gamesError } = await gamesQuery;
