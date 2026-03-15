@@ -129,7 +129,12 @@ export default function AuthCallback() {
         console.warn('Could not save terms acceptance:', e);
       }
 
-      const pendingInvite = getPendingInvite();
+      // URL param takes priority — survives cross-browser email confirmation redirects
+      const urlInvite = Platform.OS === 'web' && typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('invite')
+        : null;
+
+      const pendingInvite = urlInvite || getPendingInvite();
       const pendingGroupCode = getPendingGroupCode();
 
       if (pendingInvite) {
