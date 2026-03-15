@@ -131,9 +131,9 @@ export default function GroupsScreen() {
       // Alternative deep link: dontbet://join/${inviteCode}
 
       const result = await Share.share({
-        message: `Join my group "${selectedGroupForInvite.name}" on BetLess! 🏈\n\nUse code: ${inviteCode}`,
+        message: `Join my group "${selectedGroupForInvite.name}" on DontBet! 🏈\n\nUse code: ${inviteCode}`,
         url: inviteLink,
-        title: `Join ${selectedGroupForInvite.name} on BetLess`,
+        title: `Join ${selectedGroupForInvite.name} on DontBet`,
     });
 
       if (result.action === Share.sharedAction) {

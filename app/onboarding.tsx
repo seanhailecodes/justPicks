@@ -20,9 +20,9 @@ export const ONBOARDING_KEY = 'betless_onboarding_v1';
 const SLIDES = [
   {
     emoji: '🎯',
-    title: 'Welcome to BetLess',
-    subtitle: 'Track your picks.\nSkip the bet.',
-    body: "Prove your sports knowledge without losing money. BetLess is your personal pick tracker — confidence, analysis, and record-keeping all in one place.",
+    title: 'Welcome to DontBet',
+    subtitle: 'Track picks.\nDon't Bet.',
+    body: "Prove your sports knowledge without losing money. DontBet is your personal pick tracker — confidence, analysis, and record-keeping all in one place.",
     cta: 'Next',
   },
   {

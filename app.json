@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "BetLess",
+    "name": "DontBet",
     "slug": "dontbet",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -29,7 +29,7 @@
       "favicon": "./assets/images/favicon.png",
       "name": "DontBet",
       "shortName": "DontBet",
-      "description": "Track your sports picks. Skip the bet. Prove your knowledge without losing money.",
+      "description": "Track picks. Don't Bet.",
       "themeColor": "#FF6B35",
       "backgroundColor": "#000000"
     },

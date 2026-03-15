@@ -23,12 +23,12 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'BetLess <onboarding@resend.dev>',
+        from: 'DontBet <onboarding@resend.dev>',
         to: [inviteeEmail],
-        subject: `You've been invited to join ${groupName} on BetLess!`,
+        subject: `You've been invited to join ${groupName} on DontBet!`,
         html: `
           <h2>You've been invited!</h2>
-          <p>${inviterName} has invited you to join their group "${groupName}" on BetLess.</p>
+          <p>${inviterName} has invited you to join their group "${groupName}" on DontBet.</p>
           <p>Click the link below to accept the invitation:</p>
           <a href="dontbet://accept-invite/${inviteId}" style="background-color: #FF6B35; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Accept Invitation</a>
           <p>Or copy and paste this link: dontbet://accept-invite/${inviteId}</p>

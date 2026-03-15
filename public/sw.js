@@ -1,4 +1,4 @@
-// BetLess Service Worker — handles web push notifications
+// DontBet Service Worker — handles web push notifications
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
