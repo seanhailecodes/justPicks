@@ -150,7 +150,7 @@ export default function LeaderboardScreen() {
     // Get picks for those filtered games
     let picksQuery = supabase
       .from('picks')
-      .select('user_id, correct, created_at')
+      .select('user_id, correct, win_weight, created_at')
       .in('game_id', gameIds)
       .not('correct', 'is', null);
 
@@ -181,7 +181,8 @@ export default function LeaderboardScreen() {
         userStats[pick.user_id] = { wins: 0, losses: 0 };
       }
       if (pick.correct === true) {
-        userStats[pick.user_id].wins++;
+        // Sum win_weight so ML wins are credited proportionally
+        userStats[pick.user_id].wins += (pick as any).win_weight ?? 1.0;
       } else if (pick.correct === false) {
         userStats[pick.user_id].losses++;
       }
@@ -354,7 +355,9 @@ export default function LeaderboardScreen() {
                     <Text style={styles.yourStatLabel}>Accuracy</Text>
                   </View>
                   <View style={styles.yourStatItem}>
-                    <Text style={styles.yourStatValue}>{yourStats.wins}-{yourStats.losses}</Text>
+                    <Text style={styles.yourStatValue}>
+                      {Number.isInteger(yourStats.wins) ? yourStats.wins : yourStats.wins.toFixed(1)}-{yourStats.losses}
+                    </Text>
                     <Text style={styles.yourStatLabel}>Record</Text>
                   </View>
                 </View>
@@ -387,7 +390,9 @@ export default function LeaderboardScreen() {
                     <Text style={[styles.playerName, player.isYou && styles.playerNameYou]}>
                       {player.isYou ? 'You' : (player.name || `Player #${player.rank}`)}
                     </Text>
-                    <Text style={styles.playerRecord}>{player.wins}-{player.losses}</Text>
+                    <Text style={styles.playerRecord}>
+                      {Number.isInteger(player.wins) ? player.wins : player.wins.toFixed(1)}-{player.losses}
+                    </Text>
                   </View>
                   <Text style={[styles.accuracy, { color: getAccuracyColor(player.accuracy) }]}>
                     {player.accuracy}%

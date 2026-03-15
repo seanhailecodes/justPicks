@@ -5,6 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Calculate win weight for a pick
+function calcWinWeight(correct: boolean | null, betType: string | null, mlOdds: number | null): number {
+  if (!correct) return 1.0
+  if (betType !== 'moneyline' || mlOdds === null) return 1.0
+  if (mlOdds > 0) return mlOdds / 100
+  return 100 / Math.abs(mlOdds)
+}
+
 // The Odds API sport keys for soccer
 const SOCCER_SPORTS = [
   { key: 'soccer_uefa_champs_league', name: 'Champions League' },
@@ -128,15 +136,19 @@ Deno.serve(async (req) => {
       // Update picks for this game (per-pick for push notifications)
       const { data: picks, error: picksSelectError } = await supabase
         .from('picks')
-        .select('id, user_id, team_picked')
+        .select('id, user_id, team_picked, bet_type, ml_odds')
         .eq('game_id', game.id)
 
       if (!picksSelectError && picks) {
         for (const pick of picks) {
           const correct = push ? null : pick.team_picked === (homeCovered ? 'home' : 'away')
+
+          // Calculate win weight
+          const winWeight = calcWinWeight(correct, pick.bet_type, pick.ml_odds)
+
           const { error: pickUpdateError } = await supabase
             .from('picks')
-            .update({ correct })
+            .update({ correct, win_weight: winWeight })
             .eq('id', pick.id)
 
           if (!pickUpdateError) {

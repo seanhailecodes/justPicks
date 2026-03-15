@@ -5,6 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Calculate win weight for a pick
+function calcWinWeight(correct: boolean | null, betType: string | null, mlOdds: number | null): number {
+  if (!correct) return 1.0
+  if (betType !== 'moneyline' || mlOdds === null) return 1.0
+  if (mlOdds > 0) return mlOdds / 100
+  return 100 / Math.abs(mlOdds)
+}
+
 // Team name mapping: Full name -> Code
 const TEAM_NAME_TO_CODE: Record<string, string> = {
   "Arizona Cardinals": "ARI",
@@ -195,7 +203,7 @@ Deno.serve(async (req) => {
     // STEP 3: Get all ungraded picks
     const { data: ungradedPicks, error: picksError } = await supabase
       .from("picks")
-      .select("*")
+      .select("*, bet_type, ml_odds")
       .is("correct", null);
 
     if (picksError) {
@@ -263,11 +271,15 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Calculate win weight (use spreadCorrect as the primary correctness indicator)
+      const winWeight = calcWinWeight(spreadCorrect, pick.bet_type, pick.ml_odds)
+
       const { error: pickUpdateError } = await supabase
         .from("picks")
         .update({
           correct: spreadCorrect,
           over_under_correct: ouCorrect,
+          win_weight: winWeight
         })
         .eq("id", pick.id);
 
