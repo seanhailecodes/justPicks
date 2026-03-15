@@ -180,12 +180,12 @@ export default function GroupPicksScreen() {
           .eq('season', getCurrentSeason())
           .eq('game_status', 'final');
       } else {
-        // NBA/NCAAB/Soccer: Get final games from last 14 days only
+        // NBA/NCAAB/Soccer: Show final games from last 3 days only
         const now = new Date();
-        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+        const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
         gamesQuery = gamesQuery
-          .gte('game_date', twoWeeksAgo.toISOString())
+          .gte('game_date', threeDaysAgo.toISOString())
           .lte('game_date', now.toISOString())
           .eq('game_status', 'final');
       }
