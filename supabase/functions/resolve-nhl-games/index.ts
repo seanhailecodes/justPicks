@@ -30,6 +30,14 @@ function resolveOverUnder(
     : totalPoints < overUnderLine
 }
 
+// Calculate win weight for a pick
+function calcWinWeight(correct: boolean | null, betType: string | null, mlOdds: number | null): number {
+  if (!correct) return 1.0
+  if (betType !== 'moneyline' || mlOdds === null) return 1.0
+  if (mlOdds > 0) return mlOdds / 100
+  return 100 / Math.abs(mlOdds)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -125,7 +133,7 @@ Deno.serve(async (req) => {
       // Resolve all picks for this game
       const { data: picks, error: picksError } = await supabase
         .from('picks')
-        .select('*')
+        .select('*, bet_type, ml_odds')
         .eq('game_id', game.id)
 
       if (picksError) {
@@ -144,9 +152,12 @@ Deno.serve(async (req) => {
           overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, overUnderLine)
         }
 
+        // Calculate win weight (use spreadCorrect as the primary correctness indicator)
+        const winWeight = calcWinWeight(spreadCorrect, pick.bet_type, pick.ml_odds)
+
         const { error: pickUpdateError } = await supabase
           .from('picks')
-          .update({ correct: spreadCorrect, over_under_correct: overUnderCorrect })
+          .update({ correct: spreadCorrect, over_under_correct: overUnderCorrect, win_weight: winWeight })
           .eq('id', pick.id)
 
         if (!pickUpdateError) {

@@ -144,7 +144,7 @@ export default function HomeScreen() {
       // Get all picks for this user
       const { data: allPicks } = await supabase
         .from('picks')
-        .select('correct, game_id, created_at')
+        .select('correct, win_weight, game_id, created_at')
         .eq('user_id', uid)
         .order('created_at', { ascending: true });
 
@@ -162,7 +162,10 @@ export default function HomeScreen() {
         picks = allPicks.filter(p => leagueGameIds.has(p.game_id));
       }
 
-      const correct = picks.filter(p => p.correct === true).length;
+      // Sum win_weight for correct picks (ML wins are fractional; ATS = 1.0)
+      const correct = picks
+        .filter(p => p.correct === true)
+        .reduce((sum, p) => sum + ((p as any).win_weight ?? 1.0), 0);
       const wrong = picks.filter(p => p.correct === false).length;
       const decided = correct + wrong;
       const pending = picks.filter(p => p.correct === null).length;
@@ -504,7 +507,9 @@ export default function HomeScreen() {
             </View>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statValueGreen}>{userStats.correct}</Text>
+                <Text style={styles.statValueGreen}>
+                  {Number.isInteger(userStats.correct) ? userStats.correct : userStats.correct.toFixed(1)}
+                </Text>
                 <Text style={styles.statLabel}>Correct</Text>
               </View>
               <View style={styles.statItem}>

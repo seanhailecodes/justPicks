@@ -568,7 +568,7 @@ export default function GamesScreen() {
   });
 };
 
-  const getLineForPick = (game: Game, betType: 'spread' | 'total', side: string): string => {
+  const getLineForPick = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: string): string => {
     if (betType === 'spread') {
       if (side === 'home') return formatSpread(game.homeSpreadValue);
       return formatSpread(game.awaySpreadValue);
@@ -576,6 +576,10 @@ export default function GamesScreen() {
     if (betType === 'total') {
       if (side === 'over') return `O ${game.overUnder}`;
       return `U ${game.overUnder}`;
+    }
+    if (betType === 'moneyline') {
+      const odds = side === 'home' ? game.homeMoneyline : game.awayMoneyline;
+      return formatMoneyline(odds || -110);
     }
     return '';
   };
@@ -624,6 +628,7 @@ export default function GamesScreen() {
 
       const isSpread = pick.betType === 'spread';
       const isTotal = pick.betType === 'total';
+      const isMoneyline = pick.betType === 'moneyline';
       
       // Calculate timing context — use the Date object directly, no string parsing
       let timeBeforeGame = 0;
@@ -654,12 +659,16 @@ export default function GamesScreen() {
       const pickData = {
         game_id: pick.gameId,
         pick: pick.side,
-        team_picked: isSpread ? pick.side : null,
+        team_picked: (isSpread || isMoneyline) ? pick.side : null,
         confidence: isSpread ? pick.confidence : 'Medium',
         reasoning: pick.notes || '',
         pick_type: pickType,
+        bet_type: pick.betType,
+        ml_odds: isMoneyline
+          ? (pick.side === 'home' ? game.homeMoneyline : game.awayMoneyline)
+          : null,
         groups: groupIds,
-        spread_value: pick.betType === 'spread' 
+        spread_value: isSpread
           ? (pick.side === 'home' ? game.homeSpreadValue : game.awaySpreadValue)
           : 0,
         week: currentWeekNumber || 0,
@@ -674,11 +683,11 @@ export default function GamesScreen() {
         picked_day_of_week: pickedDayOfWeek,
         spread_size: spreadSize,
         spread_category: spreadCategory,
-        picked_favorite: isSpread ? pickedFavorite : null,
-        picked_team: isSpread
+        picked_favorite: (isSpread || isMoneyline) ? pickedFavorite : null,
+        picked_team: (isSpread || isMoneyline)
           ? (pick.side === 'home' ? game.homeTeam : game.awayTeam)
           : null,
-        opponent_team: isSpread
+        opponent_team: (isSpread || isMoneyline)
           ? (pick.side === 'home' ? game.awayTeam : game.homeTeam)
           : null,
         wager_amount: pick.wagerAmount ?? null,
@@ -805,12 +814,16 @@ export default function GamesScreen() {
                     p => p.gameId === game.originalId && p.betType === betType && p.side === side
                   );
                   if (pending) return 'pending';
-                  
+
                   // Check saved picks
                   if (betType === 'spread' && game.selectedPick === side) return 'saved';
                   if (betType === 'total') {
                     if (side === 'over' && game.selectedOverUnderPick === 'over') return 'saved';
                     if (side === 'under' && game.selectedOverUnderPick === 'under') return 'saved';
+                  }
+                  if (betType === 'moneyline') {
+                    const saved = userPicks.get(game.originalId!);
+                    if (saved?.bet_type === 'moneyline' && saved?.pick === side) return 'saved';
                   }
                   return false;
                 };
@@ -895,12 +908,24 @@ export default function GamesScreen() {
                         </View>
                       )}
 
-                      {/* Away Moneyline - Display Only */}
-                      <View style={[styles.betCell, styles.betCellDisabled]}>
-                        <Text style={styles.betLineDisabled}>
+                      {/* Away Moneyline */}
+                      <TouchableOpacity
+                        style={[
+                          styles.betCell,
+                          isCellSelected('moneyline', 'away') === 'pending' && styles.betCellPending,
+                          isCellSelected('moneyline', 'away') === 'saved' && styles.betCellSaved,
+                          isLocked && styles.betCellLocked,
+                        ]}
+                        onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'away')}
+                        disabled={isLocked}
+                      >
+                        <Text style={[styles.betLine, isCellSelected('moneyline', 'away') && styles.betLineSelected]}>
                           {formatMoneyline(game.awayMoneyline || -110)}
                         </Text>
-                      </View>
+                        <Text style={[styles.betOdds, isCellSelected('moneyline', 'away') && styles.betOddsSelected]}>
+                          ML
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
                     {/* Home Team Row */}
@@ -958,12 +983,24 @@ export default function GamesScreen() {
                         </View>
                       )}
 
-                      {/* Home Moneyline - Display Only */}
-                      <View style={[styles.betCell, styles.betCellDisabled]}>
-                        <Text style={styles.betLineDisabled}>
+                      {/* Home Moneyline */}
+                      <TouchableOpacity
+                        style={[
+                          styles.betCell,
+                          isCellSelected('moneyline', 'home') === 'pending' && styles.betCellPending,
+                          isCellSelected('moneyline', 'home') === 'saved' && styles.betCellSaved,
+                          isLocked && styles.betCellLocked,
+                        ]}
+                        onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'home')}
+                        disabled={isLocked}
+                      >
+                        <Text style={[styles.betLine, isCellSelected('moneyline', 'home') && styles.betLineSelected]}>
                           {formatMoneyline(game.homeMoneyline || -110)}
                         </Text>
-                      </View>
+                        <Text style={[styles.betOdds, isCellSelected('moneyline', 'home') && styles.betOddsSelected]}>
+                          ML
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
                     {/* Game Info Footer */}

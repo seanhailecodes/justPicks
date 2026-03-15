@@ -23,6 +23,8 @@ interface PickHistoryItem {
   wager_amount?: number | null;
   potential_win?: number | null;
   currency?: string | null;
+  win_weight?: number | null;
+  bet_type?: string | null;
   games?: {
     home_team: string;
     away_team: string;
@@ -138,7 +140,10 @@ export default function PickHistoryScreen() {
     }
 
     return {
-      correct:       picks.filter(p => p.correct === true).length,
+      // Sum win_weight for wins so ML picks are credited proportionally
+      correct: picks
+        .filter(p => p.correct === true)
+        .reduce((sum, p) => sum + (p.win_weight ?? 1.0), 0),
       incorrect:     picks.filter(p => p.correct === false).length,
       upcoming:      picks.filter(p => p.correct === null && !isGameInPast(p)).length,
       wagersEntered: wageredPicks.length,
@@ -261,7 +266,9 @@ export default function PickHistoryScreen() {
       {/* Stats bar */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: '#34C759' }]}>{stats.correct}</Text>
+          <Text style={[styles.statNumber, { color: '#34C759' }]}>
+            {Number.isInteger(stats.correct) ? stats.correct : stats.correct.toFixed(1)}
+          </Text>
           <Text style={styles.statLabel}>Wins</Text>
           {stats.wagersEntered > 0 && (
             <Text style={styles.statSublabel}>{stats.wagersEntered} wagered</Text>
