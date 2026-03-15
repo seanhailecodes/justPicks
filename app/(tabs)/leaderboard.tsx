@@ -55,14 +55,14 @@ export default function LeaderboardScreen() {
     : SPORTS;
 
   useEffect(() => {
-    loadUserGroups();
+    loadUserGroupsThenFetch();
   }, [selectedSport]);
 
   useEffect(() => {
-    fetchLeaderboardData();
-  }, [selectedSport, timeframe, selectedGroupId]);
+    fetchLeaderboardData(sharedUserIds);
+  }, [timeframe, selectedGroupId]);
 
-  const loadUserGroups = async () => {
+  const loadUserGroupsThenFetch = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -86,6 +86,7 @@ export default function LeaderboardScreen() {
     });
 
     // Build the set of users who share at least one group with the current user
+    let resolvedSharedIds = new Set<string>();
     if (groupIds.length > 0) {
       const { data: fellowMembers } = await supabase
         .from('group_members')
@@ -93,17 +94,21 @@ export default function LeaderboardScreen() {
         .in('group_id', groupIds)
         .neq('user_id', user.id);
 
-      const ids = new Set<string>(fellowMembers?.map(m => m.user_id) ?? []);
-      setSharedUserIds(ids);
+      resolvedSharedIds = new Set<string>(fellowMembers?.map(m => m.user_id) ?? []);
+      setSharedUserIds(resolvedSharedIds);
     } else {
       setSharedUserIds(new Set());
     }
 
     setUserGroups(groups);
     setSelectedGroupId(null);
+
+    // Fetch leaderboard immediately, passing resolved IDs directly
+    // (can't rely on sharedUserIds state being set yet due to async batching)
+    await fetchLeaderboardData(resolvedSharedIds);
   };
 
-  const fetchLeaderboardData = async () => {
+  const fetchLeaderboardData = async (knownSharedIds?: Set<string>) => {
     setLoading(true);
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -196,19 +201,23 @@ export default function LeaderboardScreen() {
       });
     }
 
+    const effectiveSharedIds = knownSharedIds ?? sharedUserIds;
+
     const leaderboard: LeaderboardPlayer[] = Object.entries(userStats).map(([userId, stats]) => {
       const total = stats.wins + stats.losses;
       const accuracy = total > 0 ? Math.round((stats.wins / total) * 100) : 0;
+      const isYou = userId === user?.id;
+      const isStranger = !selectedGroupId && !isYou && !effectiveSharedIds.has(userId);
 
       return {
         userId,
-        name: profileMap[userId] || 'Player',
+        name: isStranger ? '' : (profileMap[userId] || 'Player'),
         accuracy,
         wins: stats.wins,
         losses: stats.losses,
         total,
         rank: 0,
-        isYou: userId === user?.id
+        isYou
       };
     });
 
@@ -376,11 +385,7 @@ export default function LeaderboardScreen() {
                   </Text>
                   <View style={styles.playerInfo}>
                     <Text style={[styles.playerName, player.isYou && styles.playerNameYou]}>
-                      {player.isYou
-                        ? 'You'
-                        : (!selectedGroupId && !sharedUserIds.has(player.userId))
-                          ? `Player #${player.rank}`
-                          : player.name}
+                      {player.isYou ? 'You' : (player.name || `Player #${player.rank}`)}
                     </Text>
                     <Text style={styles.playerRecord}>{player.wins}-{player.losses}</Text>
                   </View>
