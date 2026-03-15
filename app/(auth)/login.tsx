@@ -37,6 +37,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(mode === 'signup');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const TERMS_VERSION = '2026-03-08';
@@ -212,16 +213,21 @@ export default function LoginScreen() {
           autoCorrect={false}
         />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password (min 6 characters)"
-          placeholderTextColor="#666"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            placeholder="Password (min 6 characters)"
+            placeholderTextColor="#666"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(v => !v)}>
+            <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {isSignUp && (
           <>
@@ -387,13 +393,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
+  inputWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    fontSize: 20,
+    color: '#FF6B35',
+  },
   input: {
     backgroundColor: '#1C1C1E',
     borderRadius: 8,
     padding: 16,
+    paddingRight: 52,
     color: '#FFF',
     fontSize: 16,
-    marginBottom: 16,
   },
   disclosureCard: {
     backgroundColor: '#1C1C1E',

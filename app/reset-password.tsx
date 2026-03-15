@@ -252,6 +252,7 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     fontSize: 20,
+    color: '#FF6B35',
   },
   button: {
     backgroundColor: '#FF6B35',
