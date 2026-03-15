@@ -20,12 +20,12 @@ const FAQ_DATA: FAQSection[] = [
     title: '🎯 The Basics',
     items: [
       {
-        question: 'What is BetLess?',
-        answer: "BetLess lets you track sports picks, compete with friends, and see how sharp your instincts really are — no money required. It's about the prediction, not the bet.",
+        question: 'What is DontBet?',
+        answer: "DontBet lets you track sports picks, compete with friends, and see how sharp your instincts really are — no money required. It's about the prediction, not the bet.",
       },
       {
         question: 'Do I need to bet real money to use this?',
-        answer: 'Never. BetLess is 100% pick tracking. The optional wager feature is just for logging what you already did elsewhere — we never take or handle money.',
+        answer: 'Never. DontBet is 100% pick tracking. The optional wager feature is just for logging what you already did elsewhere — we never take or handle money.',
       },
       {
         question: 'What sports are supported?',

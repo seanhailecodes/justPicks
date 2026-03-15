@@ -1,5 +1,5 @@
 /**
- * Notification system for BetLess
+ * Notification system for DontBet
  * - Pick confirmations
  * - Weekly performance summaries
  * - Anti-gambling messaging woven throughout
@@ -105,7 +105,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🔄 Reset Button",
-    message: "Not your week, and that's okay! The beauty of BetLess is there's nothing to lose but pride. Fresh start ahead!"
+    message: "Not your week, and that's okay! The beauty of DontBet is there's nothing to lose but pride. Fresh start ahead!"
   },
   {
     title: "🌧️ Rainy Days",
@@ -121,7 +121,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🌪️ Wild Week",
-    message: "Upsets happen! Imagine if real money was on the line - yikes. Thankfully, BetLess keeps it stress-free."
+    message: "Upsets happen! Imagine if real money was on the line - yikes. Thankfully, DontBet keeps it stress-free."
   },
   {
     title: "🤷 It Happens",
@@ -145,7 +145,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🎪 The Show Goes On",
-    message: "Not every act is a hit. The great news? Tomorrow's a new show, and your ticket (to BetLess) is always free!"
+    message: "Not every act is a hit. The great news? Tomorrow's a new show, and your ticket (to DontBet) is always free!"
   },
   {
     title: "🔮 Crystal Ball Cloudy",
@@ -153,7 +153,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🎢 Part of the Ride",
-    message: "Ups and downs make the journey exciting! With BetLess, the lows never cost you - just reset and go again."
+    message: "Ups and downs make the journey exciting! With DontBet, the lows never cost you - just reset and go again."
   },
   {
     title: "☀️ Sunny Days Ahead",
@@ -169,7 +169,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
   },
   {
     title: "🌊 Ride the Wave",
-    message: "Every wave has its dips. Stay afloat knowing that BetLess is about the journey, not gambling on outcomes."
+    message: "Every wave has its dips. Stay afloat knowing that DontBet is about the journey, not gambling on outcomes."
   },
   {
     title: "💡 Silver Lining",
@@ -181,7 +181,7 @@ export const STRUGGLING_WEEK_MESSAGES = [
 export const PICK_CONFIRMATION_MESSAGES = [
   { title: "YOU'RE IN! 🎯", message: "Be careful champ — you worked hard for that money." },
   { title: "PICK SAVED! ✅", message: "Never chase losses. The next pick doesn't owe you — don't know, don't care." },
-  { title: "LET'S GOOO!", message: "In the end, only the book wins. BetLess — and keep more." },
+  { title: "LET'S GOOO!", message: "In the end, only the book wins. DontBet — and keep more." },
   { title: "LOCKED IN. 🔐", message: "The house has an edge on every single bet. Your picks here? Free." },
   { title: "ON THE BOARD!", message: "Sports are more fun when your wallet isn't on the line." },
   { title: "DIALED IN.", message: "Real talk — sportsbooks are built to take your money. This isn't that." },
@@ -189,9 +189,9 @@ export const PICK_CONFIRMATION_MESSAGES = [
   { title: "GAME ON. 🔥", message: "If you feel the urge to make it real money — pause. Talk to someone you trust." },
   { title: "YOUR CALL!", message: "Streaks end. Don't let a hot hand talk you into opening a sportsbook app." },
   { title: "IN THE BOOKS.", message: "Locked in. Now let the games do the talking." },
-  { title: "PICKS > BETS.", message: "Noted. Just remember — the house built their building with your money. BetLess." },
+  { title: "PICKS > BETS.", message: "Noted. Just remember — the house built their building with your money. DontBet." },
   { title: "CONFIDENT? 👊", message: "Even the sharpest bettors lose long-term. Enjoy the pick — protect the bag." },
-  { title: "CLEAN PICK.", message: "Gambling is engineered to feel like skill. BetLess too — proves you don't need that wager. Good luck." },
+  { title: "CLEAN PICK.", message: "Gambling is engineered to feel like skill. DontBet too — proves you don't need that wager. Good luck." },
   { title: "CALLED IT!", message: "Win or lose, you won't be checking your bank balance after this. That's the point." },
   { title: "ALL DAY. 💪", message: "The urge to 'make it interesting' with real money is the trap. You're already past it." }
 ];
@@ -208,7 +208,7 @@ export const PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "GAME ON. 🔥", message: "Pick saved — now go watch and enjoy the game." },
   { title: "YOUR CALL!", message: "Locked in. Proof that sports are fun without the stakes." },
   { title: "IN THE BOOKS.", message: "You can't out-smart the vig. But you can opt out of it entirely — and you did." },
-  { title: "PICKS > BETS.", message: "No deposit, no withdrawal, no regret. That's the BetLess way." },
+  { title: "PICKS > BETS.", message: "No deposit, no withdrawal, no regret. That's the DontBet way." },
   { title: "CONFIDENT? 👊", message: "Pick's in. The only thing on the line is your pride." },
   { title: "CLEAN PICK.", message: "Saved. Compete with friends, keep the stress out." },
   { title: "CALLED IT!", message: "We'll see. Either way, you played it smart." },
@@ -222,7 +222,7 @@ export const PICK_CONFIRMATION_MESSAGES_NO_WAGER = [
   { title: "STRAIGHT LIKE THAT. 🎯", message: "No bet, no sweat. Just pure game knowledge on display." },
   { title: "DIFFERENT BREED. 💪🏽", message: "While others are on sportsbooks bleeding cash, you're here proving your pick. Different breed." },
   { title: "THAT'S PLAYA MOVES. 🏆", message: "Pick saved, money untouched. You already know what it is." },
-  { title: "HOLD YA PAPER. 🤠", message: "Ride or die for the pick — not the payout. That's the BetLess way." }
+  { title: "HOLD YA PAPER. 🤠", message: "Ride or die for the pick — not the payout. That's the DontBet way." }
 ];
 
 // Multiple picks saved at once - WITH wager
@@ -231,7 +231,7 @@ export const MULTI_PICK_CONFIRMATION_MESSAGES = [
   { title: "BIG SLATE! 🔥", message: "{count} calls locked. In the end, only the book wins. Not today." },
   { title: "PICKS SAVED! ✅", message: "{count} predictions down. Never chase losses — these cost you nothing." },
   { title: "ALL DAY.", message: "{count} picks confirmed. The house always has an edge. This? Purely yours." },
-  { title: "LET'S GOOO!", message: "{count} picks locked. No deposit. No regret. That's BetLess." }
+  { title: "LET'S GOOO!", message: "{count} picks locked. No deposit. No regret. That's DontBet." }
 ];
 
 // Multiple picks saved at once - WITHOUT wager

@@ -106,7 +106,7 @@ export default function RegisterScreen() {
             <View style={styles.logo}>
               <Text style={styles.logoIcon}>⚡</Text>
             </View>
-            <Text style={styles.title}>BetLess</Text>
+            <Text style={styles.title}>DontBet</Text>
             <Text style={styles.subtitle}>Sports Picks with Friends</Text>
           </View>
 
@@ -159,7 +159,7 @@ export default function RegisterScreen() {
                 maxLength={10}
               />
               <Text style={styles.helperText}>
-                You must be 13 or older to use BetLess
+                You must be 13 or older to use DontBet
               </Text>
               {birthDate.length === 10 && !isValidAge && (
                 <Text style={styles.errorText}>
@@ -172,8 +172,8 @@ export default function RegisterScreen() {
             <View style={styles.disclosureCard}>
               <Text style={styles.disclosureTitle}>⚠️ Important Notice</Text>
               <Text style={styles.disclosureText}>
-                BetLess is not a gambling platform and does not facilitate real-money wagering of any kind. By creating an account, you acknowledge that BetLess is intended solely as a sports prediction tracking tool.{'\n\n'}
-                You further acknowledge that, consistent with peer-reviewed academic research, the long-term probability of achieving a positive financial outcome through sports betting is low for the vast majority of participants. BetLess encourages you to engage with sports without gambling.
+                DontBet is not a gambling platform and does not facilitate real-money wagering of any kind. By creating an account, you acknowledge that DontBet is intended solely as a sports prediction tracking tool.{'\n\n'}
+                You further acknowledge that, consistent with peer-reviewed academic research, the long-term probability of achieving a positive financial outcome through sports betting is low for the vast majority of participants. DontBet encourages you to engage with sports without gambling.
               </Text>
             </View>
 
@@ -185,7 +185,7 @@ export default function RegisterScreen() {
                 {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
               </View>
               <Text style={styles.termsText}>
-                I am 13 or older, I understand that BetLess is not a gambling platform, and I agree to the{' '}
+                I am 13 or older, I understand that DontBet is not a gambling platform, and I agree to the{' '}
                 <Text style={styles.link} onPress={() => router.push('/terms')}>Terms of Service</Text>
                 {' '}and{' '}
                 <Text style={styles.link} onPress={() => router.push('/privacy')}>Privacy Policy</Text>
