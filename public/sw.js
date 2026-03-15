@@ -15,10 +15,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data.json();
   } catch (e) {
-    data = { title: 'BetLess', body: event.data.text() };
+    data = { title: 'DontBet', body: event.data.text() };
   }
 
-  const title = data.title || 'BetLess';
+  const title = data.title || 'DontBet';
   const options = {
     body: data.body || '',
     icon: '/assets/images/icon.png',
