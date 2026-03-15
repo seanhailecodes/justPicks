@@ -47,6 +47,7 @@ export default function LeaderboardScreen() {
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardPlayer[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [sharedUserIds, setSharedUserIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const sortedSportOrder = useSortedSports(currentUserId);
   const sortedSports = sortedSportOrder.length > 0
@@ -73,12 +74,30 @@ export default function LeaderboardScreen() {
       .eq('user_id', user.id);
 
     const groups: UserGroup[] = [];
+    const groupIds: string[] = [];
     memberships?.forEach(m => {
       const group = m.groups as any;
-      if (group && (group.sport === selectedSport.id || !group.sport)) {
-        groups.push({ id: group.id, name: group.name });
+      if (group) {
+        groupIds.push(group.id);
+        if (group.sport === selectedSport.id || !group.sport) {
+          groups.push({ id: group.id, name: group.name });
+        }
       }
     });
+
+    // Build the set of users who share at least one group with the current user
+    if (groupIds.length > 0) {
+      const { data: fellowMembers } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .in('group_id', groupIds)
+        .neq('user_id', user.id);
+
+      const ids = new Set<string>(fellowMembers?.map(m => m.user_id) ?? []);
+      setSharedUserIds(ids);
+    } else {
+      setSharedUserIds(new Set());
+    }
 
     setUserGroups(groups);
     setSelectedGroupId(null);
@@ -357,7 +376,11 @@ export default function LeaderboardScreen() {
                   </Text>
                   <View style={styles.playerInfo}>
                     <Text style={[styles.playerName, player.isYou && styles.playerNameYou]}>
-                      {player.isYou ? 'You' : player.name}
+                      {player.isYou
+                        ? 'You'
+                        : (!selectedGroupId && !sharedUserIds.has(player.userId))
+                          ? `Player #${player.rank}`
+                          : player.name}
                     </Text>
                     <Text style={styles.playerRecord}>{player.wins}-{player.losses}</Text>
                   </View>
