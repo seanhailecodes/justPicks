@@ -174,19 +174,20 @@ export default function GroupPicksScreen() {
         .order('game_date', { ascending: true });
 
       if (groupInfo.sport === 'nfl') {
-        // NFL: Filter by week
+        // NFL: Filter by week, final games only
         gamesQuery = gamesQuery
           .eq('week', selectedWeek)
-          .eq('season', getCurrentSeason());
+          .eq('season', getCurrentSeason())
+          .eq('game_status', 'final');
       } else {
-        // NBA/NCAAB/Soccer: Get games from last 7 days + next 3 days
+        // NBA/NCAAB/Soccer: Get final games from last 14 days only
         const now = new Date();
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const threeDaysAhead = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-        
+        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
         gamesQuery = gamesQuery
-          .gte('game_date', weekAgo.toISOString())
-          .lte('game_date', threeDaysAhead.toISOString());
+          .gte('game_date', twoWeeksAgo.toISOString())
+          .lte('game_date', now.toISOString())
+          .eq('game_status', 'final');
       }
 
       const { data: games, error: gamesError } = await gamesQuery;
