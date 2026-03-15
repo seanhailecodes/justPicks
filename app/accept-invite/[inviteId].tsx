@@ -172,12 +172,12 @@ export default function AcceptInviteScreen() {
 
   const handleSignUp = () => {
     setPendingInvite(inviteId!);
-    router.push('/(auth)/login?mode=signup');
+    router.push(`/(auth)/login?mode=signup&invite=${inviteId}`);
   };
 
   const handleLogin = () => {
     setPendingInvite(inviteId!);
-    router.push('/(auth)/login');
+    router.push(`/(auth)/login?invite=${inviteId}`);
   };
 
   const handleAccept = async () => {

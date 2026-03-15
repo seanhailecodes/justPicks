@@ -31,7 +31,7 @@ const showAlert = (title: string, message: string, setMessage: (msg: { type: 'su
 };
 
 export default function LoginScreen() {
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, invite } = useLocalSearchParams<{ mode?: string; invite?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,14 +69,13 @@ export default function LoginScreen() {
   }, []);
 
   const handlePostAuthRedirect = () => {
-    const pendingInvite = getPendingInvite();
+    // URL param takes priority over localStorage (survives cross-browser redirects)
+    const pendingInvite = invite || getPendingInvite();
     const pendingGroupCode = getPendingGroupCode();
-    
+
     if (pendingInvite) {
-      // Old invite system (by invite ID)
       router.replace(`/accept-invite/${pendingInvite}`);
     } else if (pendingGroupCode) {
-      // New system - join by group code (will auto-join)
       router.replace(`/join/${pendingGroupCode}`);
     } else {
       router.replace('/(tabs)/home');
@@ -106,8 +105,8 @@ export default function LoginScreen() {
         password: password,
         options: {
           emailRedirectTo: Platform.OS === 'web' && typeof window !== 'undefined'
-              ? `${window.location.origin}/callback`
-              : 'justpicks://callback',
+              ? `${window.location.origin}/callback${invite ? `?invite=${invite}` : ''}`
+              : 'dontbet://callback',
           data: {
             accepted_terms_at: new Date().toISOString(),
             accepted_terms_version: TERMS_VERSION,
