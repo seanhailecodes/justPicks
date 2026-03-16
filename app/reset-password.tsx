@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from './lib/supabase';
 
@@ -12,49 +12,42 @@ export default function ResetPasswordScreen() {
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  // Track whether the user actually completed a reset — used to decide
+  // whether to sign them out on unmount (prevents session bypass).
+  const passwordWasReset = useRef(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event);
+    let recoveryReceived = false;
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      console.log('Auth event:', event);
+      // Only PASSWORD_RECOVERY unlocks the form — a plain SIGNED_IN must not
+      // allow someone to bypass the reset requirement.
       if (event === 'PASSWORD_RECOVERY') {
-        setReady(true);
-        setInitializing(false);
-      } else if (event === 'SIGNED_IN' && session) {
+        recoveryReceived = true;
         setReady(true);
         setInitializing(false);
       }
     });
 
-    const checkExistingSession = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session) {
-        setReady(true);
-      } else {
+    // Fallback: if PASSWORD_RECOVERY hasn't fired after 5s, the link is
+    // invalid/expired. Show an error rather than leaving the spinner forever.
+    const timeout = setTimeout(() => {
+      if (!recoveryReceived) {
         setError('Invalid or expired reset link. Please request a new one.');
+        setInitializing(false);
       }
-      setInitializing(false);
+    }, 5000);
+
+    // Sign user out on unmount if they navigated away without resetting.
+    // This prevents the recovery session being reused to bypass login.
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+      if (!passwordWasReset.current) {
+        supabase.auth.signOut();
+      }
     };
-
-    if (Platform.OS === 'web') {
-      const hash = window.location.hash;
-      if (hash && hash.includes('type=recovery')) {
-        setTimeout(() => {
-          if (initializing) {
-            checkExistingSession();
-          }
-        }, 3000);
-      } else {
-        checkExistingSession();
-      }
-    } else {
-      checkExistingSession();
-    }
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const handleResetPassword = async () => {
@@ -81,6 +74,7 @@ export default function ResetPasswordScreen() {
       if (error) {
         Alert.alert('Error', error.message);
       } else {
+        passwordWasReset.current = true; // Don't sign out on unmount
         if (Platform.OS === 'web') {
           alert('Password updated successfully!');
           router.replace('/(tabs)/home');
