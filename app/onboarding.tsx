@@ -21,7 +21,7 @@ const SLIDES = [
   {
     emoji: '🎯',
     title: 'Welcome to DontBet',
-    subtitle: 'Track picks.\nDon't Bet.',
+    subtitle: "Track picks.\nDon't Bet.",
     body: "Prove your sports knowledge without losing money. DontBet is your personal pick tracker — confidence, analysis, and record-keeping all in one place.",
     cta: 'Next',
   },
