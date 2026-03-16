@@ -1,9 +1,6 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-  Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,8 +9,6 @@ import {
   View,
 } from 'react-native';
 import storage from './lib/storage';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const ONBOARDING_KEY = 'betless_onboarding_v2';
 
@@ -60,7 +55,7 @@ const SLIDES: Slide[] = [
       {
         number: '2',
         title: 'Invite your friends',
-        desc: 'Tap "📧 Invite Members" on your group card and enter a friend\'s email. They\'ll get a link straight to your group.',
+        desc: "Tap \"📧 Invite Members\" on your group card and enter a friend's email. They'll get a link straight to your group.",
       },
       {
         number: '3',
@@ -70,7 +65,7 @@ const SLIDES: Slide[] = [
       {
         number: '4',
         title: 'Make picks & compete',
-        desc: 'Everyone makes their picks for the same games. Check "See Group Picks" to track who\'s winning the week.',
+        desc: "Everyone makes their picks for the same games. Check \"See Group Picks\" to track who's winning the week.",
       },
     ],
     cta: 'Got it!',
@@ -85,17 +80,13 @@ const SLIDES: Slide[] = [
 ];
 
 export default function OnboardingScreen() {
-  const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setActiveIndex(index);
-  };
+  const slide = SLIDES[activeIndex];
 
   const goNext = async () => {
     if (activeIndex < SLIDES.length - 1) {
-      scrollRef.current?.scrollTo({ x: SCREEN_WIDTH * (activeIndex + 1), animated: true });
+      setActiveIndex(activeIndex + 1);
     } else {
       await storage.setItem(ONBOARDING_KEY, 'done');
       router.replace('/(tabs)/home');
@@ -116,40 +107,33 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Slides */}
+      {/* Slide content */}
       <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleScroll}
-        scrollEventThrottle={16}
-        style={styles.scrollView}
+        contentContainerStyle={styles.slideContent}
+        showsVerticalScrollIndicator={false}
+        style={styles.slideScroll}
       >
-        {SLIDES.map((slide, i) => (
-          <View key={i} style={styles.slide}>
-            <Text style={styles.slideEmoji}>{slide.emoji}</Text>
-            <Text style={styles.slideTitle}>{slide.title}</Text>
-            <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
-            {slide.steps ? (
-              <View style={styles.stepsContainer}>
-                {slide.steps.map((step, si) => (
-                  <View key={si} style={styles.stepRow}>
-                    <View style={styles.stepBadge}>
-                      <Text style={styles.stepNumber}>{step.number}</Text>
-                    </View>
-                    <View style={styles.stepText}>
-                      <Text style={styles.stepTitle}>{step.title}</Text>
-                      <Text style={styles.stepDesc}>{step.desc}</Text>
-                    </View>
-                  </View>
-                ))}
+        <Text style={styles.slideEmoji}>{slide.emoji}</Text>
+        <Text style={styles.slideTitle}>{slide.title}</Text>
+        <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
+
+        {slide.steps ? (
+          <View style={styles.stepsContainer}>
+            {slide.steps.map((step, si) => (
+              <View key={si} style={styles.stepRow}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepNumber}>{step.number}</Text>
+                </View>
+                <View style={styles.stepText}>
+                  <Text style={styles.stepTitle}>{step.title}</Text>
+                  <Text style={styles.stepDesc}>{step.desc}</Text>
+                </View>
               </View>
-            ) : (
-              <Text style={styles.slideBody}>{slide.body}</Text>
-            )}
+            ))}
           </View>
-        ))}
+        ) : (
+          <Text style={styles.slideBody}>{slide.body}</Text>
+        )}
       </ScrollView>
 
       {/* Dots */}
@@ -164,7 +148,7 @@ export default function OnboardingScreen() {
 
       {/* CTA button */}
       <TouchableOpacity style={styles.ctaBtn} onPress={goNext} activeOpacity={0.85}>
-        <Text style={styles.ctaBtnText}>{SLIDES[activeIndex].cta}</Text>
+        <Text style={styles.ctaBtnText}>{slide.cta}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -187,17 +171,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
-  scrollView: {
+  slideScroll: {
     flex: 1,
-    width: SCREEN_WIDTH,
+    width: '100%',
   },
-  slide: {
-    width: SCREEN_WIDTH,
-    flex: 1,
+  slideContent: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
-    paddingBottom: 40,
+    paddingVertical: 40,
   },
   slideEmoji: {
     fontSize: 64,
