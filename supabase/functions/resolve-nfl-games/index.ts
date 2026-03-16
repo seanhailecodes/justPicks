@@ -127,24 +127,26 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const homeSpread = parseFloat(dbGame.home_spread) || 0;
-      const homeWithSpread = scores.homeScore + homeSpread;
+      const homeSpread = dbGame.home_spread !== null && dbGame.home_spread !== undefined ? parseFloat(dbGame.home_spread) : null;
       const totalPoints = scores.homeScore + scores.awayScore;
       const overUnderLine = parseFloat(dbGame.over_under_line) || null;
 
-      // Calculate spread result
+      // Calculate spread result (only if spread data exists)
       let homeCovered: boolean | null = null;
       let awayCovered: boolean | null = null;
       let spreadPush = false;
 
-      if (homeWithSpread > scores.awayScore) {
-        homeCovered = true;
-        awayCovered = false;
-      } else if (homeWithSpread < scores.awayScore) {
-        homeCovered = false;
-        awayCovered = true;
-      } else {
-        spreadPush = true;
+      if (homeSpread !== null) {
+        const homeWithSpread = scores.homeScore + homeSpread;
+        if (homeWithSpread > scores.awayScore) {
+          homeCovered = true;
+          awayCovered = false;
+        } else if (homeWithSpread < scores.awayScore) {
+          homeCovered = false;
+          awayCovered = true;
+        } else {
+          spreadPush = true;
+        }
       }
 
       // Calculate over/under
@@ -224,29 +226,31 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const homeSpread = parseFloat(game.home_spread) || 0;
-      const homeWithSpread = game.home_score + homeSpread;
+      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null;
       const totalPoints = game.home_score + game.away_score;
       const overUnderLine = parseFloat(game.over_under_line) || null;
 
-      // Determine spread result
+      // Determine spread result (only if spread data exists)
       let homeCovered: boolean | null = null;
       let awayCovered: boolean | null = null;
       let spreadPush = false;
 
-      if (homeWithSpread > game.away_score) {
-        homeCovered = true;
-        awayCovered = false;
-      } else if (homeWithSpread < game.away_score) {
-        homeCovered = false;
-        awayCovered = true;
-      } else {
-        spreadPush = true;
+      if (homeSpread !== null) {
+        const homeWithSpread = game.home_score + homeSpread;
+        if (homeWithSpread > game.away_score) {
+          homeCovered = true;
+          awayCovered = false;
+        } else if (homeWithSpread < game.away_score) {
+          homeCovered = false;
+          awayCovered = true;
+        } else {
+          spreadPush = true;
+        }
       }
 
-      // Grade spread pick
+      // Grade spread pick (only if spread data was available)
       let spreadCorrect: boolean | null = null;
-      if (pick.pick === "home" || pick.pick === "away") {
+      if (homeSpread !== null && (pick.pick === "home" || pick.pick === "away")) {
         if (spreadPush) {
           spreadCorrect = null;
         } else if (pick.pick === "home") {

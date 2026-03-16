@@ -110,12 +110,12 @@ Deno.serve(async (req) => {
 
       const homeScore = parseInt(homeScoreData.score)
       const awayScore = parseInt(awayScoreData.score)
-      const homeSpread = parseFloat(game.home_spread) || 0
+      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
       const overUnderLine = game.over_under_line
       const totalPoints = homeScore + awayScore
-      const coveredBy = calculateCoveredBy(homeScore, awayScore, homeSpread)
+      const coveredBy = homeSpread !== null ? calculateCoveredBy(homeScore, awayScore, homeSpread) : null
 
-      console.log(`Resolving: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Puck line: ${homeSpread} | Covered: ${coveredBy}`)
+      console.log(`Resolving: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Puck line: ${homeSpread ?? 'N/A'} | Covered: ${coveredBy ?? 'unresolvable'}`)
 
       // Update game with final scores
       const { error: updateError } = await supabase
@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
 
       for (const pick of picks || []) {
         let spreadCorrect: boolean | null = null
-        if (pick.team_picked) {
+        if (pick.team_picked && coveredBy !== null) {
           spreadCorrect = coveredBy === 'push' ? null : pick.team_picked === coveredBy
         }
 

@@ -107,14 +107,18 @@ Deno.serve(async (req) => {
 
       const homeScoreNum = parseInt(homeScore)
       const awayScoreNum = parseInt(awayScore)
-      const homeSpread = parseFloat(game.home_spread) || 0
+      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
 
-      // Calculate if home team covered the spread
-      // Home spread is typically negative if they're favored
-      // Home covers if: (homeScore + homeSpread) > awayScore
-      const homeScoreWithSpread = homeScoreNum + homeSpread
-      const homeCovered = homeScoreWithSpread > awayScoreNum
-      const push = homeScoreWithSpread === awayScoreNum
+      // Calculate if home team covered the spread (only if spread data exists)
+      let homeCovered: boolean | null = null
+      let push: boolean | null = null
+      let winner: string | null = null
+      if (homeSpread !== null) {
+        const homeScoreWithSpread = homeScoreNum + homeSpread
+        homeCovered = homeScoreWithSpread > awayScoreNum
+        push = homeScoreWithSpread === awayScoreNum
+        winner = push ? 'push' : (homeCovered ? 'home' : 'away')
+      }
 
       // Update game with results
       const { error: updateError } = await supabase
@@ -124,7 +128,7 @@ Deno.serve(async (req) => {
           game_status: 'final',
           home_score: homeScoreNum,
           away_score: awayScoreNum,
-          winner: push ? 'push' : (homeCovered ? 'home' : 'away'),
+          ...(winner !== null ? { winner } : {}),
         })
         .eq('id', game.id)
 
@@ -141,7 +145,7 @@ Deno.serve(async (req) => {
 
       if (!picksSelectError && picks) {
         for (const pick of picks) {
-          const correct = push ? null : pick.team_picked === (homeCovered ? 'home' : 'away')
+          const correct = winner === null ? null : (push ? null : pick.team_picked === (homeCovered ? 'home' : 'away'))
 
           // Calculate win weight
           const winWeight = calcWinWeight(correct, pick.bet_type, pick.ml_odds)

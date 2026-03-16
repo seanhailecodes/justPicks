@@ -93,19 +93,16 @@ Deno.serve(async (req) => {
 
       const homeScoreNum = parseInt(homeScore)
       const awayScoreNum = parseInt(awayScore)
-      const homeSpread = parseFloat(game.home_spread) || 0
+      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
 
-      // Calculate if home team covered the spread
-      // Home covers if: (homeScore + homeSpread) > awayScore
-      const homeScoreWithSpread = homeScoreNum + homeSpread
-      const homeCovered = homeScoreWithSpread > awayScoreNum
-      const push = homeScoreWithSpread === awayScoreNum
-
-      let winner = 'away'
-      if (push) {
-        winner = 'push'
-      } else if (homeCovered) {
-        winner = 'home'
+      // Calculate if home team covered the spread (only if spread data exists)
+      let winner = homeSpread !== null ? 'away' : null
+      if (homeSpread !== null) {
+        const homeScoreWithSpread = homeScoreNum + homeSpread
+        const homeCovered = homeScoreWithSpread > awayScoreNum
+        const push = homeScoreWithSpread === awayScoreNum
+        if (push) winner = 'push'
+        else if (homeCovered) winner = 'home'
       }
 
       // Update game with results
@@ -135,7 +132,7 @@ Deno.serve(async (req) => {
         for (const pick of picks) {
           let correct: boolean | null = null
 
-          if (!push) {
+          if (winner !== null && winner !== 'push') {
             correct = pick.team_picked === winner
           }
 
