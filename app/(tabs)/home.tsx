@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import storage from '../lib/storage';
 import { ONBOARDING_KEY } from '../onboarding';
 import PushEnrollmentBanner from '../../components/PushEnrollmentBanner';
+import FeedbackModal from '../../components/FeedbackModal';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, AppSport, SPORT_EMOJI, getDefaultSport, getSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -64,6 +65,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
+  const [showFeedback, setShowFeedback] = useState(false);
   const sortedSports = useSortedSports(userId);
 
   const sportScrollRef = useRef<ScrollView>(null);
@@ -650,6 +652,17 @@ export default function HomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating feedback button */}
+      <TouchableOpacity
+        style={styles.feedbackFab}
+        onPress={() => setShowFeedback(true)}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.feedbackFabText}>💬</Text>
+      </TouchableOpacity>
+
+      <FeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
     </SafeAreaView>
   );
 }
@@ -1005,5 +1018,24 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 12,
     marginTop: 4,
+  },
+  feedbackFab: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  feedbackFabText: {
+    fontSize: 22,
   },
 });

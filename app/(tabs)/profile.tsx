@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
+import FeedbackModal from '../../components/FeedbackModal';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -54,6 +55,7 @@ const defaultUserProfile: UserProfile = {
 export default function ProfileScreen() {
   const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport());
   const [hiddenIdentity, setHiddenIdentity] = useState(true);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +64,9 @@ export default function ProfileScreen() {
   const sportScrollRef = useRef<ScrollView>(null);
 
   const menuItems = [
-    { id: 'history', title: 'Pick History', icon: '📊' },
-    { id: 'support', title: 'Support', icon: '❓' },
+    { id: 'history',  title: 'Pick History',   icon: '📊' },
+    { id: 'feedback', title: 'Send Feedback',   icon: '💬' },
+    { id: 'support',  title: 'Support',         icon: '❓' },
   ];
 
   useEffect(() => {
@@ -242,6 +245,8 @@ export default function ProfileScreen() {
   const handleMenuPress = (itemId: string) => {
     if (itemId === 'history') {
       router.push('/history/picks');
+    } else if (itemId === 'feedback') {
+      setShowFeedback(true);
     } else if (itemId === 'support') {
       router.push('/support');
     }
@@ -566,6 +571,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <FeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
     </SafeAreaView>
   );
 }
