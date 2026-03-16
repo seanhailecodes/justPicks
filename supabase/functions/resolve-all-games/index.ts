@@ -136,12 +136,12 @@ Deno.serve(async (req) => {
 
       const homeScore = parseInt(homeScoreData.score)
       const awayScore = parseInt(awayScoreData.score)
-      const homeSpread = parseFloat(game.home_spread) || 0
+      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
       const overUnderLine = game.over_under_line
-      const coveredBy = calculateCoveredBy(homeScore, awayScore, homeSpread)
+      const coveredBy = homeSpread !== null ? calculateCoveredBy(homeScore, awayScore, homeSpread) : null
       const totalPoints = homeScore + awayScore
 
-      console.log(`Resolving ${game.league}: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Spread covered: ${coveredBy}`)
+      console.log(`Resolving ${game.league}: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Spread covered: ${coveredBy ?? 'unresolvable (no spread data)'}`)
 
       // Update game record
       const { error: gameUpdateError } = await supabase
@@ -169,8 +169,9 @@ Deno.serve(async (req) => {
       }
 
       for (const pick of picks || []) {
+        // Leave null if spread data was missing — never guess
         let spreadCorrect: boolean | null = null
-        if (pick.team_picked) {
+        if (pick.team_picked && coveredBy !== null) {
           spreadCorrect = coveredBy === 'push' ? null : pick.team_picked === coveredBy
         }
 
