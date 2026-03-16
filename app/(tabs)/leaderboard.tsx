@@ -456,12 +456,15 @@ const styles = StyleSheet.create({
   chip: {
     backgroundColor: '#1C1C1E',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 18,
+    paddingVertical: 7,
+    borderRadius: 10,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#3A3A3C',
   },
   chipActive: {
     backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
   },
   chipDisabled: {
     opacity: 0.4,
