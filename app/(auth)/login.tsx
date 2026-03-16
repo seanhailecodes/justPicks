@@ -163,7 +163,7 @@ export default function LoginScreen() {
     if (error) {
       showAlert('Error', error.message, setMessage);
     } else {
-      showAlert('Check Your Email', `We've sent a password reset link to ${email.trim()}. Please check your inbox and spam folder.`, setMessage);
+      showAlert('Check Your Email', "We'll send a reset link to the email on file. Please check your inbox and spam folder.", setMessage);
     }
   };
 

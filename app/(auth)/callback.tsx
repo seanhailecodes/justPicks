@@ -41,6 +41,11 @@ export default function AuthCallback() {
               router.replace('/(auth)/login');
               return;
             }
+            // Password recovery — must go to reset screen, not the app
+            if (searchParams.get('type') === 'recovery') {
+              router.replace('/reset-password');
+              return;
+            }
             handlePostAuthRedirect();
             return;
           }
@@ -58,6 +63,11 @@ export default function AuthCallback() {
             if (error) {
               console.error('Error setting session:', error);
               router.replace('/(auth)/login');
+              return;
+            }
+            // Password recovery — must go to reset screen, not the app
+            if (hashParams.get('type') === 'recovery') {
+              router.replace('/reset-password');
               return;
             }
             handlePostAuthRedirect();
