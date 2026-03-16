@@ -192,7 +192,7 @@ export default function AcceptInviteScreen() {
         .maybeSingle();
 
       if (existingMember) {
-        router.replace('/(tabs)/groups');
+        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
         return;
       }
 
@@ -210,7 +210,7 @@ export default function AcceptInviteScreen() {
       if (updateError) throw updateError;
 
       clearPendingInvite();
-      router.replace('/(tabs)/groups');
+      router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
     } catch (err) {
       console.error('Error accepting invite:', err);
       setError('Failed to accept invite. Please try again.');
