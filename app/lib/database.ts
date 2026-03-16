@@ -27,6 +27,7 @@ export interface UserGroup {
   memberCount: number;
   activePicks: number;
   pendingPicks: number;
+  createdAt: string;
   // Performance metrics
   rating: number | null; // Overall accuracy %
   weekAccuracy: number | null; // Last week win % (null if no data)
@@ -463,10 +464,10 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
 
     const groupIds = memberships.map(m => m.group_id);
 
-    // Get group details INCLUDING sport field
+    // Get group details INCLUDING sport field and creation date for sorting
     const { data: groups, error: groupError } = await supabase
       .from('groups')
-      .select('id, name, sport, visibility, join_type')
+      .select('id, name, sport, visibility, join_type, created_at')
       .in('id', groupIds);
 
     if (groupError) throw groupError;
@@ -530,6 +531,7 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
           visibility: group.visibility || 'private',
           joinType: group.join_type || 'invite_only',
           memberCount: memberCount || 0,
+          createdAt: group.created_at,
           activePicks,
           pendingPicks,
           // Add performance metrics
@@ -542,6 +544,14 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
         };
       })
     );
+
+    // Sort: active groups (with picks) first, then by most recently created
+    userGroups.sort((a, b) => {
+      const aActive = (a.totalGroupPicks ?? 0) > 0;
+      const bActive = (b.totalGroupPicks ?? 0) > 0;
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
     return userGroups;
   } catch (error) {
