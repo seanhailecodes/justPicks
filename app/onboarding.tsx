@@ -15,9 +15,24 @@ import storage from './lib/storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export const ONBOARDING_KEY = 'betless_onboarding_v1';
+export const ONBOARDING_KEY = 'betless_onboarding_v2';
 
-const SLIDES = [
+interface Step {
+  number: string;
+  title: string;
+  desc: string;
+}
+
+interface Slide {
+  emoji: string;
+  title: string;
+  subtitle: string;
+  body?: string;
+  steps?: Step[];
+  cta: string;
+}
+
+const SLIDES: Slide[] = [
   {
     emoji: '🎯',
     title: 'Welcome to DontBet',
@@ -31,6 +46,34 @@ const SLIDES = [
     subtitle: 'Simple. Fast. No deposit.',
     body: "Browse live and upcoming games, pick a winner, set your confidence level, and save. That's it. No credit card, no withdrawal stress.",
     cta: 'Next',
+  },
+  {
+    emoji: '👥',
+    title: 'Play With Friends',
+    subtitle: 'Groups make it competitive.',
+    steps: [
+      {
+        number: '1',
+        title: 'Open the Squad tab',
+        desc: 'Tap "Squad" in the bottom nav, then tap "+ Create Group" and give it a name — e.g. "Sunday Crew".',
+      },
+      {
+        number: '2',
+        title: 'Invite your friends',
+        desc: 'Tap "📧 Invite Members" on your group card and enter a friend\'s email. They\'ll get a link straight to your group.',
+      },
+      {
+        number: '3',
+        title: 'Friend joins in one tap',
+        desc: 'They click the link in their email, create an account if needed, and land directly in your group — no code required.',
+      },
+      {
+        number: '4',
+        title: 'Make picks & compete',
+        desc: 'Everyone makes their picks for the same games. Check "See Group Picks" to track who\'s winning the week.',
+      },
+    ],
+    cta: 'Got it!',
   },
   {
     emoji: '🔥',
@@ -88,7 +131,23 @@ export default function OnboardingScreen() {
             <Text style={styles.slideEmoji}>{slide.emoji}</Text>
             <Text style={styles.slideTitle}>{slide.title}</Text>
             <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
-            <Text style={styles.slideBody}>{slide.body}</Text>
+            {slide.steps ? (
+              <View style={styles.stepsContainer}>
+                {slide.steps.map((step, si) => (
+                  <View key={si} style={styles.stepRow}>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepNumber}>{step.number}</Text>
+                    </View>
+                    <View style={styles.stepText}>
+                      <Text style={styles.stepTitle}>{step.title}</Text>
+                      <Text style={styles.stepDesc}>{step.desc}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.slideBody}>{slide.body}</Text>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -137,12 +196,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 36,
+    paddingHorizontal: 28,
     paddingBottom: 40,
   },
   slideEmoji: {
-    fontSize: 72,
-    marginBottom: 28,
+    fontSize: 64,
+    marginBottom: 20,
   },
   slideTitle: {
     color: '#FF6B35',
@@ -165,6 +224,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  stepsContainer: {
+    width: '100%',
+    marginTop: 8,
+    gap: 14,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 14,
+    gap: 14,
+  },
+  stepBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  stepNumber: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  stepText: {
+    flex: 1,
+  },
+  stepTitle: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  stepDesc: {
+    color: '#8E8E93',
+    fontSize: 13,
+    lineHeight: 19,
   },
   dotsRow: {
     flexDirection: 'row',
