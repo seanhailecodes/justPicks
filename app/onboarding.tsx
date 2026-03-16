@@ -38,8 +38,8 @@ const SLIDES: Slide[] = [
   {
     emoji: '📋',
     title: 'Make Your Picks',
-    subtitle: 'Simple. Fast. No deposit.',
-    body: "Browse live and upcoming games, pick a winner, set your confidence level, and save. That's it. No credit card, no withdrawal stress.",
+    subtitle: 'Simple. Fast. No cash.',
+    body: "Browse upcoming games, make your picks, track your wins and losses. And hopefully, BetLess.",
     cta: 'Next',
   },
   {
@@ -59,8 +59,8 @@ const SLIDES: Slide[] = [
       },
       {
         number: '3',
-        title: 'Friend joins in one tap',
-        desc: 'They click the link in their email, create an account if needed, and land directly in your group — no code required.',
+        title: 'Friend joins',
+        desc: "They open the link, sign up (it's free!), and confirm their email. Then they tap \"Accept\" and land straight in your group's picks.",
       },
       {
         number: '4',
@@ -88,24 +88,39 @@ export default function OnboardingScreen() {
     if (activeIndex < SLIDES.length - 1) {
       setActiveIndex(activeIndex + 1);
     } else {
-      await storage.setItem(ONBOARDING_KEY, 'done');
+      try { await storage.setItem(ONBOARDING_KEY, 'done'); } catch (_) {}
       router.replace('/(tabs)/home');
     }
   };
 
+  const goBack = () => {
+    if (activeIndex > 0) setActiveIndex(activeIndex - 1);
+  };
+
   const skip = async () => {
-    await storage.setItem(ONBOARDING_KEY, 'done');
+    try { await storage.setItem(ONBOARDING_KEY, 'done'); } catch (_) {}
     router.replace('/(tabs)/home');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Skip */}
-      {activeIndex < SLIDES.length - 1 && (
-        <TouchableOpacity style={styles.skipBtn} onPress={skip}>
-          <Text style={styles.skipText}>Skip</Text>
-        </TouchableOpacity>
-      )}
+      {/* Top nav row: back (left) + skip (right) */}
+      <View style={styles.topNav}>
+        {activeIndex > 0 ? (
+          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
+            <Text style={styles.backText}>‹ Back</Text>
+          </TouchableOpacity>
+        ) : (
+          <View />
+        )}
+        {activeIndex < SLIDES.length - 1 ? (
+          <TouchableOpacity style={styles.skipBtn} onPress={skip}>
+            <Text style={styles.skipText}>Skip</Text>
+          </TouchableOpacity>
+        ) : (
+          <View />
+        )}
+      </View>
 
       {/* Slide content */}
       <ScrollView
@@ -160,11 +175,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     alignItems: 'center',
   },
-  skipBtn: {
-    alignSelf: 'flex-end',
-    paddingHorizontal: 20,
+  topNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 4,
+  },
+  backBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  backText: {
+    color: '#636366',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  skipBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   skipText: {
     color: '#636366',
