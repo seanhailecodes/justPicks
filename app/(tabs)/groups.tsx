@@ -124,7 +124,7 @@ export default function GroupsScreen() {
       }
 
   const inviteLink = `https://justpicks.app/join/${inviteCode}`;
-      // Alternative deep link: dontbet://join/${inviteCode}
+      // Alternative deep link: justpicks://join/${inviteCode}
 
       const result = await Share.share({
         message: `Join my group "${selectedGroupForInvite.name}" on justPicks! 🏈\n\nUse code: ${inviteCode}`,
