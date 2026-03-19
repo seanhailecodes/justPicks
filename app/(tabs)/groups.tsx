@@ -200,7 +200,15 @@ export default function GroupsScreen() {
 
       const { data, error: functionError } = await Promise.race([invokePromise, timeoutPromise]) as any;
 
-      if (functionError) throw new Error(functionError.message || 'Failed to send email');
+      if (functionError) {
+        // Try to extract the real Resend error from the response body
+        let errorMsg = 'Failed to send email';
+        try {
+          const body = await (functionError as any).context?.json?.();
+          if (body?.error) errorMsg = body.error;
+        } catch (_) {}
+        throw new Error(errorMsg);
+      }
       if (data?.error) throw new Error(data.error);
 
       setInviteMessage({ type: 'success', text: `✅ Invite sent to ${inviteEmail.trim()}!` });
