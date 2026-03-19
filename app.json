@@ -13,7 +13,10 @@
       "bundleIdentifier": "com.seanhaile.dontbet",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": [
+        "applinks:justpicks.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,26 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.seanhaile.dontbet"
+      "package": "com.seanhaile.dontbet",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "justpicks.app",
+              "pathPrefix": "/accept-invite"
+            },
+            {
+              "scheme": "https",
+              "host": "justpicks.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
