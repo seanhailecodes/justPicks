@@ -708,13 +708,16 @@ export default function GamesScreen() {
     });
 
     try {
-      await Promise.all(pickPromises);
+      const results = await Promise.all(pickPromises);
       setPendingPicks([]);
-      
+
+      // Grab the first saved pick's ID for the Facebook share nudge
+      const firstPickId = results[0]?.data?.id ?? results[0]?.data?.[0]?.id;
+
       // Show notification modal — use anti-gambling messaging only when a wager was entered
       const hasWager = picks.some(p => p.wagerAmount != null && p.wagerAmount > 0);
-      showPickConfirmation(picks.length, hasWager);
-      
+      showPickConfirmation(picks.length, hasWager, firstPickId);
+
       refreshUserPicks();
     } catch (error) {
       console.error('Error saving picks:', error);

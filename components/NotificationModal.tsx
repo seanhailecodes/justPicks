@@ -1,6 +1,8 @@
 import React from 'react';
 import {
+  Linking,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,6 +20,7 @@ interface NotificationModalProps {
   message: string;
   type?: 'success' | 'great' | 'struggling' | 'info';
   buttonText?: string;
+  facebookShareUrl?: string; // When set, shows a "Share on Facebook" nudge
 }
 
 const { width } = Dimensions.get('window');
@@ -28,8 +31,19 @@ export default function NotificationModal({
   title,
   message,
   type = 'info',
-  buttonText = 'Got It!'
+  buttonText = 'Got It!',
+  facebookShareUrl,
 }: NotificationModalProps) {
+
+  const handleFacebookShare = () => {
+    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl!)}`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(fbUrl, '_blank', 'width=600,height=400');
+    } else {
+      Linking.openURL(fbUrl);
+    }
+    onClose();
+  };
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const handScaleAnim = useRef(new Animated.Value(0)).current;
@@ -193,6 +207,22 @@ export default function NotificationModal({
             >
               <Text style={styles.buttonText}>{buttonText}</Text>
             </TouchableOpacity>
+
+            {/* Facebook share nudge — only shown once per day */}
+            {facebookShareUrl && (
+              <>
+                <TouchableOpacity
+                  style={styles.facebookButton}
+                  onPress={handleFacebookShare}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.facebookButtonText}>f  Share on Facebook</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={onClose} style={styles.skipButton}>
+                  <Text style={styles.skipText}>Not now</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </Animated.View>
       </View>
@@ -376,5 +406,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  facebookButton: {
+    marginTop: 12,
+    backgroundColor: '#1877F2',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    minWidth: 140,
+    alignItems: 'center',
+  },
+  facebookButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  skipButton: {
+    marginTop: 10,
+    padding: 6,
+  },
+  skipText: {
+    color: '#555',
+    fontSize: 13,
   },
 });

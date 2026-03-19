@@ -13,12 +13,15 @@ import {
 // TYPES
 // ============================================
 
+const FB_NUDGE_KEY = 'fb_share_nudge_date';
+
 interface NotificationState {
   visible: boolean;
   title: string;
   message: string;
   type: 'success' | 'great' | 'struggling' | 'info';
   buttonText?: string;
+  facebookShareUrl?: string;
 }
 
 interface NotificationContextType {
@@ -28,7 +31,7 @@ interface NotificationContextType {
     type?: 'success' | 'great' | 'struggling' | 'info',
     buttonText?: string
   ) => void;
-  showPickConfirmation: (pickCount?: number, hasWager?: boolean) => void;
+  showPickConfirmation: (pickCount?: number, hasWager?: boolean, pickId?: string) => Promise<void>;
   checkWeeklyPerformance: (wins: number, losses: number) => Promise<void>;
 }
 
@@ -53,13 +56,15 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     message: '',
     type: 'info',
     buttonText: 'Got It!',
+    facebookShareUrl: undefined,
   });
 
   const showNotification = useCallback((
     title: string,
     message: string,
     type: 'success' | 'great' | 'struggling' | 'info' = 'info',
-    buttonText: string = 'Got It!'
+    buttonText: string = 'Got It!',
+    facebookShareUrl?: string,
   ) => {
     setNotification({
       visible: true,
@@ -67,6 +72,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       message,
       type,
       buttonText,
+      facebookShareUrl,
     });
   }, []);
 
@@ -79,9 +85,25 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
    * @param pickCount - number of picks saved
    * @param hasWager - true if any pick had a wager amount entered
    */
-  const showPickConfirmation = useCallback((pickCount: number = 1, hasWager: boolean = false) => {
+  const showPickConfirmation = useCallback(async (pickCount: number = 1, hasWager: boolean = false, pickId?: string) => {
     const msg = getPickConfirmationMessage(pickCount, hasWager);
-    showNotification(msg.title, msg.message, 'success');
+
+    // Check if we should show the Facebook share nudge today
+    let fbShareUrl: string | undefined;
+    if (pickId) {
+      try {
+        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const lastNudge = await AsyncStorage.getItem(FB_NUDGE_KEY);
+        if (lastNudge !== today) {
+          fbShareUrl = `https://justpicks.app/share/${pickId}`;
+          await AsyncStorage.setItem(FB_NUDGE_KEY, today);
+        }
+      } catch {
+        // Non-fatal — just skip the nudge
+      }
+    }
+
+    showNotification(msg.title, msg.message, 'success', 'Got It!', fbShareUrl);
   }, [showNotification]);
 
   /**
@@ -165,6 +187,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         message={notification.message}
         type={notification.type}
         buttonText={notification.buttonText}
+        facebookShareUrl={notification.facebookShareUrl}
       />
     </NotificationContext.Provider>
   );
