@@ -17,6 +17,7 @@ export default function RootLayout() {
         <Stack.Screen name="callback" options={{ headerShown: false }} />
         <Stack.Screen name="group/group-picks" options={{ headerShown: false }} />
         <Stack.Screen name="group/browse-groups" options={{ headerShown: false }} />
+        <Stack.Screen name="share/[pickId]" options={{ headerShown: false }} />
       </Stack>
     </NotificationProvider>
   );

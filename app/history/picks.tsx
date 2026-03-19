@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getUserPickHistory, supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import { APP_SPORTS } from '../../services/activeSport';
 
@@ -505,6 +505,30 @@ export default function PickHistoryScreen() {
                     {isWeekBased && pick.week ? (
                       <Text style={styles.weekText}>Week {pick.week}</Text>
                     ) : null}
+                    {/* Share button — only for resolved picks */}
+                    {pick.correct !== null && (
+                      <TouchableOpacity
+                        style={styles.sharePickButton}
+                        onPress={async (e) => {
+                          e.stopPropagation?.();
+                          const emoji = pick.correct ? '✅' : '❌';
+                          const resultText = pick.correct ? 'and it covered!' : 'took the L.';
+                          const gameStr = formatGameTitle(pick);
+                          const pickStr = pick.team_picked
+                            ? formatPickChoice(pick)
+                            : (formatOverUnderChoice(pick) ?? pick.pick);
+                          try {
+                            await Share.share({
+                              message: `${emoji} I picked ${pickStr} in ${gameStr} — ${resultText}\n\njustpicks.app/share/${pick.id}`,
+                              url: `https://justpicks.app/share/${pick.id}`,
+                              title: 'My pick on justPicks',
+                            });
+                          } catch (_) {}
+                        }}
+                      >
+                        <Text style={styles.sharePickButtonText}>📤 Share this pick</Text>
+                      </TouchableOpacity>
+                    )}
                   </>
                 )}
               </TouchableOpacity>
@@ -807,6 +831,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     marginBottom: 4,
+  },
+  sharePickButton: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+  },
+  sharePickButtonText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '500',
   },
   pickChoiceSmall: {
     color: '#FFF',
