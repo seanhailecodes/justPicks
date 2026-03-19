@@ -145,14 +145,18 @@ Deno.serve(async (req) => {
             .eq('id', pick.id)
 
           if (!pickUpdateError) {
-            const resultText = correct === true ? '✅ Correct!' : correct === false ? '❌ Incorrect' : '🤝 Push'
+            const pickedTeam = pick.team_picked === 'home' ? game.home_team : pick.team_picked === 'away' ? game.away_team : null
+            const emoji = correct === true ? '✅' : correct === false ? '❌' : '🤝'
+            const resultWord = correct === true ? 'Covered!' : correct === false ? "Didn't Cover" : 'Push'
+            const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NCAAB Pick ${emoji}`
+            const notifBody = `${game.away_team} ${awayScoreNum} – ${game.home_team} ${homeScoreNum} · ${resultWord}`
             fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
               body: JSON.stringify({
                 userId: pick.user_id,
-                title: `NCAAB Pick ${resultText}`,
-                body: `${game.away_team} @ ${game.home_team} — Final: ${awayScoreNum}-${homeScoreNum}`,
+                title: notifTitle,
+                body: notifBody,
                 url: '/history/picks',
                 tag: `pick-${pick.id}`,
               }),
