@@ -416,6 +416,9 @@ export default function PickHistoryScreen() {
                     <Text style={styles.pickChoice}>
                       {pick.team_picked ? formatPickChoice(pick) : (formatOverUnderChoice(pick) ?? '—')}
                     </Text>
+                    {formatScore(pick) && (
+                      <Text style={styles.inlineScore}>{formatScore(pick)}</Text>
+                    )}
                     {pick.confidence && (
                       <View style={[styles.confidenceBadge, {
                         backgroundColor: getConfidenceColor(pick.confidence) + '22',
@@ -797,6 +800,12 @@ const styles = StyleSheet.create({
   finalScore: {
     color: '#636366',
     fontSize: 12,
+    marginBottom: 4,
+  },
+  inlineScore: {
+    color: '#636366',
+    fontSize: 12,
+    marginTop: 2,
     marginBottom: 4,
   },
   pickChoiceSmall: {
