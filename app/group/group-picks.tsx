@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase, getCurrentSeason } from '../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 import { Sport } from '../../services/pickrating';
@@ -519,7 +519,8 @@ export default function GroupPicksScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <ActivityIndicator size="large" color="#00E676" />
+          <Text style={styles.loadingText}>Loading group picks...</Text>
         </View>
       </SafeAreaView>
     );
@@ -871,12 +872,16 @@ export default function GroupPicksScreen() {
 
             {gamesData.length === 0 && (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No games found</Text>
-                <TouchableOpacity 
+                <Text style={{ fontSize: 36, marginBottom: 12 }}>🏟️</Text>
+                <Text style={styles.emptyText}>No picks yet this week</Text>
+                <Text style={[styles.emptyText, { fontSize: 13, color: '#636366', marginBottom: 16 }]}>
+                  Be the first to make picks for this group
+                </Text>
+                <TouchableOpacity
                   style={styles.makePicksButton}
                   onPress={() => router.push('/(tabs)/games')}
                 >
-                  <Text style={styles.makePicksText}>Make Picks</Text>
+                  <Text style={styles.makePicksText}>Make Picks →</Text>
                 </TouchableOpacity>
               </View>
             )}
