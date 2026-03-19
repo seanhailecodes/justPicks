@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import storage from './lib/storage';
 import { supabase } from './lib/supabase';
+import { APP_SPORTS, isSportInSeason } from '../services/activeSport';
 
 export const ONBOARDING_KEY = 'betless_onboarding_v2';
 
@@ -45,31 +46,26 @@ const SLIDES: Slide[] = [
   },
   {
     emoji: '👥',
-    title: 'Play With Friends',
-    subtitle: 'Make better picks.',
+    title: 'Join a Public Group',
+    subtitle: 'Compete right away.',
     steps: [
       {
         number: '1',
-        title: 'Open the Squad tab',
-        desc: 'Tap "Squad" in the bottom nav, then tap "+ Create Group" and give it a name — e.g. "Sunday Crew".',
+        title: 'Browse public groups',
+        desc: 'Open the Squad tab and tap "Browse Groups". You\'ll see public groups for sports currently in season.',
       },
       {
         number: '2',
-        title: 'Invite your friends',
-        desc: "Tap \"📧 Invite Members\" on your group card and enter a friend's email. They'll get a link straight to your group.",
+        title: 'Join with one tap',
+        desc: 'Tap "Join" on any group. No invite code needed — public groups are open to everyone.',
       },
       {
         number: '3',
-        title: 'Friend joins',
-        desc: "They open the link, sign up (it's free!), and confirm their email. Then they tap \"Accept\" and land straight in your group's picks.",
-      },
-      {
-        number: '4',
         title: 'Make picks & compete',
-        desc: "Everyone makes their picks for the same games. Check \"See Group Picks\" to track who's winning the week.",
+        desc: 'Make your picks for the same games as everyone else. Check the group leaderboard to see where you rank.',
       },
     ],
-    cta: 'Got it!',
+    cta: 'Browse Groups →',
   },
   {
     emoji: '🔥',
@@ -80,18 +76,41 @@ const SLIDES: Slide[] = [
   },
 ];
 
+// Find the first enabled sport currently in season for the browse-groups slide
+const getInSeasonSport = () => {
+  const inSeason = APP_SPORTS.filter(s => s.enabled && isSportInSeason(s.season));
+  return inSeason[0] ?? APP_SPORTS.find(s => s.enabled) ?? null;
+};
+
 export default function OnboardingScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const slide = SLIDES[activeIndex];
+  const inSeasonSport = getInSeasonSport();
+  const slides = SLIDES.map((s, i) => {
+    if (i !== 2 || !inSeasonSport) return s;
+    return {
+      ...s,
+      subtitle: `${inSeasonSport.emoji} ${inSeasonSport.label} season is live.`,
+    };
+  });
+
+  const slide = slides[activeIndex];
 
   const markOnboardingDone = async () => {
     try { await storage.setItem(ONBOARDING_KEY, 'done'); } catch (_) {}
     try { await supabase.auth.updateUser({ data: { onboarding_done: true } }); } catch (_) {}
   };
 
+  const BROWSE_GROUPS_SLIDE = 2; // 0-indexed — the "Join a Public Group" slide
+
   const goNext = async () => {
-    if (activeIndex < SLIDES.length - 1) {
+    // The Browse Groups slide has a special CTA that sends the user there directly
+    if (activeIndex === BROWSE_GROUPS_SLIDE) {
+      await markOnboardingDone();
+      router.replace('/group/browse-groups');
+      return;
+    }
+    if (activeIndex < slides.length - 1) {
       setActiveIndex(activeIndex + 1);
     } else {
       await markOnboardingDone();
@@ -119,7 +138,7 @@ export default function OnboardingScreen() {
         ) : (
           <View />
         )}
-        {activeIndex < SLIDES.length - 1 ? (
+        {activeIndex < slides.length - 1 ? (
           <TouchableOpacity style={styles.skipBtn} onPress={skip}>
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
@@ -159,7 +178,7 @@ export default function OnboardingScreen() {
 
       {/* Dots */}
       <View style={styles.dotsRow}>
-        {SLIDES.map((_, i) => (
+        {slides.map((_, i) => (
           <View
             key={i}
             style={[styles.dot, i === activeIndex && styles.dotActive]}
