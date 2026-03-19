@@ -58,7 +58,17 @@ export default function AcceptInviteScreen() {
   const fingerNudgeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadInviteAndCheckAuth();
+    if (!inviteId) {
+      setError('Invalid invite link. Please check the link and try again.');
+      setLoading(false);
+      return;
+    }
+    // Safety net: if the async load hangs, unblock after 8s
+    const timeout = setTimeout(() => {
+      setError('Loading timed out. Please check your connection and try again.');
+      setLoading(false);
+    }, 8000);
+    loadInviteAndCheckAuth().finally(() => clearTimeout(timeout));
   }, [inviteId]);
 
   useEffect(() => {
