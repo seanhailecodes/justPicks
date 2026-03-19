@@ -6,7 +6,7 @@ import FeedbackModal from '@/components/FeedbackModal';
 import { Session } from '@supabase/supabase-js';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getUserPicks, savePick, updatePickWager, getCurrencySymbol, getDeviceCurrency, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
 import { getUserGroups } from '../lib/database';
@@ -161,6 +161,7 @@ export default function GamesScreen() {
   // NOTE: must stay AFTER session declaration to avoid hook ordering crash
   const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingGames, setIsLoadingGames] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
@@ -324,6 +325,7 @@ export default function GamesScreen() {
   };
 
   const loadGamesFromDatabase = async (picksToUse?: Map<string, any>, sportOverride?: SportConfig) => {
+    setIsLoadingGames(true);
     try {
       // Filter from 3 hours ago so games in progress still show,
       // but yesterday's stale unlocked games are excluded.
@@ -350,6 +352,7 @@ export default function GamesScreen() {
 
       if (!dbGames || dbGames.length === 0) {
         setGames([]);
+        setIsLoadingGames(false);
         return;
       }
 
@@ -405,6 +408,8 @@ export default function GamesScreen() {
       setGames(transformedGames);
     } catch (error) {
       console.error('Error in loadGamesFromDatabase:', error);
+    } finally {
+      setIsLoadingGames(false);
     }
   };
 
@@ -742,8 +747,9 @@ export default function GamesScreen() {
   if (isInitializing) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={{ color: '#FFF', fontSize: 18 }}>Loading games...</Text>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', gap: 12 }]}>
+          <ActivityIndicator size="large" color="#00E676" />
+          <Text style={{ color: '#8E8E93', fontSize: 14 }}>Loading games...</Text>
         </View>
       </SafeAreaView>
     );
@@ -1113,16 +1119,24 @@ export default function GamesScreen() {
           ))
         ) : (
           <View style={styles.noGamesCard}>
-            <Text style={styles.noGamesText}>
-              {isSportInSeason(selectedSport.season)
-                ? `No upcoming ${selectedSport.label} games available`
-                : `${selectedSport.label} is currently out of season`}
-            </Text>
-            <Text style={styles.noGamesSubtext}>
-              {isSportInSeason(selectedSport.season)
-                ? 'Check back later for new games'
-                : 'Check back when the season starts'}
-            </Text>
+            {isLoadingGames ? (
+              <>
+                <ActivityIndicator size="large" color="#00E676" />
+                <Text style={styles.noGamesSubtext}>Fetching games...</Text>
+              </>
+            ) : isSportInSeason(selectedSport.season) ? (
+              <>
+                <Text style={styles.noGamesEmoji}>{selectedSport.emoji}</Text>
+                <Text style={styles.noGamesText}>No upcoming games right now</Text>
+                <Text style={styles.noGamesSubtext}>Check back later — games are added daily</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.noGamesEmoji}>💤</Text>
+                <Text style={styles.noGamesText}>{selectedSport.label} is out of season</Text>
+                <Text style={styles.noGamesSubtext}>Check back when the season starts</Text>
+              </>
+            )}
           </View>
         )}
 
@@ -1501,6 +1515,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 40,
     alignItems: 'center',
+    gap: 8,
+  },
+  noGamesEmoji: {
+    fontSize: 40,
+    marginBottom: 12,
   },
   noGamesText: {
     color: '#FFF',
