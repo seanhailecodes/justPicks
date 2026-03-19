@@ -290,14 +290,18 @@ Deno.serve(async (req) => {
       if (!pickUpdateError) {
         picksResolved++;
         console.log(`Graded pick ${pick.id}: spread=${spreadCorrect}, o/u=${ouCorrect}`);
-        const resultText = spreadCorrect === true ? '✅ Correct!' : spreadCorrect === false ? '❌ Incorrect' : '🤝 Push'
+        const pickedTeam = pick.team_picked === 'home' ? dbGame.home_team : pick.team_picked === 'away' ? dbGame.away_team : null
+        const emoji = spreadCorrect === true ? '✅' : spreadCorrect === false ? '❌' : '🤝'
+        const resultWord = spreadCorrect === true ? 'Covered!' : spreadCorrect === false ? "Didn't Cover" : 'Push'
+        const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NFL Pick ${emoji}`
+        const notifBody = `${dbGame.away_team} ${scores.awayScore} – ${dbGame.home_team} ${scores.homeScore} · ${resultWord}`
         fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
           body: JSON.stringify({
             userId: pick.user_id,
-            title: `NFL Pick ${resultText}`,
-            body: `${dbGame.away_team} @ ${dbGame.home_team} — Final: ${scores.awayScore}-${scores.homeScore}`,
+            title: notifTitle,
+            body: notifBody,
             url: '/history/picks',
             tag: `pick-${pick.id}`,
           }),

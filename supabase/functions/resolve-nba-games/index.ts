@@ -194,15 +194,18 @@ Deno.serve(async (req) => {
           console.log(`  Pick ${pick.id}: Spread=${spreadCorrect}, O/U=${overUnderCorrect}`)
 
           // Send push notification to this user
-          const resultText = spreadCorrect === true ? '✅ Correct!' : spreadCorrect === false ? '❌ Incorrect' : '🤝 Push'
-          const gameTitle = `${game.away_team} @ ${game.home_team}`
+          const pickedTeam = pick.team_picked === 'home' ? game.home_team : pick.team_picked === 'away' ? game.away_team : null
+          const emoji = spreadCorrect === true ? '✅' : spreadCorrect === false ? '❌' : '🤝'
+          const resultWord = spreadCorrect === true ? 'Covered!' : spreadCorrect === false ? "Didn't Cover" : 'Push'
+          const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NBA Pick ${emoji}`
+          const notifBody = `${game.away_team} ${awayScore} – ${game.home_team} ${homeScore} · ${resultWord}`
           fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
             body: JSON.stringify({
               userId: pick.user_id,
-              title: `NBA Pick ${resultText}`,
-              body: `${gameTitle} — Final: ${awayScore}-${homeScore}`,
+              title: notifTitle,
+              body: notifBody,
               url: '/history/picks',
               tag: `pick-${pick.id}`,
             }),
