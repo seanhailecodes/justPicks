@@ -42,7 +42,14 @@ export const clearPendingInvite = () => {
 };
 
 export default function AcceptInviteScreen() {
-  const { inviteId } = useLocalSearchParams<{ inviteId: string }>();
+  const { inviteId: paramInviteId } = useLocalSearchParams<{ inviteId: string }>();
+  // Fallback: read directly from URL path when Expo Router param isn't available
+  // (can happen with Vercel SPA rewrite on first load)
+  const inviteId = paramInviteId || (
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.pathname.split('/accept-invite/')[1]?.split('?')[0]?.split('/')[0] || undefined
+      : undefined
+  );
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [invite, setInvite] = useState<InviteDetails | null>(null);
