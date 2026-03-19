@@ -61,6 +61,7 @@ export default function AcceptInviteScreen() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [joined, setJoined] = useState(false);
 
   // Inline signup form state
   const [signupEmail, setSignupEmail] = useState('');
@@ -288,7 +289,11 @@ export default function AcceptInviteScreen() {
       }
 
       clearPendingInvite();
-      router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+      setJoined(true);
+      // Show success screen briefly, then navigate
+      setTimeout(() => {
+        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+      }, 1800);
     } catch (err) {
       console.error('Error accepting invite:', err);
       setSignupError('Account created! But joining the group failed — go to Groups to find it.');
@@ -318,7 +323,10 @@ export default function AcceptInviteScreen() {
         .maybeSingle();
 
       if (existingMember) {
-        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+        setJoined(true);
+        setTimeout(() => {
+          router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+        }, 1800);
         return;
       }
 
@@ -336,7 +344,10 @@ export default function AcceptInviteScreen() {
       if (updateError) throw updateError;
 
       clearPendingInvite();
-      router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+      setJoined(true);
+      setTimeout(() => {
+        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+      }, 1800);
     } catch (err) {
       console.error('Error accepting invite:', err);
       setError('Failed to accept invite. Please try again.');
@@ -359,6 +370,19 @@ export default function AcceptInviteScreen() {
       console.error('Error declining invite:', err);
     }
   };
+
+  if (joined) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <Text style={{ fontSize: 72 }}>🎉</Text>
+          <Text style={[styles.errorTitle, { color: '#FF6B35', fontSize: 28 }]}>YOU'RE IN!</Text>
+          <Text style={styles.loadingText}>Taking you to the group...</Text>
+          <ActivityIndicator size="small" color="#FF6B35" style={{ marginTop: 16 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (
