@@ -364,25 +364,26 @@ export default function GroupsScreen() {
               <Text style={styles.discussButtonText}>See Group Picks →</Text>
             </TouchableOpacity>
 
-            {group.role === 'primary_owner' && (
-              <>
-                <TouchableOpacity 
-                  style={styles.inviteButton}
-                  onPress={() => {
-                    setSelectedGroupForInvite(group);
-                    setShowInviteModal(true);
-                  }}
-                >
-                  <Text style={styles.inviteButtonText}>📧 Invite Members</Text>
-                </TouchableOpacity>
+            {/* Any member can invite in public groups; only owner in private */}
+            {(group.role === 'primary_owner' || group.visibility === 'public') && (
+              <TouchableOpacity
+                style={styles.inviteButton}
+                onPress={() => {
+                  setSelectedGroupForInvite(group);
+                  setShowInviteModal(true);
+                }}
+              >
+                <Text style={styles.inviteButtonText}>📧 Invite Members</Text>
+              </TouchableOpacity>
+            )}
 
-                <TouchableOpacity 
-                  style={styles.settingsButton}
-                  onPress={() => router.push(`/group/settings?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
-                >
-                  <Text style={styles.settingsButtonText}>⚙️ Group Settings</Text>
-                </TouchableOpacity>
-              </>
+            {group.role === 'primary_owner' && (
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={() => router.push(`/group/settings?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
+              >
+                <Text style={styles.settingsButtonText}>⚙️ Group Settings</Text>
+              </TouchableOpacity>
             )}
           </View>
         ))}
