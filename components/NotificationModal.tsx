@@ -295,7 +295,7 @@ export default function NotificationModal({
 // ============================================
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import {
   getPickConfirmationMessage,
   getWeeklyPerformanceMessage,
