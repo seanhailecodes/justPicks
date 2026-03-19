@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import storage from './lib/storage';
+import { supabase } from './lib/supabase';
 
 export const ONBOARDING_KEY = 'betless_onboarding_v2';
 
@@ -30,22 +31,22 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     emoji: '🎯',
-    title: 'Welcome to DontBet',
+    title: 'Welcome to justPicks',
     subtitle: "Track picks.\nDon't Bet.",
-    body: "Prove your sports knowledge without losing money. DontBet is your personal pick tracker — confidence, analysis, and record-keeping all in one place.",
+    body: "Prove your sports knowledge without losing money. justPicks is your personal pick tracker — confidence, analysis, and record-keeping all in one place.",
     cta: 'Next',
   },
   {
     emoji: '📋',
     title: 'Make Your Picks',
     subtitle: 'Simple. Fast. No cash.',
-    body: "Browse upcoming games, make your picks, track your wins and losses. And hopefully, BetLess.",
+    body: "Browse upcoming games, make your picks, track your wins and losses. And hopefully, justPicks.",
     cta: 'Next',
   },
   {
     emoji: '👥',
     title: 'Play With Friends',
-    subtitle: 'Groups make it competitive.',
+    subtitle: 'Make better picks.',
     steps: [
       {
         number: '1',
@@ -84,11 +85,16 @@ export default function OnboardingScreen() {
 
   const slide = SLIDES[activeIndex];
 
+  const markOnboardingDone = async () => {
+    try { await storage.setItem(ONBOARDING_KEY, 'done'); } catch (_) {}
+    try { await supabase.auth.updateUser({ data: { onboarding_done: true } }); } catch (_) {}
+  };
+
   const goNext = async () => {
     if (activeIndex < SLIDES.length - 1) {
       setActiveIndex(activeIndex + 1);
     } else {
-      try { await storage.setItem(ONBOARDING_KEY, 'done'); } catch (_) {}
+      await markOnboardingDone();
       router.replace('/(tabs)/home');
     }
   };
@@ -98,7 +104,7 @@ export default function OnboardingScreen() {
   };
 
   const skip = async () => {
-    try { await storage.setItem(ONBOARDING_KEY, 'done'); } catch (_) {}
+    await markOnboardingDone();
     router.replace('/(tabs)/home');
   };
 

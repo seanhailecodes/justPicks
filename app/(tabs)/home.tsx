@@ -100,9 +100,10 @@ export default function HomeScreen() {
       }
       setUserId(user.id);
 
-      // Show onboarding once for new/first-time users
-      const onboardingDone = await storage.getItem(ONBOARDING_KEY);
-      if (!onboardingDone) {
+      // Show onboarding once — check Supabase metadata first, fall back to localStorage
+      const onboardingDoneRemote = user.user_metadata?.onboarding_done;
+      const onboardingDoneLocal = await storage.getItem(ONBOARDING_KEY);
+      if (!onboardingDoneRemote && !onboardingDoneLocal) {
         router.replace('/onboarding');
         return;
       }

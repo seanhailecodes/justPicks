@@ -226,7 +226,7 @@ export default function PickHistoryScreen() {
 
   const stats = getFilteredStats();
   const winRate = stats.correct + stats.incorrect > 0
-    ? Math.round((stats.correct / (stats.correct + stats.incorrect)) * 100)
+    ? parseFloat(((stats.correct / (stats.correct + stats.incorrect)) * 100).toFixed(1))
     : 0;
 
   const handleBack = () => {

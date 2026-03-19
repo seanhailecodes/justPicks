@@ -206,7 +206,7 @@ export default function LeaderboardScreen() {
 
     const leaderboard: LeaderboardPlayer[] = Object.entries(userStats).map(([userId, stats]) => {
       const total = stats.wins + stats.losses;
-      const accuracy = total > 0 ? Math.round((stats.wins / total) * 100) : 0;
+      const accuracy = total > 0 ? parseFloat(((stats.wins / total) * 100).toFixed(1)) : 0;
       const isYou = userId === user?.id;
       const isStranger = !selectedGroupId && !isYou && !effectiveSharedIds.has(userId);
 

@@ -173,7 +173,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        <Text style={styles.title}>Welcome to DontBet</Text>
+        <Text style={styles.title}>Welcome to justPicks</Text>
         
         {/* Show invite context banner */}
         {hasInviteContext && (
@@ -234,7 +234,7 @@ export default function LoginScreen() {
             <View style={styles.disclosureCard}>
               <Text style={styles.disclosureTitle}>⚠️ Important Notice</Text>
               <Text style={styles.disclosureText}>
-                DontBet is not a gambling platform and does not facilitate real-money wagering of any kind. Consistent with peer-reviewed academic research, the long-term probability of achieving a positive financial outcome through sports betting is low for the vast majority of participants.
+                justPicks is not a gambling platform and does not facilitate real-money wagering of any kind. Consistent with peer-reviewed academic research, the long-term probability of achieving a positive financial outcome through sports betting is low for the vast majority of participants.
               </Text>
             </View>
             <TouchableOpacity
@@ -245,7 +245,7 @@ export default function LoginScreen() {
                 {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
               </View>
               <Text style={styles.termsText}>
-                I understand DontBet is not a gambling platform and I agree to the{' '}
+                I understand justPicks is not a gambling platform and I agree to the{' '}
                 <Text style={styles.termsLink} onPress={() => router.push('/terms')}>Terms of Service</Text>
                 {' '}and{' '}
                 <Text style={styles.termsLink} onPress={() => router.push('/privacy')}>Privacy Policy</Text>

@@ -18,7 +18,7 @@ export default function PrivacyScreen() {
         <Text style={styles.updated}>Last updated: {LAST_UPDATED}</Text>
 
         <Text style={styles.intro}>
-          DontBet ("we," "our," or "us") is committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights around it.
+          justPicks ("we," "our," or "us") is committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights around it.
         </Text>
 
         <Text style={styles.sectionTitle}>1. What We Collect</Text>
@@ -32,13 +32,13 @@ export default function PrivacyScreen() {
 
         <Text style={styles.sectionTitle}>2. What We Do Not Collect</Text>
         <Text style={styles.body}>
-          We do not collect, process, or store payment information of any kind. DontBet does not handle real money. We do not collect biometric data, contacts, or precise location. We do not sell your data to third parties.
+          We do not collect, process, or store payment information of any kind. justPicks does not handle real money. We do not collect biometric data, contacts, or precise location. We do not sell your data to third parties.
         </Text>
 
         <Text style={styles.sectionTitle}>3. How We Use Your Information</Text>
         <Text style={styles.body}>
           We use your information to:{'\n\n'}
-          • Provide and improve the DontBet app{'\n'}
+          • Provide and improve the justPicks app{'\n'}
           • Calculate and display your pick record, win rate, and P&L{'\n'}
           • Enable group features and leaderboards{'\n'}
           • Send optional notifications about your picks and groups{'\n'}
@@ -52,7 +52,7 @@ export default function PrivacyScreen() {
 
         <Text style={styles.sectionTitle}>5. Third-Party Services</Text>
         <Text style={styles.body}>
-          We use the following third-party services to operate DontBet:{'\n\n'}
+          We use the following third-party services to operate justPicks:{'\n\n'}
           • <Text style={styles.bold}>Supabase</Text> — authentication and database{'\n'}
           • <Text style={styles.bold}>The Odds API</Text> — sports odds data{'\n'}
           • <Text style={styles.bold}>Crisp</Text> — in-app support chat{'\n'}
@@ -67,19 +67,19 @@ export default function PrivacyScreen() {
 
         <Text style={styles.sectionTitle}>7. Children's Privacy</Text>
         <Text style={styles.body}>
-          DontBet is not intended for users under the age of 17. We do not knowingly collect information from children. If you believe a child has created an account, please contact us and we will remove it promptly.
+          justPicks is not intended for users under the age of 17. We do not knowingly collect information from children. If you believe a child has created an account, please contact us and we will remove it promptly.
         </Text>
 
         <Text style={styles.sectionTitle}>8. Changes to This Policy</Text>
         <Text style={styles.body}>
-          We may update this policy from time to time. We will notify you of significant changes via the app or email. Continued use of DontBet after changes constitutes acceptance of the updated policy.
+          We may update this policy from time to time. We will notify you of significant changes via the app or email. Continued use of justPicks after changes constitutes acceptance of the updated policy.
         </Text>
 
         <Text style={styles.sectionTitle}>9. Contact</Text>
         <Text style={styles.body}>
           Questions or requests? Reach us through the Support screen in the app or at:{'\n\n'}
           seanhaile.codes@gmail.com{'\n'}
-          dontbet.online
+          justpicks.app
         </Text>
       </ScrollView>
     </SafeAreaView>

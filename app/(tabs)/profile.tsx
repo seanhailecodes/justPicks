@@ -64,9 +64,10 @@ export default function ProfileScreen() {
   const sportScrollRef = useRef<ScrollView>(null);
 
   const menuItems = [
-    { id: 'history',  title: 'Pick History',   icon: '📊' },
-    { id: 'feedback', title: 'Send Feedback',   icon: '💬' },
-    { id: 'support',  title: 'Support',         icon: '❓' },
+    { id: 'history',    title: 'Pick History',  icon: '📊' },
+    { id: 'howItWorks', title: 'How it Works',  icon: '🎯' },
+    { id: 'feedback',   title: 'Send Feedback', icon: '💬' },
+    { id: 'support',    title: 'Support',       icon: '❓' },
   ];
 
   useEffect(() => {
@@ -245,6 +246,8 @@ export default function ProfileScreen() {
   const handleMenuPress = (itemId: string) => {
     if (itemId === 'history') {
       router.push('/history/picks');
+    } else if (itemId === 'howItWorks') {
+      router.push('/onboarding');
     } else if (itemId === 'feedback') {
       setShowFeedback(true);
     } else if (itemId === 'support') {

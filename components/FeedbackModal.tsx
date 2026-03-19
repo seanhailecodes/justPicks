@@ -54,6 +54,17 @@ export default function FeedbackModal({ visible, onClose }: Props) {
       });
 
       if (error) throw error;
+
+      // Fire-and-forget email notification — don't block on it
+      supabase.functions.invoke('send-feedback', {
+        body: {
+          category,
+          message: message.trim(),
+          userEmail: user?.email ?? null,
+          userId: user?.id ?? null,
+        },
+      }).catch(() => {});
+
       setSubmitted(true);
       setTimeout(() => {
         handleClose();
