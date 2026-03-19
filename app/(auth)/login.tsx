@@ -107,7 +107,7 @@ export default function LoginScreen() {
         options: {
           emailRedirectTo: Platform.OS === 'web' && typeof window !== 'undefined'
               ? `${window.location.origin}/callback${invite ? `?invite=${invite}` : ''}`
-              : 'dontbet://callback',
+              : `dontbet://callback${invite ? `?invite=${invite}` : ''}`,
           data: {
             accepted_terms_at: new Date().toISOString(),
             accepted_terms_version: TERMS_VERSION,
