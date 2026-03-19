@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Linking,
   Modal,
   Platform,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,7 +21,7 @@ interface NotificationModalProps {
   message: string;
   type?: 'success' | 'great' | 'struggling' | 'info';
   buttonText?: string;
-  facebookShareUrl?: string; // When set, shows a "Share on Facebook" nudge
+  facebookShareUrl?: string; // When set, shows social share options
 }
 
 const { width } = Dimensions.get('window');
@@ -34,13 +35,39 @@ export default function NotificationModal({
   buttonText = 'Got It!',
   facebookShareUrl,
 }: NotificationModalProps) {
+  const [showFallback, setShowFallback] = useState(false);
 
-  const handleFacebookShare = () => {
-    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl!)}`;
+  const handleShare = async () => {
+    const shareUrl = facebookShareUrl!;
+    const shareText = `Check out my pick on justPicks 🏈`;
+
+    // Native: opens iOS/Android share sheet (covers IG, TikTok, FB, WhatsApp, etc.)
+    if (Platform.OS !== 'web') {
+      try {
+        await Share.share({ message: `${shareText}\n${shareUrl}`, url: shareUrl, title: shareText });
+      } catch {}
+      onClose();
+      return;
+    }
+
+    // Web: try navigator.share (shows all installed apps on mobile browsers)
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: shareText, url: shareUrl, text: shareText });
+        onClose();
+        return;
+      } catch {}
+    }
+
+    // Fallback: show platform buttons for desktop browsers
+    setShowFallback(true);
+  };
+
+  const openUrl = (url: string) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.open(fbUrl, '_blank', 'width=600,height=400');
+      window.open(url, '_blank', 'width=600,height=500');
     } else {
-      Linking.openURL(fbUrl);
+      Linking.openURL(url);
     }
     onClose();
   };
@@ -119,6 +146,7 @@ export default function NotificationModal({
       handScaleAnim.setValue(0);
       handRotateAnim.setValue(0);
       handBounceAnim.setValue(0);
+      setShowFallback(false);
     }
   }, [visible]);
 
@@ -199,25 +227,57 @@ export default function NotificationModal({
             {/* Message */}
             <Text style={styles.message}>{message}</Text>
 
-            {/* Button */}
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: accentColor }]}
-              onPress={onClose}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.buttonText}>{buttonText}</Text>
-            </TouchableOpacity>
+            {/* "Got It!" button — only show when there's no share option */}
+            {!facebookShareUrl && (
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: accentColor }]}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buttonText}>{buttonText}</Text>
+              </TouchableOpacity>
+            )}
 
-            {/* Facebook share nudge — only shown once per day */}
-            {facebookShareUrl && (
+            {/* Social share — native sheet covers IG, TikTok, FB, WhatsApp etc. */}
+            {facebookShareUrl && !showFallback && (
               <>
                 <TouchableOpacity
-                  style={styles.facebookButton}
-                  onPress={handleFacebookShare}
+                  style={styles.shareButton}
+                  onPress={handleShare}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.facebookButtonText}>f  Share on Facebook</Text>
+                  <Text style={styles.shareButtonText}>📤  Share Pick</Text>
                 </TouchableOpacity>
+                <TouchableOpacity onPress={onClose} style={styles.skipButton}>
+                  <Text style={styles.skipText}>Not now</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Desktop fallback: specific platform buttons */}
+            {facebookShareUrl && showFallback && (
+              <>
+                <Text style={styles.fallbackLabel}>Share to:</Text>
+                <View style={styles.platformRow}>
+                  <TouchableOpacity
+                    style={[styles.platformBtn, { backgroundColor: '#1877F2' }]}
+                    onPress={() => openUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl)}`)}
+                  >
+                    <Text style={styles.platformBtnText}>Facebook</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.platformBtn, { backgroundColor: '#000' }]}
+                    onPress={() => openUrl(`https://twitter.com/intent/tweet?url=${encodeURIComponent(facebookShareUrl)}&text=${encodeURIComponent('Check out my pick on justPicks 🏈')}`)}
+                  >
+                    <Text style={styles.platformBtnText}>X</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.platformBtn, { backgroundColor: '#25D366' }]}
+                    onPress={() => openUrl(`https://wa.me/?text=${encodeURIComponent('Check out my pick on justPicks 🏈 ' + facebookShareUrl)}`)}
+                  >
+                    <Text style={styles.platformBtnText}>WhatsApp</Text>
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity onPress={onClose} style={styles.skipButton}>
                   <Text style={styles.skipText}>Not now</Text>
                 </TouchableOpacity>
@@ -407,20 +467,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  facebookButton: {
+  shareButton: {
     marginTop: 12,
-    backgroundColor: '#1877F2',
-    paddingVertical: 12,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 13,
     paddingHorizontal: 32,
     borderRadius: 12,
-    minWidth: 140,
+    minWidth: 180,
     alignItems: 'center',
   },
-  facebookButtonText: {
+  shareButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  fallbackLabel: {
+    color: '#8E8E93',
+    fontSize: 12,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  platformRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  platformBtn: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  platformBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   skipButton: {
     marginTop: 10,
