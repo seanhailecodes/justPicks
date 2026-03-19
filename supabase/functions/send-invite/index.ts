@@ -39,8 +39,16 @@ serve(async (req) => {
 
     const data = await res.json()
 
+    // Propagate Resend errors so the client knows the email didn't send
+    if (!res.ok) {
+      return new Response(
+        JSON.stringify({ error: data?.message || 'Failed to send email' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 },
+      )
+    }
+
     return new Response(
-      JSON.stringify(data),
+      JSON.stringify({ id: data.id }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (error) {
