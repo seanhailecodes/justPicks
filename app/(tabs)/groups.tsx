@@ -1,18 +1,19 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Friend, getFriendsWithStats, getGroupStats, getUserGroups, GroupStats, UserGroup } from '../lib/database';
+import { getGroupStats, getUserGroups, GroupStats, UserGroup } from '../lib/database';
 import { supabase } from '../lib/supabase';
 
 export default function GroupsScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [friends, setFriends] = useState<Friend[]>([]);
   const [groupStats, setGroupStats] = useState<GroupStats>({ activePicks: 0, pendingPicks: 0, totalFriends: 0 });
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupPublic, setNewGroupPublic] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
+
+  const ADMIN_USER_ID = '64a6ef63-2b66-4e03-9152-b766ec0926aa';
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedGroupForInvite, setSelectedGroupForInvite] = useState<UserGroup | null>(null);
@@ -34,13 +35,11 @@ export default function GroupsScreen() {
 
       setCurrentUserId(user.id);
 
-      const [friendsData, statsData, groupsData] = await Promise.all([
-        getFriendsWithStats(user.id),
+      const [statsData, groupsData] = await Promise.all([
         getGroupStats(user.id),
         getUserGroups(user.id)
       ]);
 
-      setFriends(friendsData);
       setGroupStats(statsData);
       setUserGroups(groupsData);
     } catch (error) {
@@ -50,13 +49,7 @@ export default function GroupsScreen() {
     }
   };
 
-  const filteredFriends = friends.filter(friend => 
-    friend.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
-  const handleAddFriend = () => {
-    router.push('/(auth)/find-friends');
-  };
 
   const handleViewPicks = () => {
     router.push('/group/group-picks?groupId=163b5d2c-fb32-4b34-8ed0-4d39fa9a3a9b&groupName=The%20Syndicate');
@@ -76,11 +69,13 @@ export default function GroupsScreen() {
     setCreatingGroup(true);
     
     try {
+      const isAdmin = currentUserId === ADMIN_USER_ID;
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
           name: newGroupName.trim(),
-          created_by: currentUserId
+          created_by: currentUserId,
+          visibility: isAdmin && newGroupPublic ? 'public' : 'private',
         })
         .select()
         .single();
@@ -127,13 +122,13 @@ export default function GroupsScreen() {
         return;
       }
 
-  const inviteLink = `https://dontbet.online/join/${inviteCode}`;
+  const inviteLink = `https://justpicks.app/join/${inviteCode}`;
       // Alternative deep link: dontbet://join/${inviteCode}
 
       const result = await Share.share({
-        message: `Join my group "${selectedGroupForInvite.name}" on DontBet! 🏈\n\nUse code: ${inviteCode}`,
+        message: `Join my group "${selectedGroupForInvite.name}" on justPicks! 🏈\n\nUse code: ${inviteCode}`,
         url: inviteLink,
-        title: `Join ${selectedGroupForInvite.name} on DontBet`,
+        title: `Join ${selectedGroupForInvite.name} on justPicks`,
     });
 
       if (result.action === Share.sharedAction) {
@@ -260,12 +255,6 @@ export default function GroupsScreen() {
           >
             <Text style={styles.actionButtonText}>➕ Create Group</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleAddFriend}
-          >
-            <Text style={styles.actionButtonText}>👥 Add Friends</Text>
-          </TouchableOpacity>
         </View>
 
         <TouchableOpacity 
@@ -382,66 +371,6 @@ export default function GroupsScreen() {
           </View>
         ))}
 
-        <View style={styles.searchContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search friends..."
-            placeholderTextColor="#666"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Friends ({friends.length})</Text>
-          
-          {filteredFriends.map(friend => (
-            <View key={friend.id} style={styles.friendCard}>
-              <View style={styles.friendInfo}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {friend.username.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.friendName}>@{friend.username}</Text>
-                  <Text style={styles.friendStats}>
-                    {friend.picks} picks • {friend.accuracy}% accurate
-                  </Text>
-                </View>
-              </View>
-              {friend.status === 'pending' && (
-                <View style={styles.pendingBadge}>
-                  <Text style={styles.pendingText}>Pending</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-
-        {friends.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>👥</Text>
-            <Text style={styles.emptyTitle}>No friends yet</Text>
-            <Text style={styles.emptyText}>
-              Add friends to start making picks together
-            </Text>
-            <TouchableOpacity style={styles.addFriendButton} onPress={handleAddFriend}>
-              <Text style={styles.addFriendButtonText}>Find Friends</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-       <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>🎯 Get Started</Text>
-        <Text style={styles.infoText}>
-          1. Create a group or browse public ones{'\n'}
-          2. Invite friends to join your group{'\n'}
-          3. Make picks & share them with friends{'\n'}
-          4. See who has the best record!
-        </Text>
-      </View>
       </ScrollView>
 
       <Modal
@@ -466,13 +395,26 @@ export default function GroupsScreen() {
               autoFocus
               maxLength={50}
             />
-            
+
+            {currentUserId === ADMIN_USER_ID && (
+              <TouchableOpacity
+                style={styles.publicToggleRow}
+                onPress={() => setNewGroupPublic(p => !p)}
+              >
+                <Text style={styles.publicToggleLabel}>🌐 Make Public Group</Text>
+                <View style={[styles.publicToggle, newGroupPublic && styles.publicToggleOn]}>
+                  <Text style={styles.publicToggleText}>{newGroupPublic ? 'ON' : 'OFF'}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity 
                 style={styles.modalButtonCancel}
                 onPress={() => {
                   setShowCreateGroupModal(false);
                   setNewGroupName('');
+                  setNewGroupPublic(false);
                 }}
               >
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
@@ -937,6 +879,32 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.5,
+  },
+  publicToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 8,
+  },
+  publicToggleLabel: {
+    color: '#FFF',
+    fontSize: 15,
+  },
+  publicToggle: {
+    backgroundColor: '#333',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  publicToggleOn: {
+    backgroundColor: '#34C759',
+  },
+  publicToggleText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   // New styles for share link
   shareButton: {

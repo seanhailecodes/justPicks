@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "DontBet",
-    "slug": "dontbet",
+    "name": "justPicks",
+    "slug": "justpicks",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -27,9 +27,9 @@
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "name": "DontBet",
-      "shortName": "DontBet",
-      "description": "Track picks. Don't Bet.",
+      "name": "justPicks",
+      "shortName": "justPicks",
+      "description": "Track your picks.",
       "themeColor": "#FF6B35",
       "backgroundColor": "#000000"
     },

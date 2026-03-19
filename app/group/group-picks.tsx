@@ -25,7 +25,20 @@ interface GroupInfo {
   id: string;
   name: string;
   sport: Sport;
+  visibility: string;
 }
+
+// Generates a consistent fun alias for a user in a public group
+// e.g. "ClutchPick42" — deterministic so same user always gets same alias
+const getPublicAlias = (userId: string, groupId: string): string => {
+  const seed = [...(userId + groupId)].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const adjectives = ['Sharp', 'Clutch', 'Bold', 'Slick', 'Hot', 'Cold', 'Wild', 'Solid', 'Smooth', 'Quick'];
+  const nouns = ['Pick', 'Call', 'Shot', 'Read', 'Line', 'Move', 'Play', 'Take'];
+  const adj = adjectives[seed % adjectives.length];
+  const noun = nouns[Math.floor(seed / adjectives.length) % nouns.length];
+  const num = (seed % 98) + 1;
+  return `${adj}${noun}${num}`;
+};
 
 export default function GroupPicksScreen() {
   const params = useLocalSearchParams();
@@ -77,7 +90,7 @@ export default function GroupPicksScreen() {
 
       const { data, error } = await supabase
         .from('groups')
-        .select('id, name, sport')
+        .select('id, name, sport, visibility')
         .eq('id', groupId)
         .single();
 
@@ -85,7 +98,8 @@ export default function GroupPicksScreen() {
         setGroupInfo({
           id: data.id,
           name: data.name,
-          sport: (data.sport as Sport) || 'nfl'
+          sport: (data.sport as Sport) || 'nfl',
+          visibility: data.visibility || 'private',
         });
       }
     };
@@ -245,10 +259,15 @@ export default function GroupPicksScreen() {
           .in('id', userIds);
 
         const usernameMap = new Map(profiles?.map(p => [p.id, p.username || p.display_name || 'Unknown']) || []);
+        const isPublicGroup = groupInfo?.visibility === 'public';
 
         pickWithUsernames = picks.map(pick => ({
           ...pick,
-          username: pick.user_id === user.id ? 'You' : (usernameMap.get(pick.user_id) || 'Unknown')
+          username: pick.user_id === user.id
+            ? 'You'
+            : isPublicGroup
+              ? getPublicAlias(pick.user_id, groupId)
+              : (usernameMap.get(pick.user_id) || 'Unknown')
         }));
       }
 

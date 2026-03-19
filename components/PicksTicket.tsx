@@ -117,12 +117,14 @@ export default function PicksTicket({
       currency: deviceCurrency,
     });
 
-    // Auto-suggest -110 payout in "to win" if user hasn't typed there yet
-    // Do this outside any state setter to avoid side-effect bugs
-    if (!isNaN(amount) && amount > 0 && !toWinInputs[pickKey]) {
+    // Always auto-calculate -110 payout from risking amount
+    if (!isNaN(amount) && amount > 0) {
       const suggested = (amount * 100 / 110).toFixed(2);
       setToWinInputs(prev => ({ ...prev, [pickKey]: suggested }));
       onUpdatePick(gameId, betType, { potentialWin: parseFloat(suggested) });
+    } else {
+      setToWinInputs(prev => ({ ...prev, [pickKey]: '' }));
+      onUpdatePick(gameId, betType, { potentialWin: null });
     }
   };
 
