@@ -22,7 +22,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'justPicks <onboarding@resend.dev>',
+        from: 'justPicks <noreply@justpicks.app>',
         to: ['seanhaile@identitysimpler.com'],
         subject: `[justPicks Feedback] ${category}`,
         html: `

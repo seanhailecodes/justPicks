@@ -23,7 +23,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'justPicks <onboarding@resend.dev>',
+        from: 'justPicks <noreply@justpicks.app>',
         to: [inviteeEmail],
         subject: `You've been invited to join ${groupName} on justPicks!`,
         html: `
