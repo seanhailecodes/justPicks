@@ -14,6 +14,7 @@ interface PublicGroup {
   sport: string;
   memberCount: number;
   ownerUsername: string;
+  isMember: boolean;
 }
 
 export default function BrowseGroupsScreen() {
@@ -72,18 +73,9 @@ export default function BrowseGroupsScreen() {
         throw groupsError;
       }
 
-      console.log('Public groups found:', publicGroups?.length || 0);
-
-      // Filter out groups user is already a member of (in JS - more reliable than Supabase .not())
-      const availableGroups = (publicGroups || []).filter(
-        group => !memberGroupIds.has(group.id)
-      );
-
-      console.log('Available groups (excluding already joined):', availableGroups.length);
-
       // Get member counts and owner info for each group
       const groupsWithDetails = await Promise.all(
-        availableGroups.map(async (group) => {
+        (publicGroups || []).map(async (group) => {
           // Get member count
           const { count } = await supabase
             .from('group_members')
@@ -100,7 +92,8 @@ export default function BrowseGroupsScreen() {
           return {
             ...group,
             memberCount: count || 0,
-            ownerUsername: ownerData?.username || ownerData?.display_name || 'Unknown'
+            ownerUsername: ownerData?.username || ownerData?.display_name || 'Unknown',
+            isMember: memberGroupIds.has(group.id),
           };
         })
       );
@@ -253,22 +246,28 @@ export default function BrowseGroupsScreen() {
                 Created {new Date(group.created_at).toLocaleDateString()}
               </Text>
 
-              <TouchableOpacity 
-                style={[
-                  styles.joinButton,
-                  joiningGroupId === group.id && styles.joinButtonDisabled
-                ]}
-                onPress={() => handleJoinGroup(group)}
-                disabled={joiningGroupId === group.id}
-              >
-                <Text style={styles.joinButtonText}>
-                  {joiningGroupId === group.id 
-                    ? 'Joining...' 
-                    : group.require_approval 
-                      ? '✉️ Request to Join' 
-                      : '➕ Join Group'}
-                </Text>
-              </TouchableOpacity>
+              {group.isMember ? (
+                <View style={styles.joinedButton}>
+                  <Text style={styles.joinedButtonText}>✓ Already Joined</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.joinButton,
+                    joiningGroupId === group.id && styles.joinButtonDisabled
+                  ]}
+                  onPress={() => handleJoinGroup(group)}
+                  disabled={joiningGroupId === group.id}
+                >
+                  <Text style={styles.joinButtonText}>
+                    {joiningGroupId === group.id
+                      ? 'Joining...'
+                      : group.require_approval
+                        ? '✉️ Request to Join'
+                        : '➕ Join Group'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ))
         )}
@@ -403,6 +402,19 @@ const styles = StyleSheet.create({
   },
   joinButtonDisabled: {
     opacity: 0.5,
+  },
+  joinedButton: {
+    backgroundColor: '#2C2C2E',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#34C759',
+  },
+  joinedButtonText: {
+    color: '#34C759',
+    fontSize: 16,
+    fontWeight: '600',
   },
   joinButtonText: {
     color: '#FFF',
