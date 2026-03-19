@@ -15,7 +15,7 @@ import { supabase } from './lib/supabase';
  * the tokens in the URL fragment before this component even mounts, so by
  * the time onAuthStateChange fires we already have a valid session.
  *
- * On native, the deep-link dontbet://callback is handled the same way via
+ * On native, the deep-link justpicks://callback is handled the same way via
  * the react-native-url-polyfill and Supabase's session persistence.
  */
 export default function CallbackScreen() {
