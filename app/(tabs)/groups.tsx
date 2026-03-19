@@ -19,6 +19,7 @@ export default function GroupsScreen() {
   const [selectedGroupForInvite, setSelectedGroupForInvite] = useState<UserGroup | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     loadUserAndData();
@@ -159,6 +160,7 @@ export default function GroupsScreen() {
     }
 
     setSendingInvite(true);
+    setInviteMessage(null);
 
     try {
       const { data: invite, error: dbError } = await supabase
@@ -182,7 +184,8 @@ export default function GroupsScreen() {
 
       const inviterName = profile?.display_name || profile?.username || 'A friend';
 
-      const { data, error: functionError } = await supabase.functions.invoke('send-invite', {
+      // Race the function call against a 10s timeout so it can't hang forever
+      const invokePromise = supabase.functions.invoke('send-invite', {
         body: {
           inviteeEmail: inviteEmail.trim(),
           groupName: selectedGroupForInvite.name,
@@ -191,20 +194,25 @@ export default function GroupsScreen() {
           inviteId: invite.id,
         },
       });
-
-      if (functionError) throw functionError;
-      if (data?.error) throw new Error(data.error); 
-
-      Alert.alert(
-        '📧 Invite Sent!',
-        `We've sent an email invitation to ${inviteEmail}. They'll receive instructions to join "${selectedGroupForInvite.name}".`
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
       );
-      
-      setShowInviteModal(false);
+
+      const { data, error: functionError } = await Promise.race([invokePromise, timeoutPromise]) as any;
+
+      if (functionError) throw new Error(functionError.message || 'Failed to send email');
+      if (data?.error) throw new Error(data.error);
+
+      setInviteMessage({ type: 'success', text: `✅ Invite sent to ${inviteEmail.trim()}!` });
       setInviteEmail('');
-    } catch (error) {
+      // Auto-close after a beat so user sees the confirmation
+      setTimeout(() => {
+        setShowInviteModal(false);
+        setInviteMessage(null);
+      }, 2000);
+    } catch (error: any) {
       console.error('Error sending invite:', error);
-      Alert.alert('Error', 'Failed to send invite. Please try again.');
+      setInviteMessage({ type: 'error', text: error?.message || 'Failed to send invite. Please try again.' });
     } finally {
       setSendingInvite(false);
     }
@@ -468,18 +476,28 @@ export default function GroupsScreen() {
               autoCapitalize="none"
             />
             
+            {inviteMessage && (
+              <Text style={[
+                styles.inviteInlineMessage,
+                { color: inviteMessage.type === 'success' ? '#34C759' : '#FF3B30' }
+              ]}>
+                {inviteMessage.text}
+              </Text>
+            )}
+
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modalButtonCancel}
                 onPress={() => {
                   setShowInviteModal(false);
                   setInviteEmail('');
+                  setInviteMessage(null);
                 }}
               >
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.modalButtonCreate, sendingInvite && styles.modalButtonDisabled]}
                 onPress={handleSendInvite}
                 disabled={sendingInvite}
@@ -852,6 +870,12 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
+  },
+  inviteInlineMessage: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
   },
   modalButtonCancel: {
     flex: 1,
