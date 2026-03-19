@@ -87,22 +87,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
    */
   const showPickConfirmation = useCallback(async (pickCount: number = 1, hasWager: boolean = false, pickId?: string) => {
     const msg = getPickConfirmationMessage(pickCount, hasWager);
-
-    // Check if we should show the Facebook share nudge today
-    let fbShareUrl: string | undefined;
-    if (pickId) {
-      try {
-        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-        const lastNudge = await AsyncStorage.getItem(FB_NUDGE_KEY);
-        if (lastNudge !== today) {
-          fbShareUrl = `https://justpicks.app/share/${pickId}`;
-          await AsyncStorage.setItem(FB_NUDGE_KEY, today);
-        }
-      } catch {
-        // Non-fatal — just skip the nudge
-      }
-    }
-
+    const fbShareUrl = pickId ? `https://justpicks.app/share/${pickId}` : undefined;
     showNotification(msg.title, msg.message, 'success', 'Got It!', fbShareUrl);
   }, [showNotification]);
 
