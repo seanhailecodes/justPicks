@@ -3,14 +3,19 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+
+const TERMS_VERSION = '2026-03-08';
 
 interface InviteDetails {
   id: string;
@@ -56,6 +61,14 @@ export default function AcceptInviteScreen() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Inline signup form state
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupAgreed, setSignupAgreed] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -187,6 +200,102 @@ export default function AcceptInviteScreen() {
     }
   };
 
+  const handleInviteSignup = async () => {
+    setSignupError(null);
+    if (!signupEmail.trim() || !signupPassword.trim()) {
+      setSignupError('Please enter your email and a password.');
+      return;
+    }
+    if (signupPassword.length < 6) {
+      setSignupError('Password must be at least 6 characters.');
+      return;
+    }
+    if (!signupAgreed) {
+      setSignupError('Please accept the Terms of Service to continue.');
+      return;
+    }
+
+    setSignupLoading(true);
+    try {
+      // Step 1: Create account pre-confirmed via edge function (no verification email)
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-signup', {
+        body: {
+          email: signupEmail.trim(),
+          password: signupPassword,
+          acceptedTermsAt: new Date().toISOString(),
+          acceptedTermsVersion: TERMS_VERSION,
+        },
+      });
+
+      if (fnError) {
+        const body = await (fnError as any).context?.json?.();
+        setSignupError(body?.error || 'Failed to create account. Please try again.');
+        setSignupLoading(false);
+        return;
+      }
+
+      if (fnData?.error) {
+        setSignupError(fnData.error);
+        setSignupLoading(false);
+        return;
+      }
+
+      // Step 2: Sign in immediately (account is already confirmed)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: signupEmail.trim(),
+        password: signupPassword,
+      });
+
+      if (signInError || !signInData.user) {
+        setSignupError('Account created but sign-in failed. Please log in manually.');
+        setSignupLoading(false);
+        return;
+      }
+
+      // Step 3: Accept the invite automatically
+      setCurrentUserId(signInData.user.id);
+      setIsLoggedIn(true);
+      // handleAccept will be called via the updated state — trigger it directly
+      await acceptInviteForUser(signInData.user.id);
+    } catch (err: any) {
+      setSignupError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
+  const acceptInviteForUser = async (userId: string) => {
+    if (!invite) return;
+    setAccepting(true);
+    try {
+      const { data: existingMember } = await supabase
+        .from('group_members')
+        .select('id')
+        .eq('group_id', invite.group_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!existingMember) {
+        const { error: memberError } = await supabase
+          .from('group_members')
+          .insert({ group_id: invite.group_id, user_id: userId, role: 'member' });
+        if (memberError) throw memberError;
+
+        await supabase
+          .from('group_invites')
+          .update({ status: 'accepted' })
+          .eq('id', invite.id);
+      }
+
+      clearPendingInvite();
+      router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+    } catch (err) {
+      console.error('Error accepting invite:', err);
+      setSignupError('Account created! But joining the group failed — go to Groups to find it.');
+      setAccepting(false);
+    }
+  };
+
   const handleSignUp = () => {
     setPendingInvite(inviteId!);
     router.push(`/(auth)/login?mode=signup&invite=${inviteId}`);
@@ -284,7 +393,8 @@ export default function AcceptInviteScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         {/* Top glow accent */}
         <View style={styles.glowBar} />
@@ -319,13 +429,6 @@ export default function AcceptInviteScreen() {
             <Text style={styles.groupBadgeText}>{invite?.group_name}</Text>
           </View>
 
-          {/* Value prop for new users */}
-          {!isLoggedIn && (
-            <Text style={styles.valueProp}>
-              Bet less with friends. Just picks.{'\n'}Confer, compare, pick calm.{'\n'}Show off. Bragging rights.
-            </Text>
-          )}
-
           {/* CTAs */}
           {isLoggedIn ? (
             <View style={styles.buttons}>
@@ -352,33 +455,85 @@ export default function AcceptInviteScreen() {
             </View>
           ) : (
             <View style={styles.buttons}>
+              {/* Inline signup form — no second email needed */}
+              <Text style={styles.signupLabel}>Create your free account to join</Text>
+
+              {signupError && (
+                <View style={styles.signupErrorBox}>
+                  <Text style={styles.signupErrorText}>{signupError}</Text>
+                </View>
+              )}
+
+              <TextInput
+                style={styles.signupInput}
+                placeholder="your.email@example.com"
+                placeholderTextColor="#555"
+                value={signupEmail}
+                onChangeText={setSignupEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!signupLoading}
+              />
+
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.signupInput, { flex: 1, marginBottom: 0 }]}
+                  placeholder="Password (min 6 chars)"
+                  placeholderTextColor="#555"
+                  value={signupPassword}
+                  onChangeText={setSignupPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!signupLoading}
+                />
+                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(v => !v)}>
+                  <Text style={{ fontSize: 18 }}>{showPassword ? '🙈' : '👁️'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.termsRow}
+                onPress={() => setSignupAgreed(!signupAgreed)}
+                disabled={signupLoading}
+              >
+                <View style={[styles.checkbox, signupAgreed && styles.checkboxChecked]}>
+                  {signupAgreed && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.termsText}>
+                  I agree to the{' '}
+                  <Text style={styles.termsLink} onPress={() => router.push('/terms')}>Terms</Text>
+                  {' '}and{' '}
+                  <Text style={styles.termsLink} onPress={() => router.push('/privacy')}>Privacy Policy</Text>
+                </Text>
+              </TouchableOpacity>
+
               <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
                 <TouchableOpacity
-                  style={styles.acceptButton}
-                  onPress={handleSignUp}
+                  style={[styles.acceptButton, (signupLoading || accepting) && styles.buttonDisabled]}
+                  onPress={handleInviteSignup}
+                  disabled={signupLoading || accepting}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.acceptButtonText}>CREATE ACCOUNT & JOIN 🔥</Text>
+                  <Text style={styles.acceptButtonText}>
+                    {signupLoading || accepting ? 'Joining...' : 'CREATE ACCOUNT & JOIN 🔥'}
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
 
-              <TouchableOpacity
-                style={styles.loginButton}
-                onPress={handleLogin}
-              >
+              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
                 <Text style={styles.loginButtonText}>Already have an account? Log in</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.declineButton}
-                onPress={handleDecline}
-              >
+              <TouchableOpacity style={styles.declineButton} onPress={handleDecline}>
                 <Text style={styles.declineButtonText}>No thanks</Text>
               </TouchableOpacity>
             </View>
           )}
         </Animated.View>
-      </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -409,7 +564,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
   },
@@ -533,6 +688,78 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  signupLabel: {
+    color: '#8E8E93',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  signupErrorBox: {
+    backgroundColor: 'rgba(255,59,48,0.12)',
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+  },
+  signupErrorText: {
+    color: '#FF6B6B',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  signupInput: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+    borderRadius: 10,
+    padding: 14,
+    color: '#FFF',
+    fontSize: 15,
+    marginBottom: 10,
+    width: '100%',
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  eyeBtn: {
+    padding: 10,
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+    gap: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#444',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    borderColor: '#FF6B35',
+  },
+  checkmark: {
+    color: '#FF6B35',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  termsText: {
+    color: '#555',
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: '#FF6B35',
   },
   loadingText: {
     color: '#555',
