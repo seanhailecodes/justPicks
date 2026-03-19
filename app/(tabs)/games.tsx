@@ -2,6 +2,7 @@ import { getWeekSchedule, hasScheduleForWeek } from '@/app/data/nfl-2025-schedul
 import { getWeekScores, hasScoresForWeek } from '@/app/data/resolution/allScores';
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import PicksTicket, { TicketPick } from '@/components/PicksTicket';
+import FeedbackModal from '@/components/FeedbackModal';
 import { Session } from '@supabase/supabase-js';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -160,6 +161,7 @@ export default function GamesScreen() {
   // NOTE: must stay AFTER session declaration to avoid hook ordering crash
   const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -751,7 +753,11 @@ export default function GamesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Games</Text>
+        <TouchableOpacity onPress={() => setShowFeedback(true)} style={styles.feedbackBtn}>
+          <Text style={styles.feedbackBtnText}>💬</Text>
+        </TouchableOpacity>
       </View>
+      <FeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
 
       {/* Sport Tabs - matching Home screen style */}
       <ScrollView 
@@ -1192,6 +1198,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 24,
     paddingBottom: 16,
   },
@@ -1199,6 +1208,12 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 28,
     fontWeight: 'bold',
+  },
+  feedbackBtn: {
+    padding: 4,
+  },
+  feedbackBtnText: {
+    fontSize: 22,
   },
   sportTabsContainer: {
     maxHeight: 60,
