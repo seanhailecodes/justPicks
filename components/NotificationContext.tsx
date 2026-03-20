@@ -22,6 +22,7 @@ interface NotificationState {
   type: 'success' | 'great' | 'struggling' | 'info';
   buttonText?: string;
   facebookShareUrl?: string;
+  shareText?: string;
 }
 
 interface NotificationContextType {
@@ -31,7 +32,7 @@ interface NotificationContextType {
     type?: 'success' | 'great' | 'struggling' | 'info',
     buttonText?: string
   ) => void;
-  showPickConfirmation: (pickCount?: number, hasWager?: boolean, pickId?: string) => Promise<void>;
+  showPickConfirmation: (pickCount?: number, hasWager?: boolean, pickId?: string, shareText?: string) => Promise<void>;
   checkWeeklyPerformance: (wins: number, losses: number) => Promise<void>;
 }
 
@@ -65,6 +66,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     type: 'success' | 'great' | 'struggling' | 'info' = 'info',
     buttonText: string = 'Got It!',
     facebookShareUrl?: string,
+    shareText?: string,
   ) => {
     setNotification({
       visible: true,
@@ -73,6 +75,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       type,
       buttonText,
       facebookShareUrl,
+      shareText,
     });
   }, []);
 
@@ -85,10 +88,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
    * @param pickCount - number of picks saved
    * @param hasWager - true if any pick had a wager amount entered
    */
-  const showPickConfirmation = useCallback(async (pickCount: number = 1, hasWager: boolean = false, pickId?: string) => {
+  const showPickConfirmation = useCallback(async (pickCount: number = 1, hasWager: boolean = false, pickId?: string, shareText?: string) => {
     const msg = getPickConfirmationMessage(pickCount, hasWager);
     const fbShareUrl = pickId ? `https://justpicks.app/share/${pickId}` : undefined;
-    showNotification(msg.title, msg.message, 'success', 'Got It!', fbShareUrl);
+    showNotification(msg.title, msg.message, 'success', 'Got It!', fbShareUrl, shareText);
   }, [showNotification]);
 
   /**
@@ -173,6 +176,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         type={notification.type}
         buttonText={notification.buttonText}
         facebookShareUrl={notification.facebookShareUrl}
+        shareText={notification.shareText}
       />
     </NotificationContext.Provider>
   );
