@@ -711,12 +711,26 @@ export default function GamesScreen() {
       const results = await Promise.all(pickPromises);
       setPendingPicks([]);
 
-      // Grab the first saved pick's ID for the Facebook share nudge
+      // Grab the first saved pick's ID + build share text
       const firstPickId = results[0]?.data?.id ?? results[0]?.data?.[0]?.id;
+      const firstPick = picks[0];
+      const firstGame = firstPick ? games.find(g => g.originalId === firstPick.gameId) : null;
+      let shareText = 'Check out my pick on justPicks 🏈';
+      if (firstGame && firstPick) {
+        const isTotal = firstPick.betType === 'total';
+        if (isTotal) {
+          const label = firstPick.side === 'over' ? 'Over' : 'Under';
+          shareText = `I took the ${label} ${firstGame.overUnder} — ${firstGame.awayTeam} @ ${firstGame.homeTeam} 🏈 justpicks.app`;
+        } else {
+          const team = firstPick.side === 'home' ? firstGame.homeTeam : firstGame.awayTeam;
+          const opp  = firstPick.side === 'home' ? firstGame.awayTeam : firstGame.homeTeam;
+          shareText = `I picked ${team} over ${opp} on justPicks 🏈 justpicks.app`;
+        }
+      }
 
       // Show notification modal — use anti-gambling messaging only when a wager was entered
       const hasWager = picks.some(p => p.wagerAmount != null && p.wagerAmount > 0);
-      showPickConfirmation(picks.length, hasWager, firstPickId);
+      showPickConfirmation(picks.length, hasWager, firstPickId, shareText);
 
       refreshUserPicks();
     } catch (error) {

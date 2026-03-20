@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import * as Clipboard from 'expo-clipboard';
 import {
   Linking,
   Modal,
@@ -21,7 +20,8 @@ interface NotificationModalProps {
   message: string;
   type?: 'success' | 'great' | 'struggling' | 'info';
   buttonText?: string;
-  facebookShareUrl?: string; // When set, shows social share options
+  facebookShareUrl?: string;
+  shareText?: string; // Pre-filled pick text for share posts
 }
 
 const { width } = Dimensions.get('window');
@@ -34,6 +34,7 @@ export default function NotificationModal({
   type = 'info',
   buttonText = 'Got It!',
   facebookShareUrl,
+  shareText,
 }: NotificationModalProps) {
   const [copied, setCopied] = useState(false);
 
@@ -44,12 +45,6 @@ export default function NotificationModal({
       Linking.openURL(url);
     }
     onClose();
-  };
-
-  const handleCopyLink = async () => {
-    await Clipboard.setStringAsync(facebookShareUrl!);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -225,30 +220,29 @@ export default function NotificationModal({
                 <View style={styles.platformRow}>
                   <TouchableOpacity
                     style={[styles.platformBtn, { backgroundColor: '#1877F2' }]}
-                    onPress={() => openUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl)}`)}
+                    onPress={() => openUrl(
+                      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl)}${shareText ? `&quote=${encodeURIComponent(shareText)}` : ''}`
+                    )}
                   >
                     <Text style={styles.platformBtnText}>Facebook</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.platformBtn, { backgroundColor: '#000' }]}
-                    onPress={() => openUrl(`https://twitter.com/intent/tweet?url=${encodeURIComponent(facebookShareUrl)}&text=${encodeURIComponent('Check out my pick on justPicks 🏈')}`)}
+                    onPress={() => openUrl(
+                      `https://twitter.com/intent/tweet?url=${encodeURIComponent(facebookShareUrl)}&text=${encodeURIComponent(shareText || 'Check out my pick on justPicks 🏈')}`
+                    )}
                   >
                     <Text style={styles.platformBtnText}>X</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.platformBtn, { backgroundColor: '#25D366' }]}
-                    onPress={() => openUrl(`https://wa.me/?text=${encodeURIComponent('Check out my pick on justPicks 🏈 ' + facebookShareUrl)}`)}
+                    onPress={() => openUrl(
+                      `https://wa.me/?text=${encodeURIComponent((shareText || 'Check out my pick on justPicks 🏈') + '\n' + facebookShareUrl)}`
+                    )}
                   >
                     <Text style={styles.platformBtnText}>WhatsApp</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.platformBtn, { backgroundColor: '#333' }]}
-                    onPress={handleCopyLink}
-                  >
-                    <Text style={styles.platformBtnText}>{copied ? '✓ Copied' : 'Copy Link'}</Text>
-                  </TouchableOpacity>
                 </View>
-                <Text style={styles.copyHint}>Copy Link → paste into IG or TikTok</Text>
                 <TouchableOpacity onPress={onClose} style={styles.skipButton}>
                   <Text style={styles.skipText}>Not now</Text>
                 </TouchableOpacity>
@@ -458,12 +452,6 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 13,
     fontWeight: '700',
-  },
-  copyHint: {
-    color: '#444',
-    fontSize: 11,
-    marginTop: 6,
-    marginBottom: 2,
   },
   skipButton: {
     marginTop: 10,
