@@ -54,12 +54,18 @@ export default function NotificationModal({
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ title: shareText, url: shareUrl, text: shareText });
-        onClose();
-        return;
-      } catch {}
+        onClose(); // shared successfully
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          onClose(); // user cancelled the sheet — treat as "not now"
+        } else {
+          setShowFallback(true); // unexpected error — show manual buttons
+        }
+      }
+      return; // never fall through to fallback when navigator.share exists
     }
 
-    // Fallback: show platform buttons for desktop browsers
+    // Fallback: navigator.share unavailable (desktop Chrome/Firefox etc.)
     setShowFallback(true);
   };
 
