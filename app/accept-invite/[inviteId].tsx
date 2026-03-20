@@ -292,7 +292,7 @@ export default function AcceptInviteScreen() {
       setJoined(true);
       // Show success screen briefly, then navigate
       setTimeout(() => {
-        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+        router.replace('/(tabs)/games');
       }, 1800);
     } catch (err) {
       console.error('Error accepting invite:', err);
@@ -325,7 +325,7 @@ export default function AcceptInviteScreen() {
       if (existingMember) {
         setJoined(true);
         setTimeout(() => {
-          router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+          router.replace('/(tabs)/games');
         }, 1800);
         return;
       }
@@ -346,7 +346,7 @@ export default function AcceptInviteScreen() {
       clearPendingInvite();
       setJoined(true);
       setTimeout(() => {
-        router.replace(`/group/group-picks?groupId=${invite.group_id}&groupName=${encodeURIComponent(invite.group_name)}`);
+        router.replace('/(tabs)/games');
       }, 1800);
     } catch (err) {
       console.error('Error accepting invite:', err);

@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useEffect, useRef } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 
 interface NotificationModalProps {
@@ -38,13 +39,16 @@ export default function NotificationModal({
 }: NotificationModalProps) {
   const [copied, setCopied] = useState(false);
 
-  const openUrl = (url: string) => {
+  const openUrl = (url: string, forceWebView = false) => {
+    onClose();
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.open(url, '_blank', 'width=600,height=500');
+    } else if (forceWebView) {
+      // Open in Safari / in-app browser so the Facebook app can't intercept
+      WebBrowser.openBrowserAsync(url, { dismissButtonStyle: 'close' });
     } else {
       Linking.openURL(url);
     }
-    onClose();
   };
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -221,7 +225,8 @@ export default function NotificationModal({
                   <TouchableOpacity
                     style={[styles.platformBtn, { backgroundColor: '#1877F2' }]}
                     onPress={() => openUrl(
-                      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl)}${shareText ? `&quote=${encodeURIComponent(shareText)}` : ''}`
+                      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl)}`,
+                      true /* open in browser, not FB app */
                     )}
                   >
                     <Text style={styles.platformBtnText}>Facebook</Text>
