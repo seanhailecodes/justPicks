@@ -63,6 +63,7 @@ serve(async (req) => {
         accepted_terms_at: acceptedTermsAt || new Date().toISOString(),
         accepted_terms_version: acceptedTermsVersion || '2026-03-08',
         username,
+        onboarding_done: true, // invited users skip generic onboarding
       },
     })
 

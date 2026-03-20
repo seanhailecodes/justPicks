@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/.well-known/(.*)", "destination": "/.well-known/$1" },
+    { "source": "/share/:pickId", "destination": "/api/share/:pickId" },
     { "source": "/(.*)", "destination": "/" }
   ],
   "headers": [
