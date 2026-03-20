@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import {
   Linking,
   Modal,
   Platform,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -35,39 +35,7 @@ export default function NotificationModal({
   buttonText = 'Got It!',
   facebookShareUrl,
 }: NotificationModalProps) {
-  const [showFallback, setShowFallback] = useState(false);
-
-  const handleShare = async () => {
-    const shareUrl = facebookShareUrl!;
-    const shareText = `Check out my pick on justPicks 🏈`;
-
-    // Native: opens iOS/Android share sheet (covers IG, TikTok, FB, WhatsApp, etc.)
-    if (Platform.OS !== 'web') {
-      try {
-        await Share.share({ message: `${shareText}\n${shareUrl}`, url: shareUrl, title: shareText });
-      } catch {}
-      onClose();
-      return;
-    }
-
-    // Web: try navigator.share (shows all installed apps on mobile browsers)
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({ title: shareText, url: shareUrl, text: shareText });
-        onClose(); // shared successfully
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
-          onClose(); // user cancelled the sheet — treat as "not now"
-        } else {
-          setShowFallback(true); // unexpected error — show manual buttons
-        }
-      }
-      return; // never fall through to fallback when navigator.share exists
-    }
-
-    // Fallback: navigator.share unavailable (desktop Chrome/Firefox etc.)
-    setShowFallback(true);
-  };
+  const [copied, setCopied] = useState(false);
 
   const openUrl = (url: string) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -76,6 +44,12 @@ export default function NotificationModal({
       Linking.openURL(url);
     }
     onClose();
+  };
+
+  const handleCopyLink = async () => {
+    await Clipboard.setStringAsync(facebookShareUrl!);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -152,7 +126,7 @@ export default function NotificationModal({
       handScaleAnim.setValue(0);
       handRotateAnim.setValue(0);
       handBounceAnim.setValue(0);
-      setShowFallback(false);
+      setCopied(false);
     }
   }, [visible]);
 
@@ -244,26 +218,10 @@ export default function NotificationModal({
               </TouchableOpacity>
             )}
 
-            {/* Social share — native sheet covers IG, TikTok, FB, WhatsApp etc. */}
-            {facebookShareUrl && !showFallback && (
+            {/* Social share buttons */}
+            {facebookShareUrl && (
               <>
-                <TouchableOpacity
-                  style={styles.shareButton}
-                  onPress={handleShare}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.shareButtonText}>📤  Share Pick</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={onClose} style={styles.skipButton}>
-                  <Text style={styles.skipText}>Not now</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Desktop fallback: specific platform buttons */}
-            {facebookShareUrl && showFallback && (
-              <>
-                <Text style={styles.fallbackLabel}>Share to:</Text>
+                <Text style={styles.fallbackLabel}>Share your pick:</Text>
                 <View style={styles.platformRow}>
                   <TouchableOpacity
                     style={[styles.platformBtn, { backgroundColor: '#1877F2' }]}
@@ -283,7 +241,14 @@ export default function NotificationModal({
                   >
                     <Text style={styles.platformBtnText}>WhatsApp</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.platformBtn, { backgroundColor: '#333' }]}
+                    onPress={handleCopyLink}
+                  >
+                    <Text style={styles.platformBtnText}>{copied ? '✓ Copied' : 'Copy Link'}</Text>
+                  </TouchableOpacity>
                 </View>
+                <Text style={styles.copyHint}>Copy Link → paste into IG or TikTok</Text>
                 <TouchableOpacity onPress={onClose} style={styles.skipButton}>
                   <Text style={styles.skipText}>Not now</Text>
                 </TouchableOpacity>
@@ -473,21 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  shareButton: {
-    marginTop: 12,
-    backgroundColor: '#FF6B35',
-    paddingVertical: 13,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    minWidth: 180,
-    alignItems: 'center',
-  },
-  shareButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
   fallbackLabel: {
     color: '#8E8E93',
     fontSize: 12,
@@ -508,6 +458,12 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  copyHint: {
+    color: '#444',
+    fontSize: 11,
+    marginTop: 6,
+    marginBottom: 2,
   },
   skipButton: {
     marginTop: 10,
