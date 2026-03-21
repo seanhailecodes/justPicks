@@ -1,8 +1,31 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
 
 export default function RegisterScreen() {
+  // On web, block general signup — direct users to the App Store instead
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+        <Text style={{ color: '#FF6B35', fontSize: 28, fontWeight: '900', marginBottom: 8 }}>justPicks</Text>
+        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 12, textAlign: 'center' }}>
+          Get the App
+        </Text>
+        <Text style={{ color: '#8E8E93', fontSize: 15, textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
+          justPicks is available on iPhone.{'\n'}Download it to create your account and start making picks.
+        </Text>
+        <TouchableOpacity
+          style={{ backgroundColor: '#FF6B35', borderRadius: 12, paddingVertical: 16, paddingHorizontal: 40, marginBottom: 16 }}
+          onPress={() => Linking.openURL('https://apps.apple.com/app/id6760871322')}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>📲 Download on the App Store</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
+          <Text style={{ color: '#636366', fontSize: 14 }}>Already have an account? Sign in</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [username, setUsername] = useState('');
