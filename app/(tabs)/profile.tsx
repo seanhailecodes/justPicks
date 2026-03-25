@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import FeedbackModal from '../../components/FeedbackModal';
 import { Sport, getSportConfig } from '../../services/pickrating';
@@ -261,6 +261,47 @@ export default function ProfileScreen() {
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your picks. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: confirmDeleteAccount,
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete account');
+      }
+
+      await supabase.auth.signOut();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      Alert.alert('Error', 'Failed to delete account. Please try again or contact support@justpicks.app.');
     }
   };
 
@@ -571,6 +612,10 @@ export default function ProfileScreen() {
           
           <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
             <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
+            <Text style={styles.deleteAccountText}>Delete Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -924,5 +969,16 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 16,
     fontWeight: '600',
+  },
+  deleteAccountButton: {
+    padding: 16,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  deleteAccountText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '400',
   },
 });
