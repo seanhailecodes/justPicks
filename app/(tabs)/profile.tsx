@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, Image, ImageSourcePropType, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ImageSourcePropType, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import FeedbackModal from '../../components/FeedbackModal';
 import { Sport, getSportConfig } from '../../services/pickrating';
@@ -265,18 +265,25 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all your picks. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete My Account',
-          style: 'destructive',
-          onPress: confirmDeleteAccount,
-        },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        'Delete Account\n\nThis will permanently delete your account and all your picks. This cannot be undone.'
+      );
+      if (confirmed) confirmDeleteAccount();
+    } else {
+      Alert.alert(
+        'Delete Account',
+        'This will permanently delete your account and all your picks. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete My Account',
+            style: 'destructive',
+            onPress: confirmDeleteAccount,
+          },
+        ]
+      );
+    }
   };
 
   const confirmDeleteAccount = async () => {
