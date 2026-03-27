@@ -45,9 +45,14 @@ serve(async (req) => {
 
     // Delete user data across all tables (order matters for FK constraints)
     await adminClient.from('picks').delete().eq('user_id', userId)
+    await adminClient.from('group_picks').delete().eq('user_id', userId)
     await adminClient.from('group_members').delete().eq('user_id', userId)
     await adminClient.from('invites').delete().eq('invited_by', userId)
     await adminClient.from('push_tokens').delete().eq('user_id', userId)
+    // Null out created_by on any groups this user owns (don't delete the group itself)
+    await adminClient.from('groups').update({ created_by: null }).eq('created_by', userId)
+    // profiles.id has a non-cascading FK to auth.users — must delete it last before auth user
+    await adminClient.from('profiles').delete().eq('id', userId)
 
     // Delete the auth user — this is the critical step Apple requires
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId)
