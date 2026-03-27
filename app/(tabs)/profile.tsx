@@ -290,8 +290,10 @@ export default function ProfileScreen() {
     try {
       const { error } = await supabase.functions.invoke('delete-account');
       if (error) throw error;
-      await supabase.auth.signOut();
+      // Navigate first — the auth user no longer exists on the server so
+      // signOut() may fail; fire it in the background and redirect immediately.
       router.replace('/(auth)/login');
+      supabase.auth.signOut().catch(() => {});
     } catch (error) {
       console.error('Error deleting account:', error);
       if (Platform.OS === 'web') {
