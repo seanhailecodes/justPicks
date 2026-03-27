@@ -288,27 +288,17 @@ export default function ProfileScreen() {
 
   const confirmDeleteAccount = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete account');
-      }
-
+      const { error } = await supabase.functions.invoke('delete-account');
+      if (error) throw error;
       await supabase.auth.signOut();
       router.replace('/(auth)/login');
     } catch (error) {
       console.error('Error deleting account:', error);
-      Alert.alert('Error', 'Failed to delete account. Please try again or contact support@justpicks.app.');
+      if (Platform.OS === 'web') {
+        window.alert('Failed to delete account. Please try again or contact support@justpicks.app.');
+      } else {
+        Alert.alert('Error', 'Failed to delete account. Please try again or contact support@justpicks.app.');
+      }
     }
   };
 
