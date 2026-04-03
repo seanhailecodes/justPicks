@@ -169,7 +169,9 @@ export default function HomeScreen() {
       const correct = picks
         .filter(p => p.correct === true)
         .reduce((sum, p) => sum + ((p as any).win_weight ?? 1.0), 0);
-      const wrong = picks.filter(p => p.correct === false).length;
+      const wrong = picks
+        .filter(p => p.correct === false)
+        .reduce((sum, p) => sum + ((p as any).win_weight ?? 1.0), 0);
       const decided = correct + wrong;
       const pending = picks.filter(p => p.correct === null).length;
 

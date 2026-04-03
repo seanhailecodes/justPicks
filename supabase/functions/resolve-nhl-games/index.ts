@@ -32,10 +32,15 @@ function resolveOverUnder(
 
 // Calculate win weight for a pick
 function calcWinWeight(correct: boolean | null, betType: string | null, mlOdds: number | null): number {
-  if (!correct) return 1.0
-  if (betType !== 'moneyline' || mlOdds === null) return 1.0
-  if (mlOdds > 0) return mlOdds / 100
-  return 100 / Math.abs(mlOdds)
+  if (correct === null) return 1.0  // push — weight irrelevant
+  if (betType !== 'moneyline' || mlOdds === null) return 1.0  // spread picks always 1.0
+  if (correct === true) {
+    // Win: fractional credit for favorites, bonus for underdogs
+    return mlOdds > 0 ? mlOdds / 100 : 100 / Math.abs(mlOdds)
+  } else {
+    // Loss: symmetric inverse — big favorites losing hurts more
+    return mlOdds > 0 ? 100 / mlOdds : Math.abs(mlOdds) / 100
+  }
 }
 
 Deno.serve(async (req) => {
