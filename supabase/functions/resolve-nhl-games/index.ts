@@ -152,12 +152,22 @@ Deno.serve(async (req) => {
           overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, overUnderLine)
         }
 
-        // Calculate win weight (use spreadCorrect as the primary correctness indicator)
-        const winWeight = calcWinWeight(spreadCorrect, pick.bet_type, pick.ml_odds)
+        // For ML picks, grade on outright winner (not puck line coverage)
+        let mlCorrect: boolean | null = null
+        if (pick.team_picked) {
+          if (homeScore === awayScore) {
+            mlCorrect = null // tie (goes to OT/SO — treat as push for ML)
+          } else {
+            mlCorrect = pick.team_picked === 'home' ? homeScore > awayScore : awayScore > homeScore
+          }
+        }
+
+        const pickCorrect = pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
+        const winWeight = calcWinWeight(pickCorrect, pick.bet_type, pick.ml_odds)
 
         const { error: pickUpdateError } = await supabase
           .from('picks')
-          .update({ correct: spreadCorrect, over_under_correct: overUnderCorrect, win_weight: winWeight })
+          .update({ correct: pickCorrect, over_under_correct: overUnderCorrect, win_weight: winWeight })
           .eq('id', pick.id)
 
         if (!pickUpdateError) {
@@ -165,8 +175,10 @@ Deno.serve(async (req) => {
           console.log(`  Pick ${pick.id}: Spread=${spreadCorrect}, O/U=${overUnderCorrect}`)
 
           const pickedTeam = pick.team_picked === 'home' ? game.home_team : pick.team_picked === 'away' ? game.away_team : null
-          const emoji = spreadCorrect === true ? '✅' : spreadCorrect === false ? '❌' : '🤝'
-          const resultWord = spreadCorrect === true ? 'Covered!' : spreadCorrect === false ? "Didn't Cover" : 'Push'
+          const emoji = pickCorrect === true ? '✅' : pickCorrect === false ? '❌' : '🤝'
+          const resultWord = pick.bet_type === 'moneyline'
+            ? (pickCorrect === true ? 'Won!' : pickCorrect === false ? 'Lost' : 'Push')
+            : (pickCorrect === true ? 'Covered!' : pickCorrect === false ? "Didn't Cover" : 'Push')
           const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NHL Pick ${emoji}`
           const notifBody = `${game.away_team} ${awayScore} – ${game.home_team} ${homeScore} · ${resultWord}`
           fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {

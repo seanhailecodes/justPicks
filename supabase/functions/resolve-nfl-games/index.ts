@@ -275,13 +275,23 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Calculate win weight (use spreadCorrect as the primary correctness indicator)
-      const winWeight = calcWinWeight(spreadCorrect, pick.bet_type, pick.ml_odds)
+      // For ML picks, grade on outright winner (not spread coverage)
+      let mlCorrect: boolean | null = null
+      if (pick.team_picked) {
+        if (game.home_score === game.away_score) {
+          mlCorrect = null // tie
+        } else {
+          mlCorrect = pick.team_picked === 'home' ? game.home_score > game.away_score : game.away_score > game.home_score
+        }
+      }
+
+      const pickCorrect = pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
+      const winWeight = calcWinWeight(pickCorrect, pick.bet_type, pick.ml_odds)
 
       const { error: pickUpdateError } = await supabase
         .from("picks")
         .update({
-          correct: spreadCorrect,
+          correct: pickCorrect,
           over_under_correct: ouCorrect,
           win_weight: winWeight
         })
@@ -291,8 +301,10 @@ Deno.serve(async (req) => {
         picksResolved++;
         console.log(`Graded pick ${pick.id}: spread=${spreadCorrect}, o/u=${ouCorrect}`);
         const pickedTeam = pick.team_picked === 'home' ? dbGame.home_team : pick.team_picked === 'away' ? dbGame.away_team : null
-        const emoji = spreadCorrect === true ? '✅' : spreadCorrect === false ? '❌' : '🤝'
-        const resultWord = spreadCorrect === true ? 'Covered!' : spreadCorrect === false ? "Didn't Cover" : 'Push'
+        const emoji = pickCorrect === true ? '✅' : pickCorrect === false ? '❌' : '🤝'
+        const resultWord = pick.bet_type === 'moneyline'
+          ? (pickCorrect === true ? 'Won!' : pickCorrect === false ? 'Lost' : 'Push')
+          : (pickCorrect === true ? 'Covered!' : pickCorrect === false ? "Didn't Cover" : 'Push')
         const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NFL Pick ${emoji}`
         const notifBody = `${dbGame.away_team} ${scores.awayScore} – ${dbGame.home_team} ${scores.homeScore} · ${resultWord}`
         fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
