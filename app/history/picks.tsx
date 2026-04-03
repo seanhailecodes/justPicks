@@ -406,6 +406,16 @@ export default function PickHistoryScreen() {
                         <Text style={styles.groupBadgeText}>GROUP</Text>
                       </View>
                     )}
+                    {pick.bet_type === 'moneyline' && (
+                      <View style={styles.mlBadge}>
+                        <Text style={styles.mlBadgeText}>ML</Text>
+                      </View>
+                    )}
+                    {pick.bet_type === 'spread' && (
+                      <View style={styles.atsBadge}>
+                        <Text style={styles.atsBadgeText}>ATS</Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.resultIcon}>{getResultIcon(pick)}</Text>
                 </View>
@@ -757,6 +767,32 @@ const styles = StyleSheet.create({
   },
   groupBadgeText: {
     color: '#007AFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  mlBadge: {
+    backgroundColor: '#00C89618',
+    borderWidth: 1,
+    borderColor: '#00C89660',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  mlBadgeText: {
+    color: '#00C896',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  atsBadge: {
+    backgroundColor: '#AF52DE18',
+    borderWidth: 1,
+    borderColor: '#AF52DE60',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  atsBadgeText: {
+    color: '#AF52DE',
     fontSize: 11,
     fontWeight: '700',
   },
