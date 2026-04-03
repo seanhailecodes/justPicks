@@ -130,11 +130,23 @@ Deno.serve(async (req) => {
 
       if (!picksSelectError && picks) {
         for (const pick of picks) {
-          let correct: boolean | null = null
-
+          // Spread pick: did the team cover?
+          let spreadCorrect: boolean | null = null
           if (winner !== null && winner !== 'push') {
-            correct = pick.team_picked === winner
+            spreadCorrect = pick.team_picked === winner
           }
+
+          // ML pick: did the team simply win the game outright?
+          let mlCorrect: boolean | null = null
+          if (pick.team_picked) {
+            if (homeScoreNum === awayScoreNum) {
+              mlCorrect = null // tie
+            } else {
+              mlCorrect = pick.team_picked === 'home' ? homeScoreNum > awayScoreNum : awayScoreNum > homeScoreNum
+            }
+          }
+
+          const correct = pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
 
           // Calculate win weight
           const winWeight = calcWinWeight(correct, pick.bet_type, pick.ml_odds)
@@ -147,7 +159,9 @@ Deno.serve(async (req) => {
           if (!pickUpdateError) {
             const pickedTeam = pick.team_picked === 'home' ? game.home_team : pick.team_picked === 'away' ? game.away_team : null
             const emoji = correct === true ? '✅' : correct === false ? '❌' : '🤝'
-            const resultWord = correct === true ? 'Covered!' : correct === false ? "Didn't Cover" : 'Push'
+            const resultWord = pick.bet_type === 'moneyline'
+              ? (correct === true ? 'Won!' : correct === false ? 'Lost' : 'Push')
+              : (correct === true ? 'Covered!' : correct === false ? "Didn't Cover" : 'Push')
             const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NCAAB Pick ${emoji}`
             const notifBody = `${game.away_team} ${awayScoreNum} – ${game.home_team} ${homeScoreNum} · ${resultWord}`
             fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {

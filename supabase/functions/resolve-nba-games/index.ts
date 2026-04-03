@@ -176,14 +176,24 @@ Deno.serve(async (req) => {
           overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, overUnderLine)
         }
 
-        // Calculate win weight (use spreadCorrect as the primary correctness indicator)
-        const winWeight = calcWinWeight(spreadCorrect, pick.bet_type, pick.ml_odds)
+        // For ML picks, grade on outright winner (not spread coverage)
+        let mlCorrect: boolean | null = null
+        if (pick.team_picked) {
+          if (homeScore === awayScore) {
+            mlCorrect = null // tie
+          } else {
+            mlCorrect = pick.team_picked === 'home' ? homeScore > awayScore : awayScore > homeScore
+          }
+        }
+
+        const pickCorrect = pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
+        const winWeight = calcWinWeight(pickCorrect, pick.bet_type, pick.ml_odds)
 
         // Update pick
         const { error: pickUpdateError } = await supabase
           .from('picks')
           .update({
-            correct: spreadCorrect,
+            correct: pickCorrect,
             over_under_correct: overUnderCorrect,
             win_weight: winWeight
           })
@@ -195,8 +205,10 @@ Deno.serve(async (req) => {
 
           // Send push notification to this user
           const pickedTeam = pick.team_picked === 'home' ? game.home_team : pick.team_picked === 'away' ? game.away_team : null
-          const emoji = spreadCorrect === true ? '✅' : spreadCorrect === false ? '❌' : '🤝'
-          const resultWord = spreadCorrect === true ? 'Covered!' : spreadCorrect === false ? "Didn't Cover" : 'Push'
+          const emoji = pickCorrect === true ? '✅' : pickCorrect === false ? '❌' : '🤝'
+          const resultWord = pick.bet_type === 'moneyline'
+            ? (pickCorrect === true ? 'Won!' : pickCorrect === false ? 'Lost' : 'Push')
+            : (pickCorrect === true ? 'Covered!' : pickCorrect === false ? "Didn't Cover" : 'Push')
           const notifTitle = pickedTeam ? `${emoji} ${pickedTeam}` : `NBA Pick ${emoji}`
           const notifBody = `${game.away_team} ${awayScore} – ${game.home_team} ${homeScore} · ${resultWord}`
           fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
