@@ -184,7 +184,7 @@ export default function LeaderboardScreen() {
         // Sum win_weight so ML wins are credited proportionally
         userStats[pick.user_id].wins += (pick as any).win_weight ?? 1.0;
       } else if (pick.correct === false) {
-        userStats[pick.user_id].losses++;
+        userStats[pick.user_id].losses += (pick as any).win_weight ?? 1.0;
       }
     });
 
