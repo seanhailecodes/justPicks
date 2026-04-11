@@ -227,7 +227,7 @@ export default function GroupsScreen() {
   };
 
   // Helper function to format accuracy display
-  const formatAccuracy = (accuracy: number | null) => {
+  const formatAccuracy = (accuracy: number | null | undefined) => {
     if (accuracy === null || accuracy === undefined) return '—'; // No data yet
     return `${accuracy}%`;
   };
