@@ -380,6 +380,8 @@ export const savePick = async (userId: string, pickData: {
   groups: string[];
   spread_value: number | string;
   week: number;
+  bet_type?: string | null;
+  ml_odds?: number | null;
   overUnderPick?: string | null;
   overUnderConfidence?: string | null;
   spread_line_at_pick?: number | null;
@@ -434,6 +436,8 @@ export const savePick = async (userId: string, pickData: {
       payload.pick = pickData.pick;
       payload.team_picked = pickData.team_picked;
       payload.confidence = pickData.confidence;
+      payload.bet_type = pickData.bet_type ?? 'spread';
+      payload.ml_odds = pickData.ml_odds ?? null;
       payload.spread_size = pickData.spread_size ?? null;
       payload.spread_category = pickData.spread_category ?? null;
       payload.picked_favorite = pickData.picked_favorite ?? null;
