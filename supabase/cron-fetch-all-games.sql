@@ -14,7 +14,7 @@
 --   NBA + NHL + MLB:  Daily 7× — midnight, 3am, 6am, 10am, noon, 5pm, 8pm ET
 --                     → 05:00, 08:00, 11:00, 15:00, 17:00, 22:00, 01:00 UTC
 --   NCAAB:            Daily once — 10:00am ET → 15:00 UTC
---   Soccer/Golf/UFC:  Mon + Sat — 10:00am ET → 15:00 UTC
+--   Soccer/Golf/UFC/Boxing: Mon + Sat — 10:00am ET → 15:00 UTC
 --
 -- In-season filtering is handled inside fetch-all-games —
 -- out-of-season sports are automatically skipped even if the cron fires.
@@ -77,7 +77,7 @@ SELECT cron.schedule(
   $$
 );
 
--- Step 5: Soccer, Golf, UFC — Mon + Sat at 10:00am ET (15:00 UTC)
+-- Step 5: Soccer, Golf, UFC, Boxing — Mon + Sat at 10:00am ET (15:00 UTC)
 SELECT cron.schedule(
   'fetch-other-sports-mon-sat',
   '0 15 * * 1,6',
@@ -88,7 +88,7 @@ SELECT cron.schedule(
       'Content-Type',  'application/json',
       'Authorization', 'Bearer <PASTE_YOUR_SERVICE_ROLE_KEY_HERE>'
     ),
-    body    := '{"sports":["Soccer","Golf","UFC"]}'::jsonb
+    body    := '{"sports":["Soccer","Golf","UFC","Boxing"]}'::jsonb
   );
   $$
 );

@@ -120,6 +120,7 @@ export default function ProfileScreen() {
         mlb:    'MLB',
         soccer: 'SOCCER',
         ufc:    'UFC',
+        boxing: 'BOXING',
         pga:    'PGA',
       };
 

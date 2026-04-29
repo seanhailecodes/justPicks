@@ -33,8 +33,9 @@ export const APP_SPORTS: AppSport[] = [
   { key: 'ncaaf', label: 'NCAAF',  emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name', season: [8, 24, 1, 20]  },
   { key: 'nhl',   label: 'NHL',    emoji: '🏒', league: 'NHL',   enabled: true,  displayMode: 'code', season: [10, 1, 6, 30]  },
   { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: true,  displayMode: 'code', season: [2, 20, 10, 31] },
-  { key: 'ufc',   label: 'UFC',    emoji: '🥊', league: 'UFC',   enabled: true,  displayMode: 'fighter'                       },
-  { key: 'pga',   label: 'Golf',   emoji: '⛳', league: 'PGA',   enabled: true,  displayMode: 'name'                          },
+  { key: 'ufc',   label: 'UFC',    emoji: '🥋', league: 'UFC',    enabled: true,  displayMode: 'fighter'                       },
+  { key: 'boxing',label: 'Boxing', emoji: '🥊', league: 'BOXING', enabled: true,  displayMode: 'fighter'                       },
+  { key: 'pga',   label: 'Golf',   emoji: '⛳', league: 'PGA',    enabled: true,  displayMode: 'name'                          },
 ];
 
 // Convenience: only the sports users can actually tap
