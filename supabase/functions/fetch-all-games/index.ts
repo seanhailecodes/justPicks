@@ -31,6 +31,7 @@ const SPORT_FETCH_FUNCTIONS: Array<{
   { name: "Soccer", fn: "fetch-soccer-games", season: [8, 1, 5, 31]   },
   { name: "Golf",   fn: "fetch-golf-games",   season: null             }, // no fixed season
   { name: "UFC",    fn: "fetch-ufc-games",    season: null             }, // no fixed season
+  { name: "Boxing", fn: "fetch-boxing-games", season: null             }, // no fixed season
 ];
 
 /**
