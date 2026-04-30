@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { etDateString, mergeDuplicateGames } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,8 +74,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const gameDate = new Date(event.commence_time);
-      const dateStr = gameDate.toISOString().split("T")[0];
+      const dateStr = etDateString(event.commence_time);
 
       // Deterministic ID: sport prefix + date + fighter slugs
       const gameId = `ufc_${dateStr}_${slugify(awayFighter)}_vs_${slugify(homeFighter)}`;
@@ -119,6 +119,8 @@ Deno.serve(async (req) => {
     if (error) throw error;
 
     console.log(`Upserted ${games.length} UFC fights`);
+
+    await mergeDuplicateGames(supabase, "UFC", games);
 
     return new Response(
       JSON.stringify({

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { etDateString, mergeDuplicateGames } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
 
       const gameDate = new Date(event.commence_time)
       const week = getNFLWeek(gameDate)
-      const dateStr = gameDate.toISOString().split('T')[0]
+      const dateStr = etDateString(event.commence_time)
 
       // Find best odds (prefer DraftKings, then FanDuel)
       let spreads = null
@@ -180,6 +181,8 @@ Deno.serve(async (req) => {
         console.error('Upsert error:', error)
         throw error
       }
+
+      await mergeDuplicateGames(supabase, 'NFL', games)
     }
 
     return new Response(

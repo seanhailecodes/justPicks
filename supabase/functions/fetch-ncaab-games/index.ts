@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { etDateString, mergeDuplicateGames } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -228,8 +229,7 @@ Deno.serve(async (req) => {
     const games = []
 
     for (const event of data) {
-      const gameDate = new Date(event.commence_time)
-      const dateStr = gameDate.toISOString().split('T')[0]
+      const dateStr = etDateString(event.commence_time)
 
       const homeInfo = getTeamInfo(event.home_team)
       const awayInfo = getTeamInfo(event.away_team)
@@ -322,6 +322,8 @@ Deno.serve(async (req) => {
         console.error('Upsert error:', error)
         throw error
       }
+
+      await mergeDuplicateGames(supabase, 'NCAAB', games)
     }
 
     return new Response(

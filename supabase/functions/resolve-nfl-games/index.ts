@@ -231,9 +231,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null;
       const totalPoints = game.home_score + game.away_score;
-      const overUnderLine = parseFloat(game.over_under_line) || null;
+      // Grade against the line locked in at pick time. Falls back to the
+      // game row for legacy picks created before snapshot columns existed.
+      const homeSpread = pick.spread_line_at_pick !== null && pick.spread_line_at_pick !== undefined
+        ? parseFloat(pick.spread_line_at_pick)
+        : (game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null);
+      const overUnderLine = pick.total_line_at_pick !== null && pick.total_line_at_pick !== undefined
+        ? parseFloat(pick.total_line_at_pick)
+        : (parseFloat(game.over_under_line) || null);
 
       // Determine spread result (only if spread data exists)
       let homeCovered: boolean | null = null;
@@ -268,7 +274,7 @@ Deno.serve(async (req) => {
       // Grade over/under pick
       let ouCorrect: boolean | null = null;
       if (pick.over_under_pick === "over" || pick.over_under_pick === "under") {
-        if (overUnderLine) {
+        if (overUnderLine !== null) {
           const totalPush = totalPoints === overUnderLine;
           if (totalPush) {
             ouCorrect = null;

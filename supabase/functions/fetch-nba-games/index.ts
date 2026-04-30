@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { etDateString, mergeDuplicateGames } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,9 +118,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Generate a consistent ID based on teams and date
-      const gameDate = new Date(game.commence_time);
-      const dateStr = gameDate.toISOString().split("T")[0];
+      // Generate a consistent ID based on teams and date (ET, not UTC, so
+      // late-evening games don't flip date when commence_time is updated).
+      const dateStr = etDateString(game.commence_time);
       const gameId = `nba_${dateStr}_${awayTeamInfo.code}_${homeTeamInfo.code}`.toLowerCase();
 
       return {
@@ -156,6 +157,8 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Upserted ${games.length} NBA games`);
+
+    await mergeDuplicateGames(supabase, "NBA", games);
 
     return new Response(
       JSON.stringify({
