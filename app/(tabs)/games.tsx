@@ -71,29 +71,64 @@ const toUTCDateString = (dateStr: string): string => {
   return dateStr.endsWith('Z') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
 };
 
-// Group games by date label
-const groupGamesByDate = (games: Game[]): Map<string, Game[]> => {
+// Group games by date label.
+// For combat sports (boxing/UFC), uses time buckets ("This Weekend", "Next
+// Weekend", month names) since fights are often scheduled far in advance and
+// a flat list of date headers becomes unwieldy. Other sports keep the
+// per-day grouping (Today / Tomorrow / Sat, May 3 / etc.).
+const groupGamesByDate = (games: Game[], useBuckets = false): Map<string, Game[]> => {
   const groups = new Map<string, Game[]>();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Compute weekend bounds once. "This weekend" = the upcoming or current
+  // Fri-Sun. If today is Sat, Friday was 1 day ago; if today is Sun, 2 days.
+  const todayDow = today.getDay(); // 0 = Sun, 6 = Sat
+  let daysToThisFri: number;
+  if (todayDow === 0) daysToThisFri = -2;
+  else if (todayDow === 6) daysToThisFri = -1;
+  else daysToThisFri = 5 - todayDow;
+  const thisFri = new Date(today);
+  thisFri.setDate(thisFri.getDate() + daysToThisFri);
+  const thisSun = new Date(thisFri);
+  thisSun.setDate(thisSun.getDate() + 2);
+  const nextFri = new Date(thisFri);
+  nextFri.setDate(nextFri.getDate() + 7);
+  const nextSun = new Date(nextFri);
+  nextSun.setDate(nextSun.getDate() + 2);
 
   games.forEach(game => {
     const gameDate = new Date(game.gameDateTimeLocal);
     gameDate.setHours(0, 0, 0, 0);
-    
+
     let label: string;
     if (gameDate.getTime() === today.getTime()) {
       label = 'Today';
     } else if (gameDate.getTime() === tomorrow.getTime()) {
       label = 'Tomorrow';
+    } else if (useBuckets) {
+      // Combat sports — collapse into broader buckets
+      if (gameDate >= thisFri && gameDate <= thisSun) {
+        label = 'This Weekend';
+      } else if (gameDate >= nextFri && gameDate <= nextSun) {
+        label = 'Next Weekend';
+      } else {
+        const monthsOut = (gameDate.getFullYear() - today.getFullYear()) * 12
+          + (gameDate.getMonth() - today.getMonth());
+        if (monthsOut <= 2) {
+          label = gameDate.toLocaleDateString(undefined, { month: 'long' });
+        } else {
+          label = 'Later';
+        }
+      }
     } else {
-      label = gameDate.toLocaleDateString(undefined, { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
+      label = gameDate.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
       });
     }
 
@@ -105,6 +140,10 @@ const groupGamesByDate = (games: Game[]): Map<string, Game[]> => {
 
   return groups;
 };
+
+// Buckets that are expanded by default. Anything else is collapsed unless
+// the user explicitly opens it (or a search match forces it open).
+const DEFAULT_EXPANDED = new Set(['Today', 'Tomorrow', 'This Weekend']);
 
 // Team display component - shows logo if available
 // displayMode: 'code' for pro sports (NFL, NBA), 'name' for college/soccer, 'fighter' for combat sports
@@ -169,9 +208,57 @@ export default function GamesScreen() {
   const [pendingPicks, setPendingPicks] = useState<TicketPick[]>([]);
   const [userGroups, setUserGroups] = useState<{id: string; name: string; sport: string}[]>([]);
   const [hasLoadedInitialSport, setHasLoadedInitialSport] = useState(false);
+  // Combat-sport-only UX: search by fighter name + collapsible time buckets.
+  const [fighterQuery, setFighterQuery] = useState('');
+  const [collapsedBuckets, setCollapsedBuckets] = useState<Record<string, boolean>>({});
+
+  const isCombatSport = selectedSport.key === 'boxing' || selectedSport.key === 'ufc';
+
+  // Apply search filter (combat only). Match against either fighter name.
+  const visibleGames = (() => {
+    if (!isCombatSport || fighterQuery.trim() === '') return games;
+    const q = fighterQuery.trim().toLowerCase();
+    return games.filter(g =>
+      g.homeTeam.toLowerCase().includes(q) || g.awayTeam.toLowerCase().includes(q)
+    );
+  })();
 
   // Get grouped games
-  const groupedGames = groupGamesByDate(games);
+  const groupedGames = groupGamesByDate(visibleGames, isCombatSport);
+
+  // Reset collapsed state when sport changes (so a previous tab's user
+  // toggles don't bleed into the next tab).
+  useEffect(() => {
+    setCollapsedBuckets({});
+    setFighterQuery('');
+  }, [selectedSport.key]);
+
+  // The first bucket label (in display order) that has any games. When none
+  // of the default-expanded buckets contain games, we auto-expand whatever
+  // is at the top of the list so the user doesn't see a wall of collapsed
+  // headers with no content.
+  const firstNonEmptyBucket = (() => {
+    for (const [label, bucket] of groupedGames.entries()) {
+      if (bucket.length > 0) return label;
+    }
+    return null;
+  })();
+  const anyDefaultBucketHasGames = Array.from(groupedGames.entries())
+    .some(([label, bucket]) => DEFAULT_EXPANDED.has(label) && bucket.length > 0);
+
+  const isBucketCollapsed = (label: string): boolean => {
+    // Active search overrides — show every matching bucket expanded.
+    if (isCombatSport && fighterQuery.trim() !== '') return false;
+    if (label in collapsedBuckets) return collapsedBuckets[label];
+    if (DEFAULT_EXPANDED.has(label)) return false;
+    // Auto-expand the topmost bucket if none of the defaults applied.
+    if (!anyDefaultBucketHasGames && label === firstNonEmptyBucket) return false;
+    return true;
+  };
+
+  const toggleBucket = (label: string) => {
+    setCollapsedBuckets(prev => ({ ...prev, [label]: !isBucketCollapsed(label) }));
+  };
 
   // Handle incoming sport parameter changes (for when navigating while already on the screen)
   useEffect(() => {
@@ -815,6 +902,26 @@ export default function GamesScreen() {
         })}
       </ScrollView>
 
+      {/* Fighter search — combat sports only */}
+      {isCombatSport && games.length > 0 && (
+        <View style={styles.searchWrap}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search fighters…"
+            placeholderTextColor="#666"
+            value={fighterQuery}
+            onChangeText={setFighterQuery}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {fighterQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setFighterQuery('')} style={styles.searchClear}>
+              <Text style={styles.searchClearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       <ScrollView
         ref={scrollViewRef}
         style={styles.content}
@@ -822,17 +929,31 @@ export default function GamesScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {games.length > 0 ? (
-          Array.from(groupedGames.entries()).map(([dateLabel, dateGames]) => (
+          isCombatSport && fighterQuery.trim() !== '' && visibleGames.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No fighters match "{fighterQuery}"</Text>
+            </View>
+          ) : (
+          Array.from(groupedGames.entries()).map(([dateLabel, dateGames]) => {
+            const collapsed = isCombatSport && isBucketCollapsed(dateLabel);
+            return (
             <View key={dateLabel}>
-              {/* Date Header */}
-              <View style={styles.dateHeader}>
+              {/* Date / bucket header — tappable on combat sports */}
+              <TouchableOpacity
+                activeOpacity={isCombatSport ? 0.6 : 1}
+                onPress={() => isCombatSport && toggleBucket(dateLabel)}
+                style={styles.dateHeader}
+                disabled={!isCombatSport}
+              >
                 <View style={styles.dateHeaderLine} />
-                <Text style={styles.dateHeaderText}>{dateLabel}</Text>
+                <Text style={styles.dateHeaderText}>
+                  {isCombatSport ? `${collapsed ? '▶' : '▼'} ${dateLabel} (${dateGames.length})` : dateLabel}
+                </Text>
                 <View style={styles.dateHeaderLine} />
-              </View>
+              </TouchableOpacity>
 
-              {/* Games for this date */}
-              {dateGames.map(game => {
+              {/* Games for this date — hidden when bucket is collapsed */}
+              {!collapsed && dateGames.map(game => {
                 const timeToLock = getTimeToLock(game.gameDateTimeLocal);
                 const isLocked = timeToLock === 'LOCKED';
                 
@@ -1133,7 +1254,9 @@ export default function GamesScreen() {
                 );
               })}
             </View>
-          ))
+            );
+          })
+          )
         ) : (
           <View style={styles.noGamesCard}>
             {isLoadingGames ? (
@@ -1293,6 +1416,37 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 180,
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#FFF',
+    fontSize: 15,
+    paddingVertical: 10,
+  },
+  searchClear: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  searchClearText: {
+    color: '#666',
+    fontSize: 16,
+  },
+  emptyState: {
+    paddingVertical: 60,
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    color: '#8E8E93',
+    fontSize: 14,
   },
   dateHeader: {
     flexDirection: 'row',
