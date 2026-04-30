@@ -145,13 +145,28 @@ Deno.serve(async (req) => {
       // Update picks for this game (per-pick for push notifications)
       const { data: picks, error: picksSelectError } = await supabase
         .from('picks')
-        .select('id, user_id, team_picked, bet_type, ml_odds')
+        .select('id, user_id, team_picked, bet_type, ml_odds, spread_line_at_pick')
         .eq('game_id', game.id)
 
       if (!picksSelectError && picks) {
         for (const pick of picks) {
+          // Grade against the spread locked in at pick time, falling back to
+          // the game row's value for legacy picks without snapshot.
+          const pickHomeSpread = pick.spread_line_at_pick !== null && pick.spread_line_at_pick !== undefined
+            ? parseFloat(pick.spread_line_at_pick)
+            : homeSpread
+          let pickHomeCovered: boolean | null = null
+          let pickPush = false
+          if (pickHomeSpread !== null) {
+            const adj = homeScoreNum + pickHomeSpread
+            pickHomeCovered = adj > awayScoreNum
+            pickPush = adj === awayScoreNum
+          }
+
           // Spread pick: did the team cover?
-          const spreadCorrect = winner === null ? null : (push ? null : pick.team_picked === (homeCovered ? 'home' : 'away'))
+          const spreadCorrect = pickHomeSpread === null
+            ? null
+            : (pickPush ? null : pick.team_picked === (pickHomeCovered ? 'home' : 'away'))
 
           // ML pick: did the team simply win outright? (draws = loss for home/away ML picks)
           let mlCorrect: boolean | null = null

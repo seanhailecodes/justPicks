@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { mergeDuplicateGames } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -143,6 +144,8 @@ Deno.serve(async (req) => {
       }
 
       console.log(`Successfully upserted ${gamesToUpsert.length} soccer games`)
+
+      await mergeDuplicateGames(supabase, 'SOCCER', gamesToUpsert)
     }
 
     return new Response(

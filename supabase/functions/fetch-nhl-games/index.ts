@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { etDateString, mergeDuplicateGames } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,8 +113,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const gameDate = new Date(game.commence_time);
-      const dateStr = gameDate.toISOString().split("T")[0];
+      const dateStr = etDateString(game.commence_time);
       const gameId = `nhl_${dateStr}_${awayTeamInfo.code}_${homeTeamInfo.code}`.toLowerCase();
 
       return {
@@ -147,6 +147,8 @@ Deno.serve(async (req) => {
     if (error) throw error;
 
     console.log(`Upserted ${games.length} NHL games`);
+
+    await mergeDuplicateGames(supabase, "NHL", games);
 
     return new Response(
       JSON.stringify({

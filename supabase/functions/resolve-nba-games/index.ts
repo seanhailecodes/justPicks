@@ -126,14 +126,14 @@ Deno.serve(async (req) => {
 
       const homeScore = parseInt(homeScoreData.score)
       const awayScore = parseInt(awayScoreData.score)
-      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
-      const overUnderLine = game.over_under_line
-
-      // Calculate who covered (only if spread data exists)
-      const coveredBy = homeSpread !== null ? calculateCoveredBy(homeScore, awayScore, homeSpread) : null
       const totalPoints = homeScore + awayScore
+      // Fallback line/total — used only for legacy picks that don't have a
+      // snapshot. New picks are graded against `pick.spread_line_at_pick`
+      // and `pick.total_line_at_pick` (set per-pick below).
+      const fallbackHomeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
+      const fallbackOverUnder = game.over_under_line
 
-      console.log(`Resolving: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Spread: ${homeSpread ?? 'N/A'} | Covered: ${coveredBy ?? 'unresolvable'}`)
+      console.log(`Resolving: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Final spread (game row): ${fallbackHomeSpread ?? 'N/A'}`)
 
       // Update game with final scores
       const { error: updateError } = await supabase
@@ -165,7 +165,21 @@ Deno.serve(async (req) => {
       }
 
       for (const pick of picks || []) {
-        // Resolve spread pick — leave null if spread data was missing at game time
+        // Grade against the line/total locked in at pick time. Falls back to
+        // the game row's value for legacy picks created before snapshot
+        // columns were populated.
+        const pickHomeSpread = pick.spread_line_at_pick !== null && pick.spread_line_at_pick !== undefined
+          ? parseFloat(pick.spread_line_at_pick)
+          : fallbackHomeSpread
+        const pickOverUnder = pick.total_line_at_pick !== null && pick.total_line_at_pick !== undefined
+          ? parseFloat(pick.total_line_at_pick)
+          : fallbackOverUnder
+
+        const coveredBy = pickHomeSpread !== null
+          ? calculateCoveredBy(homeScore, awayScore, pickHomeSpread)
+          : null
+
+        // Resolve spread pick — leave null if spread data was missing at pick time
         let spreadCorrect: boolean | null = null
         if (pick.team_picked && coveredBy !== null) {
           if (coveredBy === 'push') {
@@ -177,8 +191,8 @@ Deno.serve(async (req) => {
 
         // Resolve over/under pick
         let overUnderCorrect: boolean | null = null
-        if (pick.over_under_pick && overUnderLine) {
-          overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, overUnderLine)
+        if (pick.over_under_pick && pickOverUnder !== null && pickOverUnder !== undefined) {
+          overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, pickOverUnder)
         }
 
         // For ML picks, grade on outright winner (not spread coverage)

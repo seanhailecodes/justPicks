@@ -115,12 +115,12 @@ Deno.serve(async (req) => {
 
       const homeScore = parseInt(homeScoreData.score)
       const awayScore = parseInt(awayScoreData.score)
-      const homeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
-      const overUnderLine = game.over_under_line
       const totalPoints = homeScore + awayScore
-      const coveredBy = homeSpread !== null ? calculateCoveredBy(homeScore, awayScore, homeSpread) : null
+      // Fallback line/total — used only for legacy picks without snapshot.
+      const fallbackHomeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
+      const fallbackOverUnder = game.over_under_line
 
-      console.log(`Resolving: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Puck line: ${homeSpread ?? 'N/A'} | Covered: ${coveredBy ?? 'unresolvable'}`)
+      console.log(`Resolving: ${game.away_team} ${awayScore} @ ${game.home_team} ${homeScore} | Puck line (game row): ${fallbackHomeSpread ?? 'N/A'}`)
 
       // Update game with final scores
       const { error: updateError } = await supabase
@@ -147,14 +147,24 @@ Deno.serve(async (req) => {
       }
 
       for (const pick of picks || []) {
+        const pickHomeSpread = pick.spread_line_at_pick !== null && pick.spread_line_at_pick !== undefined
+          ? parseFloat(pick.spread_line_at_pick)
+          : fallbackHomeSpread
+        const pickOverUnder = pick.total_line_at_pick !== null && pick.total_line_at_pick !== undefined
+          ? parseFloat(pick.total_line_at_pick)
+          : fallbackOverUnder
+        const coveredBy = pickHomeSpread !== null
+          ? calculateCoveredBy(homeScore, awayScore, pickHomeSpread)
+          : null
+
         let spreadCorrect: boolean | null = null
         if (pick.team_picked && coveredBy !== null) {
           spreadCorrect = coveredBy === 'push' ? null : pick.team_picked === coveredBy
         }
 
         let overUnderCorrect: boolean | null = null
-        if (pick.over_under_pick && overUnderLine) {
-          overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, overUnderLine)
+        if (pick.over_under_pick && pickOverUnder !== null && pickOverUnder !== undefined) {
+          overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, pickOverUnder)
         }
 
         // For ML picks, grade on outright winner (not puck line coverage)
