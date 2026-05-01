@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { etDateString, mergeDuplicateGames } from "../_shared/games.ts";
+import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,8 +94,12 @@ Deno.serve(async (req) => {
         if (spreadsMarket) {
           const homeOutcome = spreadsMarket.outcomes?.find((o: any) => o.name === homeTeam);
           const awayOutcome = spreadsMarket.outcomes?.find((o: any) => o.name === awayTeam);
-          homeSpread = homeOutcome?.point?.toString() || null;
-          awaySpread = awayOutcome?.point?.toString() || null;
+          if (isSaneSpread(homeOutcome?.point, "NHL") && isSaneSpread(awayOutcome?.point, "NHL")) {
+            homeSpread = homeOutcome?.point?.toString() || null;
+            awaySpread = awayOutcome?.point?.toString() || null;
+          } else {
+            console.warn(`[NHL] Rejected absurd spread for ${awayTeam} @ ${homeTeam}: home=${homeOutcome?.point}, away=${awayOutcome?.point}`);
+          }
         }
 
         const totalsMarket = bookmaker.markets?.find((m: any) => m.key === "totals");
@@ -139,9 +143,10 @@ Deno.serve(async (req) => {
       };
     });
 
+    const upsertable = await filterLockedGames(supabase, "NHL", games);
     const { data, error } = await supabase
       .from("games")
-      .upsert(games, { onConflict: "id", ignoreDuplicates: false })
+      .upsert(upsertable, { onConflict: "id", ignoreDuplicates: false })
       .select();
 
     if (error) throw error;

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { mergeDuplicateGames } from '../_shared/games.ts'
+import { mergeDuplicateGames, filterLockedGames } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -131,11 +131,12 @@ Deno.serve(async (req) => {
     })
 
     if (gamesToUpsert.length > 0) {
+      const upsertable = await filterLockedGames(supabase, 'SOCCER', gamesToUpsert)
       const { data, error } = await supabase
         .from('games')
-        .upsert(gamesToUpsert, { 
+        .upsert(upsertable, {
           onConflict: 'id',
-          ignoreDuplicates: false 
+          ignoreDuplicates: false
         })
 
       if (error) {

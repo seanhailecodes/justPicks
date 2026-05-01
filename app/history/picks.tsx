@@ -25,6 +25,11 @@ interface PickHistoryItem {
   currency?: string | null;
   win_weight?: number | null;
   bet_type?: string | null;
+  // Line snapshots — populated on picks made after the snapshot fix went out.
+  // For older picks these are null, and we fall back to the game row.
+  spread_line_at_pick?: number | null;
+  total_line_at_pick?: number | null;
+  ml_odds?: number | null;
   games?: {
     home_team: string;
     away_team: string;
@@ -33,6 +38,10 @@ interface PickHistoryItem {
     home_score: number | null;
     away_score: number | null;
     over_under_line: number | null;
+    home_spread: string | number | null;
+    away_spread: string | number | null;
+    home_moneyline: number | null;
+    away_moneyline: number | null;
   };
 }
 
@@ -190,19 +199,52 @@ export default function PickHistoryScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const formatPickChoice = (pick: PickHistoryItem) => {
-    if (pick.team_picked && pick.games) {
-      return pick.team_picked === 'home' ? pick.games.home_team : pick.games.away_team;
+  // Return the line as it was at pick time (e.g. "-2.5" or "+180").
+  // Prefers the snapshot fields (spread_line_at_pick / ml_odds) and falls
+  // back to the game row for legacy picks where the snapshot is null.
+  const formatPickedLine = (pick: PickHistoryItem): string => {
+    if (!pick.team_picked) return '';
+    const isHome = pick.team_picked === 'home';
+
+    if (pick.bet_type === 'moneyline') {
+      const ml = pick.ml_odds
+        ?? (isHome ? pick.games?.home_moneyline : pick.games?.away_moneyline);
+      if (ml == null) return '';
+      return ml > 0 ? `+${ml}` : `${ml}`;
     }
-    if (pick.team_picked) {
+
+    // Spread (default for ATS picks). spread_line_at_pick stores the home spread,
+    // so we flip the sign for an away pick.
+    let homeSpread: number | null = null;
+    if (pick.spread_line_at_pick != null) {
+      homeSpread = Number(pick.spread_line_at_pick);
+    } else if (pick.games?.home_spread != null) {
+      const parsed = parseFloat(String(pick.games.home_spread));
+      homeSpread = Number.isFinite(parsed) ? parsed : null;
+    }
+    if (homeSpread == null) return '';
+    const sideSpread = isHome ? homeSpread : -homeSpread;
+    return sideSpread > 0 ? `+${sideSpread}` : `${sideSpread}`;
+  };
+
+  const formatPickChoice = (pick: PickHistoryItem) => {
+    let teamLabel: string;
+    if (pick.team_picked && pick.games) {
+      teamLabel = pick.team_picked === 'home' ? pick.games.home_team : pick.games.away_team;
+    } else if (pick.team_picked) {
       const parts = pick.game_id.split('_');
       if (parts.length >= 5) {
-        return pick.team_picked === 'home'
+        teamLabel = pick.team_picked === 'home'
           ? parts[3].toUpperCase()
           : parts[4].toUpperCase();
+      } else {
+        teamLabel = pick.team_picked.toUpperCase();
       }
+    } else {
+      teamLabel = pick.pick?.toUpperCase() || '';
     }
-    return pick.team_picked?.toUpperCase() || pick.pick?.toUpperCase() || '';
+    const line = formatPickedLine(pick);
+    return line ? `${teamLabel} ${line}` : teamLabel;
   };
 
   const formatGameTitle = (pick: PickHistoryItem) => {

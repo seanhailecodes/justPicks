@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { etDateString, mergeDuplicateGames } from '../_shared/games.ts'
+import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -143,6 +143,11 @@ Deno.serve(async (req) => {
 
       const homeSpread = spreads.find((o: any) => o.name === event.home_team)
       const awaySpread = spreads.find((o: any) => o.name === event.away_team)
+      // Reject absurd spread values (data-feed glitches / alt-line bleed)
+      if (!isSaneSpread(homeSpread?.point, 'NFL') || !isSaneSpread(awaySpread?.point, 'NFL')) {
+        console.warn(`[NFL] Rejected absurd spread for ${event.away_team} @ ${event.home_team}: home=${homeSpread?.point}, away=${awaySpread?.point}`)
+        continue
+      }
       const overUnder = totals.find((o: any) => o.name === 'Over')
       const homeML = moneylines?.find((o: any) => o.name === event.home_team)
       const awayML = moneylines?.find((o: any) => o.name === event.away_team)
@@ -173,9 +178,10 @@ Deno.serve(async (req) => {
 
     // Upsert games to database
     if (games.length > 0) {
+      const upsertable = await filterLockedGames(supabase, 'NFL', games)
       const { error } = await supabase
         .from('games')
-        .upsert(games, { onConflict: 'id' })
+        .upsert(upsertable, { onConflict: 'id' })
 
       if (error) {
         console.error('Upsert error:', error)
