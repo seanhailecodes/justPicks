@@ -19,6 +19,7 @@ export function etDateString(iso: string): string {
 interface GameRow {
   id: string;
   external_id?: string | null;
+  game_date?: string | null;
 }
 
 // Sanity-check a spread point value before writing it. Any sportsbook
@@ -36,11 +37,15 @@ export function isSaneSpread(point: number | null | undefined, league: string): 
   return abs <= ceiling;
 }
 
-// Filter out games that are already locked or final. Once a game starts,
-// its odds shouldn't be touched — but The Odds API sometimes serves stale
-// or weird data for archived events (e.g. a "spread" that equals the final
-// margin), and writing that to game.home_spread breaks any pick whose
-// snapshot field is null. Skipping locked rows in the upsert prevents that.
+// Filter out games that we shouldn't be writing odds to. We only upsert
+// rows for games that haven't started yet — anything else means the API
+// might be returning a live in-game line that doesn't reflect the
+// pre-game spread, and writing it would corrupt the row.
+//
+// A game is considered "off-limits" if any of these are true:
+//   - locked = true                                (resolver has finalized it)
+//   - game_status in ('in_progress', 'final')      (started or done)
+//   - game_date <= now                             (commence time has passed)
 export async function filterLockedGames(
   supabase: any,
   league: string,
@@ -48,19 +53,37 @@ export async function filterLockedGames(
 ): Promise<GameRow[]> {
   if (candidateGames.length === 0) return candidateGames;
 
-  const ids = candidateGames.map((g) => g.id);
-  const { data: locked } = await supabase
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  // First pass: drop any candidate whose game_date is already in the past.
+  // Catches the brand-new-row case (no existing DB row yet) where the API
+  // listed a game that already started.
+  const upcomingCandidates = candidateGames.filter((g) => {
+    if (!g.game_date) return true;
+    const t = new Date(g.game_date).getTime();
+    return Number.isFinite(t) ? t > now : true;
+  });
+  const droppedByTime = candidateGames.length - upcomingCandidates.length;
+  if (droppedByTime > 0) console.log(`[${league}] Dropped ${droppedByTime} candidate(s) whose game_date is in the past`);
+
+  if (upcomingCandidates.length === 0) return upcomingCandidates;
+
+  // Second pass: drop any candidate whose existing DB row is locked,
+  // in_progress, final, or whose stored game_date already passed.
+  const ids = upcomingCandidates.map((g) => g.id);
+  const { data: offLimits } = await supabase
     .from("games")
     .select("id")
     .eq("league", league)
     .in("id", ids)
-    .or("locked.eq.true,game_status.eq.final");
+    .or(`locked.eq.true,game_status.eq.final,game_status.eq.in_progress,game_date.lte.${nowIso}`);
 
-  if (!locked || locked.length === 0) return candidateGames;
-  const lockedIds = new Set((locked as any[]).map((r) => r.id));
-  const filtered = candidateGames.filter((g) => !lockedIds.has(g.id));
-  const skipped = candidateGames.length - filtered.length;
-  if (skipped > 0) console.log(`[${league}] Skipped ${skipped} locked/final game(s) from upsert`);
+  if (!offLimits || offLimits.length === 0) return upcomingCandidates;
+  const offLimitsIds = new Set((offLimits as any[]).map((r) => r.id));
+  const filtered = upcomingCandidates.filter((g) => !offLimitsIds.has(g.id));
+  const skippedByDb = upcomingCandidates.length - filtered.length;
+  if (skippedByDb > 0) console.log(`[${league}] Skipped ${skippedByDb} started/locked game(s) from upsert`);
   return filtered;
 }
 
