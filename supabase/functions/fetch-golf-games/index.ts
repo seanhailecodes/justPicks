@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { mergeDuplicateGames } from "../_shared/games.ts";
+import { mergeDuplicateGames, filterLockedGames } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,13 +106,14 @@ Deno.serve(async (req) => {
       };
     });
 
+    const upsertable = await filterLockedGames(supabase, "PGA", games);
     const { error } = await supabase
       .from("games")
-      .upsert(games, { onConflict: "id", ignoreDuplicates: false });
+      .upsert(upsertable, { onConflict: "id", ignoreDuplicates: false });
 
     if (error) throw error;
 
-    console.log(`Upserted ${games.length} PGA golf matchups`);
+    console.log(`Upserted ${upsertable.length} PGA golf matchups (skipped ${games.length - upsertable.length} locked)`);
 
     await mergeDuplicateGames(supabase, "PGA", games);
 

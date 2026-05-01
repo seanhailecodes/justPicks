@@ -327,10 +327,12 @@ export const getUserPickHistory = async (userId: string) => {
   // Get unique game IDs from picks
   const gameIds = [...new Set(picks.map(pick => pick.game_id))];
 
-  // Get games data for those IDs
+  // Get games data for those IDs. We also pull spread/ML columns so the
+  // pick-history UI can show "the line as picked" — falling back to the
+  // game row for legacy picks created before snapshot fields were stored.
   const { data: games, error: gamesError } = await supabase
     .from('games')
-    .select('id, home_team, away_team, game_date, league, home_score, away_score, over_under_line')
+    .select('id, home_team, away_team, game_date, league, home_score, away_score, over_under_line, home_spread, away_spread, home_moneyline, away_moneyline')
     .in('id', gameIds);
 
   if (gamesError) {
@@ -443,22 +445,32 @@ export const savePick = async (userId: string, pickData: {
       payload.picked_favorite = pickData.picked_favorite ?? null;
       payload.picked_team = pickData.picked_team ?? null;
       payload.opponent_team = pickData.opponent_team ?? null;
-      
-      // Preserve existing O/U pick if it exists
+      // Snapshot the line at pick time. Without this, the resolver has to
+      // fall back to the game row's spread, which can drift if odds keep
+      // updating after the pick — and grades incorrectly.
+      payload.spread_line_at_pick = pickData.spread_line_at_pick ?? null;
+
+      // Preserve existing O/U pick AND its snapshot if it exists
       if (existingPick) {
         payload.over_under_pick = existingPick.over_under_pick;
         payload.over_under_confidence = existingPick.over_under_confidence;
+        payload.total_line_at_pick = existingPick.total_line_at_pick;
       }
     } else if (isOverUnder) {
       // Saving an O/U pick - preserve existing spread/ML data
       payload.over_under_pick = pickData.overUnderPick;
       payload.over_under_confidence = pickData.overUnderConfidence;
-      
-      // Preserve existing spread pick if it exists
+      // Snapshot the total at pick time.
+      payload.total_line_at_pick = pickData.total_line_at_pick ?? null;
+
+      // Preserve existing spread pick AND its snapshot if it exists
       if (existingPick) {
         payload.pick = existingPick.pick;
         payload.team_picked = existingPick.team_picked;
         payload.confidence = existingPick.confidence;
+        payload.spread_line_at_pick = existingPick.spread_line_at_pick;
+        payload.ml_odds = existingPick.ml_odds;
+        payload.bet_type = existingPick.bet_type;
       } else {
         // No existing pick, need to set pick to something (required field)
         payload.pick = pickData.overUnderPick;
@@ -466,6 +478,13 @@ export const savePick = async (userId: string, pickData: {
         payload.confidence = pickData.overUnderConfidence || 'Medium';
       }
     }
+
+    // AI/analytics context — set on every pick save so we have the
+    // pick-time context regardless of bet type.
+    payload.time_before_game_minutes = pickData.time_before_game_minutes ?? null;
+    payload.picked_at_time = pickData.picked_at_time ?? null;
+    payload.picked_day_of_week = pickData.picked_day_of_week ?? null;
+    payload.pick_source = pickData.pick_source ?? null;
 
     let result;
     

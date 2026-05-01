@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { etDateString, mergeDuplicateGames } from "../_shared/games.ts";
+import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,13 +92,20 @@ Deno.serve(async (req) => {
       let awayMoneyline = null;
 
       if (bookmaker) {
-        // Get spreads
+        // Get spreads. Reject absurd values (no real NBA spread is ±30+) —
+        // those tend to be data-feed artifacts or alternate-line bleed-through.
         const spreadsMarket = bookmaker.markets?.find((m: any) => m.key === "spreads");
         if (spreadsMarket) {
           const homeOutcome = spreadsMarket.outcomes?.find((o: any) => o.name === homeTeam);
           const awayOutcome = spreadsMarket.outcomes?.find((o: any) => o.name === awayTeam);
-          homeSpread = homeOutcome?.point?.toString() || null;
-          awaySpread = awayOutcome?.point?.toString() || null;
+          const homePoint = homeOutcome?.point;
+          const awayPoint = awayOutcome?.point;
+          if (isSaneSpread(homePoint, "NBA") && isSaneSpread(awayPoint, "NBA")) {
+            homeSpread = homePoint?.toString() || null;
+            awaySpread = awayPoint?.toString() || null;
+          } else {
+            console.warn(`[NBA] Rejected absurd spread for ${awayTeam} @ ${homeTeam}: home=${homePoint}, away=${awayPoint}`);
+          }
         }
 
         // Get totals
@@ -146,10 +153,14 @@ Deno.serve(async (req) => {
       };
     });
 
+    // Don't upsert rows that are already locked/final — protects post-game
+    // spreads from being overwritten by stale/glitched API data.
+    const upsertable = await filterLockedGames(supabase, "NBA", games);
+
     // Upsert games to database
     const { data, error } = await supabase
       .from("games")
-      .upsert(games, { onConflict: "id", ignoreDuplicates: false })
+      .upsert(upsertable, { onConflict: "id", ignoreDuplicates: false })
       .select();
 
     if (error) {

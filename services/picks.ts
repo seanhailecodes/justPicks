@@ -8,11 +8,16 @@ export type PickData = {
   reasoning?: string;
   pick_type: 'solo' | 'group';
   groups?: string[];
+  // Line snapshots at pick time — required for the resolver to grade
+  // against the price the user actually locked in, not the closing line.
+  spread_line_at_pick?: number | null;
+  total_line_at_pick?: number | null;
+  ml_odds?: number | null;
 };
 
 export const savePick = async (userId: string, pickData: PickData) => {
   console.log('savePick called with:', { userId, pickData });
-  
+
   // Create the insert object so we can log it
   const insertData = {
     user_id: userId,
@@ -26,6 +31,9 @@ export const savePick = async (userId: string, pickData: PickData) => {
     season: 2025,
     week: 1,
     spread_value: 0,
+    spread_line_at_pick: pickData.spread_line_at_pick ?? null,
+    total_line_at_pick: pickData.total_line_at_pick ?? null,
+    ml_odds: pickData.ml_odds ?? null,
     created_at: new Date().toISOString(),
   };
   
