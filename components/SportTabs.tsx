@@ -85,7 +85,7 @@ export default function SportTabs({
 
 const styles = StyleSheet.create({
   container: {
-    maxHeight: 44,
+    maxHeight: 30,
   },
   content: {
     // flexGrow lets the row stretch to fill available width when content is
@@ -94,18 +94,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 5,
+    gap: 6,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 1,
     // Rounded rectangle, not a pill — softer corners but still squared.
-    borderRadius: 8,
-    gap: 4,
+    borderRadius: 6,
+    gap: 3,
   },
   tabActive: {
     backgroundColor: '#FF6B35',
@@ -114,11 +114,11 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   emoji: {
-    fontSize: 14,
+    fontSize: 11,
   },
   text: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   textActive: {
