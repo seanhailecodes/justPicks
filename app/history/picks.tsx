@@ -761,8 +761,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 18,
+    paddingVertical: 8,
+    borderRadius: 10,
     gap: 6,
   },
   sportTabActive: {
