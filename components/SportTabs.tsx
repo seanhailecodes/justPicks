@@ -66,7 +66,18 @@ export default function SportTabs({
             disabled={disabled}
             activeOpacity={0.7}
           >
-            <Text style={styles.emoji}>{sport.emoji}</Text>
+            {/* The basketball glyph (🏀) is rendered with its mass biased
+                slightly right of its glyph-box center, which makes the
+                NBA / NCAAB chips read as if the emoji is too far right.
+                Nudge it left a hair so it visually aligns with ⚾, 🥊, etc. */}
+            <Text
+              style={[
+                styles.emoji,
+                sport.emoji === '🏀' && styles.emojiBasketball,
+              ]}
+            >
+              {sport.emoji}
+            </Text>
             <Text
               style={[
                 styles.text,
@@ -85,7 +96,7 @@ export default function SportTabs({
 
 const styles = StyleSheet.create({
   container: {
-    maxHeight: 30,
+    maxHeight: 32,
   },
   content: {
     // flexGrow lets the row stretch to fill available width when content is
@@ -114,11 +125,17 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   emoji: {
-    fontSize: 11,
+    fontSize: 12,
+  },
+  // Pulls the basketball emoji ~1px left so its visual center aligns
+  // with the rest of the row (the glyph itself is biased right).
+  emojiBasketball: {
+    transform: [{ translateX: -1 }],
+    marginRight: -1,
   },
   text: {
     color: '#8E8E93',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   textActive: {
