@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { APP_SPORTS, getDefaultSport } from '../../services/activeSport';
+import { APP_SPORTS, AppSport, Sport, getDefaultSport, getSport } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
-
-// Map master sport list to leaderboard's expected shape
-const SPORTS = APP_SPORTS.map(s => ({
-  id: s.key,
-  label: `${s.emoji} ${s.label}`,
-  league: s.league,
-  disabled: !s.enabled,
-}));
+import SportTabs from '../../components/SportTabs';
 
 const TIME_PERIODS = [
   { key: 'week', label: 'Week' },
@@ -38,10 +31,7 @@ interface UserGroup {
 
 export default function LeaderboardScreen() {
   const router = useRouter();
-  const [selectedSport, setSelectedSport] = useState(() => {
-    const def = getDefaultSport();
-    return SPORTS.find(s => s.id === def) ?? SPORTS[0];
-  });
+  const [selectedSport, setSelectedSport] = useState<AppSport>(() => getSport(getDefaultSport()));
   const [timeframe, setTimeframe] = useState<'week' | 'month' | 'season' | 'all'>('week');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
@@ -49,10 +39,7 @@ export default function LeaderboardScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sharedUserIds, setSharedUserIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const sortedSportOrder = useSortedSports(currentUserId);
-  const sortedSports = sortedSportOrder.length > 0
-    ? sortedSportOrder.map(s => SPORTS.find(ls => ls.id === s.key)).filter(Boolean) as typeof SPORTS
-    : SPORTS;
+  // Sport sorting now lives inside <SportTabs />.
 
   useEffect(() => {
     loadUserGroupsThenFetch();
@@ -79,7 +66,7 @@ export default function LeaderboardScreen() {
       const group = m.groups as any;
       if (group) {
         groupIds.push(group.id);
-        if (group.sport === selectedSport.id || !group.sport) {
+        if (group.sport === selectedSport.key || !group.sport) {
           groups.push({ id: group.id, name: group.name });
         }
       }
@@ -256,33 +243,12 @@ export default function LeaderboardScreen() {
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Leaderboard</Text>
 
-      {/* Sport Tabs */}
-      <View style={styles.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.chipContainer}>
-            {sortedSports.map(sport => (
-              <TouchableOpacity
-                key={sport.id}
-                style={[
-                  styles.chip,
-                  selectedSport.id === sport.id && styles.chipActive,
-                  sport.disabled && styles.chipDisabled
-                ]}
-                onPress={() => !sport.disabled && setSelectedSport(sport)}
-                disabled={sport.disabled}
-              >
-                <Text style={[
-                  styles.chipText,
-                  selectedSport.id === sport.id && styles.chipTextActive,
-                  sport.disabled && styles.chipTextDisabled
-                ]}>
-                  {sport.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
+      {/* Sport Tabs — shared component (see components/SportTabs.tsx) */}
+      <SportTabs
+        selectedKey={selectedSport.key}
+        onSelect={(key) => setSelectedSport(getSport(key))}
+        userId={currentUserId}
+      />
 
       {/* Group Filter - only show if user has groups */}
       {userGroups.length > 0 && (

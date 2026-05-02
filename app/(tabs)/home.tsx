@@ -17,6 +17,7 @@ import storage from '../lib/storage';
 import { ONBOARDING_KEY } from '../onboarding';
 import PushEnrollmentBanner from '../../components/PushEnrollmentBanner';
 import FeedbackModal from '../../components/FeedbackModal';
+import SportTabs from '../../components/SportTabs';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, AppSport, SPORT_EMOJI, getDefaultSport, getSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -485,52 +486,12 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Sport Tabs */}
-      <ScrollView
-        ref={sportScrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.sportTabsContainer}
-        contentContainerStyle={styles.sportTabsContent}
-      >
-        {sortedSports.map(({ key: sport, enabled, emoji, label }) => {
-          const isSelected = selectedSport === sport;
-          const logo = SPORT_LOGOS[sport];
-
-          return (
-            <TouchableOpacity
-              key={sport}
-              style={[
-                styles.sportTab,
-                isSelected && styles.sportTabActive,
-                !enabled && styles.sportTabDisabled
-              ]}
-              onPress={() => enabled && setSelectedSport(sport)}
-              disabled={!enabled}
-            >
-              {logo ? (
-                <Image 
-                  source={logo} 
-                  style={[
-                    styles.sportLogo,
-                    !enabled && styles.sportLogoDisabled
-                  ]} 
-                  resizeMode="contain"
-                />
-              ) : emoji ? (
-                <Text style={styles.sportEmoji}>{emoji}</Text>
-              ) : null}
-              <Text style={[
-                styles.sportTabText,
-                isSelected && styles.sportTabTextActive,
-                !enabled && styles.sportTabTextDisabled
-              ]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Sport Tabs — shared component (see components/SportTabs.tsx) */}
+      <SportTabs
+        selectedKey={selectedSport}
+        onSelect={setSelectedSport}
+        userId={userId}
+      />
 
       <ScrollView
         style={styles.content}

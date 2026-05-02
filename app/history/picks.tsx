@@ -747,30 +747,33 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#1C1C1E',
   },
+  // These match components/SportTabs.tsx exactly so the league/result filters
+  // here render visually identical to the global sport tabs elsewhere.
   tabsContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     gap: 8,
-    alignItems: 'center',
   },
   sportTab: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    gap: 6,
   },
   sportTabActive: {
     backgroundColor: '#FF6B35',
   },
   sportTabEmoji: {
-    fontSize: 14,
+    fontSize: 16,
   },
   sportTabText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   sportTabTextActive: {
