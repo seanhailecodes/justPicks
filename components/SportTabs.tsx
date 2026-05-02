@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     // Rounded rectangle, not a pill — softer corners but still squared.
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 6,
   },
   tabActive: {
