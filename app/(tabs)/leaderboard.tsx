@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   filterSection: {
-    height: 30,
+    height: 32,
     marginBottom: 2,
   },
   // Group + time-period chips below the SportTabs — kept visually in
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    height: 26,
+    height: 28,
   },
   chip: {
     backgroundColor: '#1C1C1E',
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: '#8E8E93',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   chipTextActive: {
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   timeChip: {
     flex: 1,
     backgroundColor: '#1C1C1E',
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 6,
     alignItems: 'center',
   },
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
   },
   timeChipText: {
     color: '#8E8E93',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   timeChipTextActive: {

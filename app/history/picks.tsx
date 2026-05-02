@@ -405,7 +405,14 @@ export default function PickHistoryScreen() {
                 style={[styles.sportTab, active && styles.sportTabActive]}
                 onPress={() => setSportFilter(league)}
               >
-                <Text style={styles.sportTabEmoji}>{emoji}</Text>
+                <Text
+                  style={[
+                    styles.sportTabEmoji,
+                    emoji === '🏀' && styles.sportTabEmojiBasketball,
+                  ]}
+                >
+                  {emoji}
+                </Text>
                 <Text style={[styles.sportTabText, active && styles.sportTabTextActive]}>{label}</Text>
               </TouchableOpacity>
             );
@@ -742,7 +749,7 @@ const styles = StyleSheet.create({
   },
   // ── Filter tabs (shared by sport + result rows) ────────────
   tabsContainer: {
-    maxHeight: 36,
+    maxHeight: 38,
     marginTop: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#1C1C1E',
@@ -769,11 +776,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF6B35',
   },
   sportTabEmoji: {
-    fontSize: 11,
+    fontSize: 12,
+  },
+  // See SportTabs.tsx — the basketball glyph is biased right, this nudges
+  // it back toward visual center so NBA/NCAAB tabs don't feel skewed.
+  sportTabEmojiBasketball: {
+    transform: [{ translateX: -1 }],
+    marginRight: -1,
   },
   sportTabText: {
     color: '#8E8E93',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   sportTabTextActive: {
