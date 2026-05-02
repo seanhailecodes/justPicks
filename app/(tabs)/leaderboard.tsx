@@ -410,8 +410,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   filterSection: {
-    height: 44,
-    marginBottom: 4,
+    height: 30,
+    marginBottom: 2,
   },
   // Group + time-period chips below the SportTabs — kept visually in
   // sync with components/SportTabs.tsx so the three filter rows feel
@@ -420,14 +420,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    height: 36,
+    height: 26,
   },
   chip: {
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginRight: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginRight: 6,
   },
   chipActive: {
     backgroundColor: '#FF6B35',
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   chipTextActive: {
@@ -449,14 +449,14 @@ const styles = StyleSheet.create({
   timeRow: {
     flexDirection: 'row',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 4,
     gap: 6,
   },
   timeChip: {
     flex: 1,
     backgroundColor: '#1C1C1E',
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     alignItems: 'center',
   },
   timeChipActive: {
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
   },
   timeChipText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   timeChipTextActive: {

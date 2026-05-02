@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
   },
   // ── Filter tabs (shared by sport + result rows) ────────────
   tabsContainer: {
-    maxHeight: 50,
+    maxHeight: 36,
     marginTop: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#1C1C1E',
@@ -753,27 +753,27 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 5,
+    gap: 6,
   },
   sportTab: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 1,
+    borderRadius: 6,
+    gap: 3,
   },
   sportTabActive: {
     backgroundColor: '#FF6B35',
   },
   sportTabEmoji: {
-    fontSize: 14,
+    fontSize: 11,
   },
   sportTabText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   sportTabTextActive: {
