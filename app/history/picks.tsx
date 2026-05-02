@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getUserPickHistory, supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import { APP_SPORTS } from '../../services/activeSport';
 
@@ -33,6 +33,10 @@ interface PickHistoryItem {
   games?: {
     home_team: string;
     away_team: string;
+    home_team_code: string | null;
+    away_team_code: string | null;
+    home_team_logo: string | null;
+    away_team_logo: string | null;
     game_date: string;
     league: string;
     home_score: number | null;
@@ -227,24 +231,50 @@ export default function PickHistoryScreen() {
     return sideSpread > 0 ? `+${sideSpread}` : `${sideSpread}`;
   };
 
-  const formatPickChoice = (pick: PickHistoryItem) => {
-    let teamLabel: string;
-    if (pick.team_picked && pick.games) {
-      teamLabel = pick.team_picked === 'home' ? pick.games.home_team : pick.games.away_team;
-    } else if (pick.team_picked) {
-      const parts = pick.game_id.split('_');
-      if (parts.length >= 5) {
-        teamLabel = pick.team_picked === 'home'
-          ? parts[3].toUpperCase()
-          : parts[4].toUpperCase();
-      } else {
-        teamLabel = pick.team_picked.toUpperCase();
-      }
-    } else {
-      teamLabel = pick.pick?.toUpperCase() || '';
+  // Sports where the picked-team identifier is a fighter / player full name
+  // (no team code / logo), so we keep the full name instead of an abbrev.
+  const isCombatLeague = (league?: string) =>
+    league === 'UFC' || league === 'BOXING' || league === 'PGA';
+
+  // Returns the picked side as a short code (e.g. "BOS"), falling back to a
+  // game_id-derived code for orphaned picks, OR the full fighter/player name
+  // for combat sports.
+  const formatPickedTeamLabel = (pick: PickHistoryItem): string => {
+    if (!pick.team_picked) return pick.pick?.toUpperCase() || '';
+    const isHome = pick.team_picked === 'home';
+    const g = pick.games;
+
+    if (g && isCombatLeague(g.league)) {
+      return isHome ? g.home_team : g.away_team;
     }
+
+    // Prefer team_code from the joined games row.
+    const code = isHome ? g?.home_team_code : g?.away_team_code;
+    if (code) return code.toUpperCase();
+
+    // No joined row — pull the short code from game_id, which follows
+    // pattern `<league>_<date>_<away>_<home>`.
+    const parts = pick.game_id.split('_');
+    if (parts.length >= 5) {
+      return (isHome ? parts[3] : parts[4]).toUpperCase();
+    }
+    return pick.team_picked.toUpperCase();
+  };
+
+  const formatPickChoice = (pick: PickHistoryItem) => {
+    const teamLabel = formatPickedTeamLabel(pick);
     const line = formatPickedLine(pick);
     return line ? `${teamLabel} ${line}` : teamLabel;
+  };
+
+  // Logo URL for the picked side, if any. Combat sports return null since
+  // we don't store fighter portraits.
+  const pickedTeamLogo = (pick: PickHistoryItem): string | null => {
+    if (!pick.team_picked || !pick.games) return null;
+    if (isCombatLeague(pick.games.league)) return null;
+    return pick.team_picked === 'home'
+      ? pick.games.home_team_logo
+      : pick.games.away_team_logo;
   };
 
   const formatGameTitle = (pick: PickHistoryItem) => {
@@ -465,12 +495,16 @@ export default function PickHistoryScreen() {
                 {/* Picked team + confidence + wager + chevron */}
                 <View style={styles.pickTitleRow}>
                   <View style={styles.pickRowLeft}>
-                    <Text style={styles.pickChoice}>
+                    {pickedTeamLogo(pick) && (
+                      <Image
+                        source={{ uri: pickedTeamLogo(pick)! }}
+                        style={styles.pickLogo}
+                        resizeMode="contain"
+                      />
+                    )}
+                    <Text style={styles.pickChoice} numberOfLines={1} ellipsizeMode="tail">
                       {pick.team_picked ? formatPickChoice(pick) : (formatOverUnderChoice(pick) ?? '—')}
                     </Text>
-                    {formatScore(pick) && (
-                      <Text style={styles.inlineScore}>{formatScore(pick)}</Text>
-                    )}
                     {pick.confidence && (
                       <View style={[styles.confidenceBadge, {
                         backgroundColor: getConfidenceColor(pick.confidence) + '22',
@@ -862,6 +896,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     flexShrink: 1,
+  },
+  pickLogo: {
+    width: 22,
+    height: 22,
   },
   pickCardRight: {
     flexDirection: 'row',

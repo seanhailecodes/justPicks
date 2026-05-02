@@ -330,9 +330,11 @@ export const getUserPickHistory = async (userId: string) => {
   // Get games data for those IDs. We also pull spread/ML columns so the
   // pick-history UI can show "the line as picked" — falling back to the
   // game row for legacy picks created before snapshot fields were stored.
+  // Team codes and logos let us render compact `[logo] BOS -2.5` rows
+  // instead of full team names that wrap on small screens.
   const { data: games, error: gamesError } = await supabase
     .from('games')
-    .select('id, home_team, away_team, game_date, league, home_score, away_score, over_under_line, home_spread, away_spread, home_moneyline, away_moneyline')
+    .select('id, home_team, away_team, home_team_code, away_team_code, home_team_logo, away_team_logo, game_date, league, home_score, away_score, over_under_line, home_spread, away_spread, home_moneyline, away_moneyline')
     .in('id', gameIds);
 
   if (gamesError) {
