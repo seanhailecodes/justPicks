@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 3,
     borderRadius: 8,
     gap: 4,
   },
