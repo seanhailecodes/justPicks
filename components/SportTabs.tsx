@@ -101,11 +101,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     // Rounded rectangle, not a pill — softer corners but still squared.
     borderRadius: 8,
-    gap: 6,
+    gap: 4,
   },
   tabActive: {
     backgroundColor: '#FF6B35',
@@ -114,11 +114,11 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   emoji: {
-    fontSize: 16,
+    fontSize: 14,
   },
   text: {
     color: '#8E8E93',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   textActive: {
