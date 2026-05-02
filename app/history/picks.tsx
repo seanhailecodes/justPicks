@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 8,
     gap: 6,
   },
   sportTabActive: {
