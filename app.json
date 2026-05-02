@@ -3,7 +3,7 @@
     "name": "justPicks",
     "slug": "justPicks",
     "version": "1.2.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "justpicks",
     "userInterfaceStyle": "automatic",
@@ -12,11 +12,23 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.seanhaile.dontbet",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       },
       "associatedDomains": [
         "applinks:justpicks.app"
-      ]
+      ],
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
