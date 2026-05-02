@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Alert, Image, ImageSourcePropType, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import FeedbackModal from '../../components/FeedbackModal';
+import SportTabs from '../../components/SportTabs';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
@@ -397,50 +398,15 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Sport Tabs */}
-      <ScrollView
-        ref={sportScrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.sportTabsContainer}
-        contentContainerStyle={styles.sportTabsContent}
-      >
-        {sortedSports.map(({ key: sport, enabled, emoji, label, season }) => {
-          const isSelected = selectedSport === sport;
-          const inSeason = enabled && isSportInSeason(season);
-          const isComingSoon = !enabled;
-          const isOffSeason = enabled && !inSeason;
-          const logo = SPORT_LOGOS[sport];
-
-          return (
-            <TouchableOpacity
-              key={sport}
-              style={[
-                styles.sportTab,
-                isSelected && styles.sportTabActive,
-                isOffSeason && styles.sportTabOffSeason,
-                isComingSoon && styles.sportTabDisabled,
-              ]}
-              onPress={() => !isComingSoon && setSelectedSport(sport)}
-              disabled={isComingSoon}
-            >
-              {logo ? (
-                <Image source={logo} style={styles.sportLogo} resizeMode="contain" />
-              ) : emoji ? (
-                <Text style={[styles.sportEmoji, (isOffSeason || isComingSoon) && styles.sportEmojiDisabled]}>{emoji}</Text>
-              ) : null}
-              <Text style={[
-                styles.sportTabText,
-                isSelected && styles.sportTabTextActive,
-                isOffSeason && styles.sportTabTextOffSeason,
-                isComingSoon && styles.sportTabTextDisabled,
-              ]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Sport Tabs — shared component (see components/SportTabs.tsx) */}
+      <SportTabs
+        selectedKey={selectedSport}
+        onSelect={setSelectedSport}
+        userId={userProfile?.id ?? null}
+        // Profile grays out coming-soon sports; in-season check stays
+        // implicit for now (selectable, just labeled in the body).
+        isDisabled={(s) => !s.enabled}
+      />
 
       <ScrollView 
         style={styles.content} 

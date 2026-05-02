@@ -3,6 +3,7 @@ import { getWeekScores, hasScoresForWeek } from '@/app/data/resolution/allScores
 import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
 import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import FeedbackModal from '@/components/FeedbackModal';
+import SportTabs from '@/components/SportTabs';
 import { Session } from '@supabase/supabase-js';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -869,38 +870,15 @@ export default function GamesScreen() {
       </View>
       <FeedbackModal visible={showFeedback} onClose={() => setShowFeedback(false)} />
 
-      {/* Sport Tabs - matching Home screen style */}
-      <ScrollView 
-        horizontal 
-        style={styles.sportTabsContainer} 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.sportTabsContent}
-      >
-        {sortedSports.map(sport => {
-          const isSelected = selectedSport.key === sport.key;
-          return (
-            <TouchableOpacity
-              key={sport.key}
-              style={[
-                styles.sportTab,
-                isSelected && styles.sportTabActive,
-                !sport.enabled && styles.sportTabDisabled
-              ]}
-              onPress={() => sport.enabled && setSelectedSport(sport)}
-              disabled={!sport.enabled}
-            >
-              <Text style={styles.sportEmoji}>{sport.emoji}</Text>
-              <Text style={[
-                styles.sportTabText,
-                isSelected && styles.sportTabTextActive,
-                !sport.enabled && styles.sportTabTextDisabled
-              ]}>
-                {sport.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Sport Tabs — shared component (see components/SportTabs.tsx) */}
+      <SportTabs
+        selectedKey={selectedSport.key}
+        onSelect={(key) => {
+          const next = SPORTS.find((s) => s.key === key);
+          if (next) setSelectedSport(next);
+        }}
+        userId={session?.user?.id ?? null}
+      />
 
       {/* Fighter search — combat sports only */}
       {isCombatSport && games.length > 0 && (
