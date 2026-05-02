@@ -234,10 +234,9 @@ export default function HomeScreen() {
     }
   };
 
-  // Load the official public group for the current sport. We pick the
-  // first group with visibility='public' for this sport — the long-term
-  // plan is to mark exactly one as `is_official` per sport, but until that
-  // flag exists, "first public group" is a reasonable proxy.
+  // Load the official public group for the current sport. Each sport has
+  // exactly one row with `is_official = true` (enforced by a unique partial
+  // index on the groups table).
   const loadPublicGroup = async () => {
     if (!userId) return;
 
@@ -246,8 +245,7 @@ export default function HomeScreen() {
         .from('groups')
         .select('id, name, sport')
         .eq('sport', selectedSport)
-        .eq('visibility', 'public')
-        .order('created_at', { ascending: true })
+        .eq('is_official', true)
         .limit(1);
 
       if (!groups || groups.length === 0) {
@@ -300,12 +298,15 @@ export default function HomeScreen() {
 
       const groupIds = memberships.map(m => m.group_id);
 
-      // Get group details filtered by sport
+      // Get group details filtered by sport. We exclude official public
+      // groups here — they get their own dedicated section below so they
+      // don't double up in "Your Groups" + "Public Group".
       const { data: groups } = await supabase
         .from('groups')
         .select('id, name, sport')
         .in('id', groupIds)
-        .eq('sport', selectedSport);
+        .eq('sport', selectedSport)
+        .eq('is_official', false);
 
       if (groups && groups.length > 0) {
         // Get actual member counts from group_members table
