@@ -58,6 +58,8 @@ interface UserStats {
 export default function HomeScreen() {
   const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+  // The single official public group for the selected sport. Null if none exists yet.
+  const [publicGroup, setPublicGroup] = useState<(UserGroup & { isMember: boolean }) | null>(null);
   const [upcomingGames, setUpcomingGames] = useState<UpcomingGame[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [currentWeek, setCurrentWeek] = useState<number>(14);
@@ -221,11 +223,63 @@ export default function HomeScreen() {
     try {
       // Load groups for selected sport
       await loadUserGroups();
-      
+
+      // Load the single official public group for this sport
+      await loadPublicGroup();
+
       // Load upcoming games for selected sport
       await loadUpcomingGames();
     } catch (error) {
       console.error('Error loading sport data:', error);
+    }
+  };
+
+  // Load the official public group for the current sport. We pick the
+  // first group with visibility='public' for this sport — the long-term
+  // plan is to mark exactly one as `is_official` per sport, but until that
+  // flag exists, "first public group" is a reasonable proxy.
+  const loadPublicGroup = async () => {
+    if (!userId) return;
+
+    try {
+      const { data: groups } = await supabase
+        .from('groups')
+        .select('id, name, sport')
+        .eq('sport', selectedSport)
+        .eq('visibility', 'public')
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      if (!groups || groups.length === 0) {
+        setPublicGroup(null);
+        return;
+      }
+      const group = groups[0];
+
+      // Member count + whether this user is already a member.
+      const [{ count }, { data: myMembership }] = await Promise.all([
+        supabase
+          .from('group_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', group.id),
+        supabase
+          .from('group_members')
+          .select('group_id')
+          .eq('group_id', group.id)
+          .eq('user_id', userId)
+          .maybeSingle(),
+      ]);
+
+      setPublicGroup({
+        id: group.id,
+        name: group.name,
+        sport: group.sport || selectedSport,
+        memberCount: count || 0,
+        isMember: !!myMembership,
+      });
+    } catch (error) {
+      console.error('Error loading public group:', error);
+      setPublicGroup(null);
     }
   };
 
@@ -583,6 +637,36 @@ export default function HomeScreen() {
             ))
           )}
         </View>
+
+        {/* Public Group Section — the one official public group for this sport */}
+        {publicGroup && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Public {sportConfig.shortName} Group</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.groupCard}
+              onPress={() => router.push({
+                pathname: '/group/group-picks',
+                params: { groupId: publicGroup.id, groupName: publicGroup.name },
+              })}
+            >
+              <View style={styles.groupCardLeft}>
+                <Text style={styles.groupName}>{publicGroup.name}</Text>
+                <Text style={styles.groupMeta}>
+                  {publicGroup.memberCount} member{publicGroup.memberCount !== 1 ? 's' : ''}
+                  {publicGroup.isMember ? ' · ✓ Joined' : ''}
+                </Text>
+              </View>
+              <View style={styles.groupCardRight}>
+                <View style={styles.sportBadgeSmall}>
+                  <Text style={styles.sportBadgeText}>{sportConfig.shortName}</Text>
+                </View>
+                <Text style={styles.groupArrow}>›</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Upcoming Games Section */}
         <View style={styles.section}>
