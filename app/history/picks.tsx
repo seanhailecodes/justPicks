@@ -191,15 +191,27 @@ export default function PickHistoryScreen() {
     }
   };
 
+  // Format a date label relative to the user's local "today" — supports both
+  // past and future dates. Pass the GAME's commence time (game_date), not
+  // when the pick was created.
+  //
+  // Postgres timestamptz can come back as "2026-05-04 02:00:00+00" (space
+  // instead of T, no trailing Z); normalize to a parseable ISO string first.
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const normalized = dateString.includes('T') || dateString.endsWith('Z')
+      ? dateString
+      : dateString.replace(' ', 'T') + 'Z';
+    const date = new Date(normalized);
     const now  = new Date();
     const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const nowOnly  = new Date(now.getFullYear(),  now.getMonth(),  now.getDate());
+    // Positive = past, negative = future.
     const diffDays = Math.round((nowOnly.getTime() - dateOnly.getTime()) / 86400000);
-    if (diffDays <= 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7)  return `${diffDays}d ago`;
+    if (diffDays === 0)  return 'Today';
+    if (diffDays === 1)  return 'Yesterday';
+    if (diffDays === -1) return 'Tomorrow';
+    if (diffDays > 1 && diffDays < 7)   return `${diffDays}d ago`;
+    if (diffDays < -1 && diffDays > -7) return `in ${-diffDays}d`;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -479,7 +491,10 @@ export default function PickHistoryScreen() {
                         </Text>
                       </View>
                     )}
-                    <Text style={styles.pickDate}>{formatDate(pick.created_at)}</Text>
+                    {/* Show when the GAME is played (Today/Tomorrow/Yesterday/in Nd/etc.),
+                        falling back to pick creation time only if the game record
+                        is gone (orphaned pick). */}
+                    <Text style={styles.pickDate}>{formatDate(pick.games?.game_date ?? pick.created_at)}</Text>
                     {pick.pick_type === 'group' && (
                       <View style={styles.groupBadge}>
                         <Text style={styles.groupBadgeText}>GROUP</Text>
