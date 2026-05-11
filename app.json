@@ -2,7 +2,7 @@
   "expo": {
     "name": "justPicks",
     "slug": "justPicks",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "justpicks",
@@ -28,7 +28,7 @@
       "associatedDomains": [
         "applinks:justpicks.app"
       ],
-      "buildNumber": "2"
+      "buildNumber": "4"
     },
     "android": {
       "adaptiveIcon": {
