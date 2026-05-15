@@ -248,6 +248,15 @@ export default function PickHistoryScreen() {
   const isCombatLeague = (league?: string) =>
     league === 'UFC' || league === 'BOXING' || league === 'PGA';
 
+  // Golf is modeled as "[Player] vs The Field" — away_team carries the
+  // tournament name after an em-dash ("The Field — Masters Tournament").
+  const isGolfLeague = (league?: string) => league === 'PGA';
+  const golfTournamentName = (awayTeam?: string | null): string | null => {
+    if (!awayTeam) return null;
+    const idx = awayTeam.indexOf('—');
+    return idx === -1 ? null : awayTeam.slice(idx + 1).trim() || null;
+  };
+
   // Returns the picked side as a short code (e.g. "BOS"), falling back to a
   // game_id-derived code for orphaned picks, OR the full fighter/player name
   // for combat sports.
@@ -290,7 +299,16 @@ export default function PickHistoryScreen() {
   };
 
   const formatGameTitle = (pick: PickHistoryItem) => {
-    if (pick.games) return `${pick.games.away_team} @ ${pick.games.home_team}`;
+    if (pick.games) {
+      // Golf: "Scottie Scheffler — Masters Tournament" (no "@ The Field").
+      if (isGolfLeague(pick.games.league)) {
+        const tournament = golfTournamentName(pick.games.away_team);
+        return tournament
+          ? `${pick.games.home_team} — ${tournament}`
+          : pick.games.home_team;
+      }
+      return `${pick.games.away_team} @ ${pick.games.home_team}`;
+    }
     const parts = pick.game_id.split('_');
     if (parts.length >= 5) return `${parts[4].toUpperCase()} @ ${parts[3].toUpperCase()}`;
     return pick.game_id;
@@ -305,6 +323,11 @@ export default function PickHistoryScreen() {
 
   const formatScore = (pick: PickHistoryItem) => {
     if (!pick.games || pick.games.home_score == null || pick.games.away_score == null) return null;
+    // Golf: scores are 1/0 flags (did the player win the tournament?), not
+    // a real scoreline — render the outcome in words instead.
+    if (isGolfLeague(pick.games.league)) {
+      return pick.games.home_score === 1 ? 'Won the tournament 🏆' : 'Did not win';
+    }
     return `${pick.games.away_team} ${pick.games.away_score} – ${pick.games.home_team} ${pick.games.home_score}`;
   };
 

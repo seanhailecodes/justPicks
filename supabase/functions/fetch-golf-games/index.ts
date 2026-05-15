@@ -1,10 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { mergeDuplicateGames, filterLockedGames } from "../_shared/games.ts";
+import { etDateString, mergeDuplicateGames, filterLockedGames } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// How many players (favorites) to surface per tournament. Golf winner
+// markets list ~150 players; showing them all would make the Games tab
+// unscannable. The top N by implied win probability keeps the card list
+// tight while still covering everyone a casual picker would consider.
+const MAX_PLAYERS_PER_TOURNAMENT = 16;
 
 /**
  * Turns a full player name into a short, URL-safe slug for use in game IDs.
@@ -13,10 +19,41 @@ const corsHeaders = {
 function slugify(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/[^a-z0-9\s]/g, "")
     .trim()
-    .replace(/\s+/g, '-')
-    .substring(0, 12);
+    .replace(/\s+/g, "-")
+    .substring(0, 14);
+}
+
+/**
+ * Implied win probability from American odds. Used to rank the field so
+ * we keep the biggest favorites. +750 → 0.118, -200 → 0.667.
+ */
+function impliedProbability(americanOdds: number): number {
+  if (americanOdds >= 0) return 100 / (americanOdds + 100);
+  return -americanOdds / (-americanOdds + 100);
+}
+
+/**
+ * Best-effort human tournament name. The Odds API gives `sport_title`
+ * like "Golf - Masters Tournament Winner"; strip the boilerplate.
+ * Falls back to de-slugging the sport key.
+ */
+function tournamentNameFrom(sportTitle: string | undefined, sportKey: string): string {
+  if (sportTitle) {
+    const cleaned = sportTitle
+      .replace(/^golf\s*-\s*/i, "")
+      .replace(/\s*winner$/i, "")
+      .trim();
+    if (cleaned) return cleaned;
+  }
+  // golf_masters_tournament_winner → "Masters Tournament"
+  return sportKey
+    .replace(/^golf_/, "")
+    .replace(/_winner$/, "")
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 Deno.serve(async (req) => {
@@ -33,100 +70,169 @@ Deno.serve(async (req) => {
       throw new Error("Missing environment variables");
     }
 
-    // NOTE: Golf player-vs-player matchup odds are not available in The Odds API
-    // at the current subscription tier. Only outright tournament winner markets
-    // exist (golf_masters_tournament_winner, golf_us_open_winner, etc.).
-    // This function is temporarily disabled until a suitable sport key is confirmed.
-    console.log("[fetch-golf-games] Golf matchup odds not available — skipping fetch.");
-    return new Response(
-      JSON.stringify({ success: true, gamesCount: 0, message: "Golf matchup odds not available in current Odds API plan" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // ── 1. Discover active golf tournaments ──────────────────────────────
+    // The Odds API exposes one sport key per tournament's outright-winner
+    // market, e.g. golf_masters_tournament_winner. We don't hardcode the
+    // four majors — we ask the API which golf winner markets are live.
+    const sportsResponse = await fetch(
+      `https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_API_KEY}&all=true`
     );
+    if (!sportsResponse.ok) {
+      const body = await sportsResponse.text();
+      throw new Error(`Odds API /sports error ${sportsResponse.status}: ${body}`);
+    }
+    const allSports = await sportsResponse.json();
+    const golfKeys: string[] = (allSports as any[])
+      .filter(
+        (s) =>
+          typeof s.key === "string" &&
+          s.key.startsWith("golf_") &&
+          s.key.endsWith("_winner") &&
+          s.active === true
+      )
+      .map((s) => s.key);
 
-    const games = oddsData.map((event: any) => {
-      // The Odds API assigns one golfer as "home" and one as "away" arbitrarily
-      const homePlayer = event.home_team as string;
-      const awayPlayer = event.away_team as string;
+    console.log(`[fetch-golf-games] Active golf winner markets: ${golfKeys.join(", ") || "(none)"}`);
 
-      // Prefer DraftKings, fall back to FanDuel, then first available
-      const bookmaker =
-        event.bookmakers?.find((b: any) => b.key === "draftkings") ||
-        event.bookmakers?.find((b: any) => b.key === "fanduel") ||
-        event.bookmakers?.[0];
+    if (golfKeys.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, gamesCount: 0, message: "No active golf tournaments" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
 
-      let homeMoneyline: number | null = null;
-      let awayMoneyline: number | null = null;
+    // ── 2. For each tournament, pull the outright-winner field ──────────
+    const allGames: any[] = [];
+    let remainingRequests: string | null = null;
 
-      if (bookmaker) {
-        const h2hMarket = bookmaker.markets?.find((m: any) => m.key === "h2h");
-        if (h2hMarket) {
-          const homeOutcome = h2hMarket.outcomes?.find((o: any) => o.name === homePlayer);
-          const awayOutcome = h2hMarket.outcomes?.find((o: any) => o.name === awayPlayer);
-          homeMoneyline = homeOutcome?.price ?? null;
-          awayMoneyline = awayOutcome?.price ?? null;
-        }
+    for (const sportKey of golfKeys) {
+      const oddsResponse = await fetch(
+        `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${ODDS_API_KEY}` +
+          `&regions=us&markets=outrights&oddsFormat=american&bookmakers=draftkings,fanduel`
+      );
+      if (!oddsResponse.ok) {
+        const body = await oddsResponse.text();
+        console.error(`[fetch-golf-games] ${sportKey} odds error ${oddsResponse.status}: ${body}`);
+        continue;
+      }
+      remainingRequests = oddsResponse.headers.get("x-requests-remaining");
+      const events = await oddsResponse.json();
+      if (!Array.isArray(events) || events.length === 0) {
+        console.log(`[fetch-golf-games] ${sportKey}: no events`);
+        continue;
       }
 
-      const gameDate = new Date(event.commence_time);
-      const dateStr = gameDate.toISOString().split("T")[0];
+      // An outrights sport key typically returns a single event = the tournament.
+      for (const event of events) {
+        const tournamentName = tournamentNameFrom(event.sport_title, sportKey);
+        const tournamentSlug = slugify(tournamentName);
 
-      // Build a deterministic ID from date and player slugs
-      const gameId = `pga_${dateStr}_${slugify(awayPlayer)}_vs_${slugify(homePlayer)}`;
+        // Prefer DraftKings, fall back to FanDuel, then first available.
+        const bookmaker =
+          event.bookmakers?.find((b: any) => b.key === "draftkings") ||
+          event.bookmakers?.find((b: any) => b.key === "fanduel") ||
+          event.bookmakers?.[0];
+        if (!bookmaker) {
+          console.log(`[fetch-golf-games] ${sportKey}: no bookmaker for event ${event.id}`);
+          continue;
+        }
 
-      // Reuse home_spread / away_spread columns to surface the h2h moneyline odds
-      // on the game card pick buttons (no traditional spread exists in golf).
-      const homeSpreadDisplay = homeMoneyline !== null ? homeMoneyline.toString() : null;
-      const awaySpreadDisplay = awayMoneyline !== null ? awayMoneyline.toString() : null;
+        const outrightsMarket = bookmaker.markets?.find((m: any) => m.key === "outrights");
+        if (!outrightsMarket?.outcomes?.length) {
+          console.log(`[fetch-golf-games] ${sportKey}: no outrights outcomes for event ${event.id}`);
+          continue;
+        }
 
-      const isStarted = new Date(event.commence_time) <= new Date();
+        // Rank by implied probability (biggest favorites first), keep top N.
+        const ranked = (outrightsMarket.outcomes as any[])
+          .filter((o) => typeof o.price === "number" && o.name)
+          .map((o) => ({ name: o.name as string, price: o.price as number }))
+          .sort((a, b) => impliedProbability(b.price) - impliedProbability(a.price))
+          .slice(0, MAX_PLAYERS_PER_TOURNAMENT);
 
-      return {
-        id: gameId,
-        external_id: event.id,
-        home_team: homePlayer,
-        away_team: awayPlayer,
-        // No team codes for golf — display full name (displayMode: 'name')
-        home_team_code: null,
-        away_team_code: null,
-        home_team_logo: null,
-        away_team_logo: null,
-        // Spread columns repurposed to show moneyline odds for pick buttons
-        home_spread: homeSpreadDisplay,
-        away_spread: awaySpreadDisplay,
-        // No over/under line for golf h2h matchups
-        over_under_line: null,
-        home_moneyline: homeMoneyline,
-        away_moneyline: awayMoneyline,
-        league: "PGA",
-        game_date: event.commence_time,
-        locked: isStarted,
-        season: 2025,
-        game_status: isStarted ? "in_progress" : "scheduled",
-        created_at: new Date().toISOString(),
-      };
-    });
+        const dateStr = etDateString(event.commence_time);
+        const isStarted = new Date(event.commence_time) <= new Date();
 
-    const upsertable = await filterLockedGames(supabase, "PGA", games);
-    const { error } = await supabase
-      .from("games")
-      .upsert(upsertable, { onConflict: "id", ignoreDuplicates: false });
+        for (const player of ranked) {
+          const playerSlug = slugify(player.name);
+          // Deterministic ID: sport prefix + ET date + tournament + player.
+          const gameId = `pga_${dateStr}_${tournamentSlug}_${playerSlug}`;
+          // external_id MUST be unique per player — every player in a
+          // tournament shares the Odds API event.id, so we namespace it
+          // with the sport key and player slug. The sport key is also
+          // what resolve-golf-games needs to look up the winner later.
+          const externalId = `${sportKey}|${event.id}|${playerSlug}`;
 
-    if (error) throw error;
+          allGames.push({
+            id: gameId,
+            external_id: externalId,
+            home_team: player.name,
+            // Tournament name rides along in away_team after an em-dash so
+            // the card / history / resolver can recover it without a
+            // schema migration. The card shows just "The Field".
+            away_team: `The Field — ${tournamentName}`,
+            home_team_code: null,
+            away_team_code: null,
+            home_team_logo: null,
+            away_team_logo: null,
+            // Golf has no point spread — leave spread columns null and
+            // drive the pick button off home_moneyline instead.
+            home_spread: null,
+            away_spread: null,
+            over_under_line: null,
+            home_moneyline: player.price,
+            away_moneyline: null, // "the field" has no single price
+            league: "PGA",
+            game_date: event.commence_time,
+            locked: isStarted,
+            season: new Date(event.commence_time).getFullYear(),
+            game_status: isStarted ? "in_progress" : "scheduled",
+            created_at: new Date().toISOString(),
+          });
+        }
 
-    console.log(`Upserted ${upsertable.length} PGA golf matchups (skipped ${games.length - upsertable.length} locked)`);
+        console.log(
+          `[fetch-golf-games] ${tournamentName}: ${ranked.length} players (of ${outrightsMarket.outcomes.length} in field)`
+        );
+      }
+    }
 
-    await mergeDuplicateGames(supabase, "PGA", games);
+    if (allGames.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, gamesCount: 0, message: "No golf player rows built" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // ── 3. Upsert (skipping started/locked) + self-healing dedupe ───────
+    const upsertable = await filterLockedGames(supabase, "PGA", allGames);
+    if (upsertable.length > 0) {
+      const { error } = await supabase
+        .from("games")
+        .upsert(upsertable, { onConflict: "id", ignoreDuplicates: false });
+      if (error) throw error;
+    }
+
+    console.log(
+      `Upserted ${upsertable.length} PGA player rows (skipped ${allGames.length - upsertable.length} started/locked)`
+    );
+
+    await mergeDuplicateGames(supabase, "PGA", allGames);
 
     return new Response(
       JSON.stringify({
         success: true,
-        gamesCount: games.length,
+        gamesCount: allGames.length,
+        upsertedCount: upsertable.length,
+        tournaments: golfKeys,
         requestsRemaining: remainingRequests,
-        matchups: games.map((g: any) => ({
+        players: allGames.map((g: any) => ({
           id: g.id,
-          matchup: `${g.away_team} vs. ${g.home_team}`,
-          awayOdds: g.away_moneyline,
-          homeOdds: g.home_moneyline,
+          player: g.home_team,
+          tournament: g.away_team,
+          odds: g.home_moneyline,
           date: g.game_date,
         })),
       }),
