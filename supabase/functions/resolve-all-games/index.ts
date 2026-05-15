@@ -89,6 +89,14 @@ Deno.serve(async (req) => {
     let lastRequestsRemaining = 'unknown'
 
     for (const league of Object.keys(byLeague)) {
+      // PGA (and the event-based combat sports) have dedicated resolvers
+      // that grade differently — golf on tournament winner, not a numeric
+      // two-team score. Skip them here so this generic pass never touches them.
+      if (league === 'PGA' || league === 'UFC' || league === 'BOXING') {
+        console.log(`Skipping ${league} — handled by its dedicated resolver (resolve-golf-games / event resolvers)`)
+        continue
+      }
+
       const oddsKeys = LEAGUE_ODDS_KEYS[league]
       if (!oddsKeys) {
         console.log(`No Odds API key configured for league: ${league}`)
@@ -119,6 +127,11 @@ Deno.serve(async (req) => {
     let picksResolved = 0
 
     for (const game of unresolvedGames) {
+      // Dedicated-resolver leagues are graded elsewhere — never here.
+      if (game.league === 'PGA' || game.league === 'UFC' || game.league === 'BOXING') {
+        continue
+      }
+
       const score = scoresByExternalId.get(game.external_id)
 
       if (!score || !score.completed) {

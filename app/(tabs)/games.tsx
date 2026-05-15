@@ -214,6 +214,9 @@ export default function GamesScreen() {
   const [collapsedBuckets, setCollapsedBuckets] = useState<Record<string, boolean>>({});
 
   const isCombatSport = selectedSport.key === 'boxing' || selectedSport.key === 'ufc';
+  // Golf uses a "[Player] to win the tournament" card — one tappable
+  // moneyline cell, no opponent row, no spread/total. See fetch-golf-games.
+  const isGolf = selectedSport.key === 'pga';
 
   // Apply search filter (combat only). Match against either fighter name.
   const visibleGames = (() => {
@@ -607,7 +610,7 @@ export default function GamesScreen() {
     }
   };
 
-  const handleCellPress = (game: Game, betType: 'spread' | 'total', side: 'home' | 'away' | 'over' | 'under') => {
+  const handleCellPress = (game: Game, betType: 'spread' | 'total' | 'moneyline', side: 'home' | 'away' | 'over' | 'under') => {
     const timeToLock = getTimeToLock(game.gameDateTimeLocal);
     if (timeToLock === 'LOCKED') {
       alert('This game has already started. Picks are locked.');
@@ -971,11 +974,49 @@ export default function GamesScreen() {
                       }
                     }}
                   >
+                    {isGolf ? (
+                      /* ── Golf: one player vs The Field ───────────────── */
+                      <>
+                        <View style={styles.gridHeader}>
+                          <View style={styles.teamColumnHeader} />
+                          <Text style={styles.columnHeader}>TO WIN</Text>
+                        </View>
+                        <View style={styles.gridRow}>
+                          <View style={styles.teamColumn}>
+                            <TeamDisplay
+                              logo={undefined}
+                              code={undefined}
+                              name={game.homeTeam}
+                              displayMode="name"
+                            />
+                          </View>
+                          <TouchableOpacity
+                            style={[
+                              styles.betCell,
+                              styles.golfPickCell,
+                              isCellSelected('moneyline', 'home') === 'pending' && styles.betCellPending,
+                              isCellSelected('moneyline', 'home') === 'saved' && styles.betCellSaved,
+                              isLocked && styles.betCellLocked,
+                            ]}
+                            onPress={() => !isLocked && handleCellPress(game, 'moneyline', 'home')}
+                            disabled={isLocked}
+                          >
+                            <Text style={[styles.betLine, isCellSelected('moneyline', 'home') && styles.betLineSelected]}>
+                              {formatMoneyline(game.homeMoneyline || 0)}
+                            </Text>
+                            <Text style={[styles.betOdds, isCellSelected('moneyline', 'home') && styles.betOddsSelected]}>
+                              WINNER
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <>
                     {/* Column Headers */}
                     <View style={styles.gridHeader}>
                       <View style={styles.teamColumnHeader} />
                       <Text style={styles.columnHeader}>
-                        {['pga', 'ufc', 'boxing'].includes(selectedSport.key) ? 'PICK' : 'SPREAD'}
+                        {['ufc', 'boxing'].includes(selectedSport.key) ? 'PICK' : 'SPREAD'}
                       </Text>
                       <Text style={styles.columnHeader}>TOTAL</Text>
                       <Text style={styles.columnHeader}>ML</Text>
@@ -1130,6 +1171,8 @@ export default function GamesScreen() {
                         </Text>
                       </TouchableOpacity>
                     </View>
+                      </>
+                    )}
 
                     {/* Game Info Footer */}
                     <View style={styles.gameFooter}>
@@ -1522,6 +1565,13 @@ const styles = StyleSheet.create({
   },
   betCellLocked: {
     opacity: 0.4,
+  },
+  // Golf card has a single bet cell — cap its width so the player name
+  // (in the flexible team column) gets the room it needs.
+  golfPickCell: {
+    flexGrow: 0,
+    flexBasis: 104,
+    maxWidth: 120,
   },
   betCellDisabled: {
     backgroundColor: '#1C1C1E',

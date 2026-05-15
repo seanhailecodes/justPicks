@@ -27,6 +27,7 @@ SELECT cron.unschedule('resolve-nhl-games') WHERE EXISTS (SELECT 1 FROM cron.job
 SELECT cron.unschedule('resolve-ncaab-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-ncaab-games');
 SELECT cron.unschedule('resolve-nfl-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-nfl-games');
 SELECT cron.unschedule('resolve-soccer-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-soccer-games');
+SELECT cron.unschedule('resolve-golf-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-golf-games');
 SELECT cron.unschedule('resolve-all-games-sweep');
 
 -- Step 2: NBA + NHL — run 5× daily (games run afternoon through midnight)
@@ -108,6 +109,24 @@ SELECT cron.schedule(
   $$
 );
 
+-- Step 6: Golf — PGA tournaments finish Sunday evening. Run Sunday night
+-- and twice Monday to catch the final leaderboard. The resolver only grades
+-- once a confirmed winner is available, so extra runs are harmless retries.
+SELECT cron.schedule(
+  'resolve-golf-games',
+  '0 23 * * 0,1,2',
+  $$
+  SELECT net.http_post(
+    url     := 'https://oyedfzsqqqdfrmhbcbwb.supabase.co/functions/v1/resolve-golf-games',
+    headers := jsonb_build_object(
+      'Content-Type',  'application/json',
+      'Authorization', 'Bearer <PASTE_YOUR_SERVICE_ROLE_KEY_HERE>'
+    ),
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
 -- Verify all resolve jobs are scheduled:
 SELECT jobid, jobname, schedule, active
 FROM cron.job
@@ -116,6 +135,7 @@ WHERE jobname IN (
   'resolve-nhl-games',
   'resolve-ncaab-games',
   'resolve-nfl-games',
-  'resolve-soccer-games'
+  'resolve-soccer-games',
+  'resolve-golf-games'
 )
 ORDER BY jobname;
