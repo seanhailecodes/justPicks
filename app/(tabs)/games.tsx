@@ -977,9 +977,9 @@ export default function GamesScreen() {
                     {isGolf ? (
                       /* ── Golf: one player vs The Field ───────────────── */
                       <>
-                        <View style={styles.gridHeader}>
+                        <View style={styles.golfGridHeader}>
                           <View style={styles.teamColumnHeader} />
-                          <Text style={styles.columnHeader}>TO WIN</Text>
+                          <Text style={[styles.columnHeader, styles.golfColumnHeader]}>TO WIN</Text>
                         </View>
                         <View style={styles.gridRow}>
                           <View style={styles.teamColumn}>
@@ -1318,12 +1318,13 @@ export default function GamesScreen() {
                 </TouchableOpacity>
               </>
             )}
-            {['nba', 'nhl', 'ncaab', 'soccer', 'pga', 'ufc', 'boxing'].includes(selectedSport.key) && (
+            {['nba', 'nhl', 'mlb', 'ncaab', 'soccer', 'pga', 'ufc', 'boxing'].includes(selectedSport.key) && (
               <TouchableOpacity
                 onPress={async () => {
                   const fnMap: Record<string, string> = {
                     nba:    'fetch-nba-games',
                     nhl:    'fetch-nhl-games',
+                    mlb:    'fetch-mlb-games',
                     ncaab:  'fetch-ncaab-games',
                     soccer: 'fetch-soccer-games',
                     pga:    'fetch-golf-games',
@@ -1572,6 +1573,23 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexBasis: 104,
     maxWidth: 120,
+  },
+  // Golf header: aligns the "TO WIN" label directly above the single odds
+  // cell. paddingRight 0 + the label's marginHorizontal 4 land its right edge
+  // exactly where golfPickCell's does (gridRow has no right padding either).
+  golfGridHeader: {
+    flexDirection: 'row',
+    paddingLeft: 12,
+    paddingRight: 0,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  golfColumnHeader: {
+    flexGrow: 0,
+    flexBasis: 104,
+    maxWidth: 120,
+    marginHorizontal: 4,
   },
   betCellDisabled: {
     backgroundColor: '#1C1C1E',
