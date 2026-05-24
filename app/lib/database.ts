@@ -472,6 +472,16 @@ export async function getGroupAccuracy(groupId: string, season?: number): Promis
 // NFL group's recap never mixes in members' NBA/MLB picks.
 // ============================================================
 
+// One pick inside a streak — surfaced when a streak row is expanded.
+export interface SeasonRecapStreakPick {
+  matchup: string;             // "AWY @ HOM"
+  pickLabel: string;           // "Cowboys -3.5"
+  date: string;                // game date (ISO)
+  confidence: string | null;   // e.g. "High"
+  source: string | null;       // pick rationale, e.g. "research"
+  notes: string | null;        // the member's own written reasoning
+}
+
 export interface SeasonRecapMember {
   userId: string;
   name: string;
@@ -481,6 +491,8 @@ export interface SeasonRecapMember {
   bestStreak: number;     // longest win streak this season
   worstStreak: number;    // longest losing streak this season
   currentStreak: number;  // streak ending on the latest pick (+win / -loss)
+  bestStreakPicks: SeasonRecapStreakPick[];   // the picks in that win streak
+  worstStreakPicks: SeasonRecapStreakPick[];  // the picks in that losing streak
 }
 
 export interface SeasonRecapMiss {
@@ -533,7 +545,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   // Picks shared to this group by its members
   const { data: picks } = await supabase
     .from('picks')
-    .select('id, user_id, game_id, pick, team_picked, picked_team, spread_value, correct, cover_margin, was_close, bad_beat, pick_source, picked_favorite, with_public, created_at')
+    .select('id, user_id, game_id, pick, team_picked, picked_team, spread_value, confidence, reasoning, correct, cover_margin, was_close, bad_beat, pick_source, picked_favorite, with_public, created_at')
     .contains('groups', [groupId])
     .in('user_id', memberIds);
   if (!picks || picks.length === 0) return empty;
@@ -560,6 +572,25 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     (profiles || []).map((p: any) => [p.id, p.username || p.display_name || 'Member'])
   );
 
+  // Builds the expandable detail for one pick inside a streak.
+  const toStreakPick = (p: any): SeasonRecapStreakPick => {
+    const g = gameMap.get(p.game_id);
+    const team = p.team_picked || p.picked_team
+      || (p.pick === 'home' ? g?.home_team : g?.away_team) || 'Pick';
+    const spread = p.spread_value != null
+      ? ` ${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '';
+    const note = p.reasoning != null && String(p.reasoning).trim() !== ''
+      ? String(p.reasoning).trim() : null;
+    return {
+      matchup: g ? `${g.away_team} @ ${g.home_team}` : '',
+      pickLabel: `${team}${spread}`,
+      date: g?.game_date || p.created_at || '',
+      confidence: p.confidence || null,
+      source: p.pick_source ? String(p.pick_source).replace(/_/g, ' ') : null,
+      notes: note,
+    };
+  };
+
   // ---- Per-member aggregation ----
   const byMember = new Map<string, any[]>();
   seasonPicks.forEach((p: any) => {
@@ -581,15 +612,23 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
 
     const wins = scored.filter(p => p.correct === true).length;
 
-    // Longest win streak and longest losing streak
+    // Longest win streak and longest losing streak — track the END
+    // index of each run so we can pull the actual picks involved.
     let best = 0, worst = 0, winRun = 0, lossRun = 0;
-    scored.forEach(p => {
+    let bestEnd = -1, worstEnd = -1;
+    scored.forEach((p, i) => {
       if (p.correct === true) {
-        winRun += 1; best = Math.max(best, winRun); lossRun = 0;
+        winRun += 1; lossRun = 0;
+        if (winRun > best) { best = winRun; bestEnd = i; }
       } else {
-        lossRun += 1; worst = Math.max(worst, lossRun); winRun = 0;
+        lossRun += 1; winRun = 0;
+        if (lossRun > worst) { worst = lossRun; worstEnd = i; }
       }
     });
+    const bestStreakPicks = best >= 2
+      ? scored.slice(bestEnd - best + 1, bestEnd + 1).map(toStreakPick) : [];
+    const worstStreakPicks = worst >= 2
+      ? scored.slice(worstEnd - worst + 1, worstEnd + 1).map(toStreakPick) : [];
 
     // Current streak — walk back from the most recent pick
     let current = 0;
@@ -610,6 +649,8 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
       bestStreak: best,
       worstStreak: worst,
       currentStreak: current,
+      bestStreakPicks,
+      worstStreakPicks,
     });
   });
 
