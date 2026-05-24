@@ -474,15 +474,17 @@ export async function getGroupAccuracy(groupId: string, season?: number): Promis
 
 // One pick inside a streak — surfaced when a streak row is expanded.
 export interface SeasonRecapStreakPick {
+  betType: 'spread' | 'moneyline' | 'total';
   awayTeam: string;
   homeTeam: string;
-  pickedSide: 'home' | 'away';  // which team the member picked
-  spread: string;               // "-3.5", "+7" or "" — attached to the pick
-  won: boolean;                 // did the pick hit
-  date: string;                 // game date (ISO)
-  confidence: string | null;    // e.g. "High"
-  source: string | null;        // pick rationale, e.g. "research"
-  notes: string | null;         // the member's own written reasoning
+  pickedSide: 'home' | 'away';      // spread / moneyline — team picked
+  ouPick: 'over' | 'under' | null;  // totals — side picked
+  line: string;                     // spread "-3.5" / total "45.5" / ""
+  won: boolean;                      // did the pick hit
+  date: string;                      // game date (ISO)
+  confidence: string | null;         // e.g. "High"
+  source: string | null;             // pick rationale, e.g. "research"
+  notes: string | null;              // the member's own written reasoning
 }
 
 export interface SeasonRecapMember {
@@ -545,10 +547,12 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   const memberIds = [...new Set((members || []).map(m => m.user_id))];
   if (memberIds.length === 0) return empty;
 
-  // Picks shared to this group by its members
+  // Picks shared to this group by its members. bet_type / the
+  // over_under_* columns are needed because a totals bet stores its
+  // graded result in over_under_correct, not `correct`.
   const { data: picks } = await supabase
     .from('picks')
-    .select('id, user_id, game_id, pick, team_picked, picked_team, spread_value, confidence, reasoning, correct, cover_margin, was_close, bad_beat, pick_source, picked_favorite, with_public, created_at')
+    .select('id, user_id, game_id, pick, bet_type, team_picked, picked_team, spread_value, confidence, reasoning, correct, over_under_pick, over_under_correct, total_line_at_pick, cover_margin, was_close, bad_beat, pick_source, picked_favorite, with_public, created_at')
     .contains('groups', [groupId])
     .in('user_id', memberIds);
   if (!picks || picks.length === 0) return empty;
@@ -557,7 +561,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   const gameIds = [...new Set(picks.map(p => p.game_id).filter(Boolean))];
   const { data: games } = await supabase
     .from('games')
-    .select('id, game_date, league, season, home_team, away_team')
+    .select('id, game_date, league, season, home_team, away_team, over_under_line')
     .in('id', gameIds);
   const gameMap = new Map((games || []).map((g: any) => [g.id, g]));
 
@@ -575,23 +579,40 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     (profiles || []).map((p: any) => [p.id, p.username || p.display_name || 'Member'])
   );
 
+  // A pick's graded result. A totals bet keeps its result in
+  // over_under_correct; spread / moneyline bets use `correct`. This
+  // is the key to counting O/U picks — the resolver leaves `correct`
+  // null on total-bet rows, so reading `correct` alone drops them.
+  const resultOf = (p: any): boolean | null => {
+    const v = p.bet_type === 'total' ? p.over_under_correct : p.correct;
+    return v === true ? true : v === false ? false : null;
+  };
+
   // Builds the expandable detail for one pick inside a streak.
-  // `pick` ('home'/'away') is the canonical side — team_picked is
-  // unreliable (sometimes stores 'home'/'away'), so resolve the real
-  // team name off the game.
+  // Handles spread / moneyline (a team is picked) and totals
+  // (over / under is picked). `pick` is the canonical side.
   const toStreakPick = (p: any): SeasonRecapStreakPick => {
     const g = gameMap.get(p.game_id);
+    const isTotal = p.bet_type === 'total';
     const side: 'home' | 'away' = p.pick === 'away' ? 'away' : 'home';
-    const spread = p.spread_value != null
-      ? `${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '';
+    const ouPick: 'over' | 'under' | null =
+      p.over_under_pick === 'over' || p.over_under_pick === 'under' ? p.over_under_pick
+      : p.pick === 'over' || p.pick === 'under' ? p.pick : null;
+    const line = isTotal
+      ? (p.total_line_at_pick != null ? `${p.total_line_at_pick}`
+         : g?.over_under_line != null ? `${g.over_under_line}` : '')
+      : (p.spread_value != null
+         ? `${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '');
     const note = p.reasoning != null && String(p.reasoning).trim() !== ''
       ? String(p.reasoning).trim() : null;
     return {
+      betType: isTotal ? 'total' : (p.bet_type === 'moneyline' ? 'moneyline' : 'spread'),
       awayTeam: g?.away_team || 'Away',
       homeTeam: g?.home_team || 'Home',
       pickedSide: side,
-      spread,
-      won: p.correct === true,
+      ouPick,
+      line,
+      won: resultOf(p) === true,
       date: g?.game_date || p.created_at || '',
       confidence: p.confidence || null,
       source: p.pick_source ? String(p.pick_source).replace(/_/g, ' ') : null,
@@ -608,7 +629,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
 
   const memberStats: SeasonRecapMember[] = [];
   byMember.forEach((mPicks, userId) => {
-    const scored = mPicks.filter(p => p.correct === true || p.correct === false);
+    const scored = mPicks.filter(p => resultOf(p) !== null);
     if (scored.length === 0) return;
 
     // Order chronologically by game date so streaks read correctly.
@@ -618,14 +639,14 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
       return da - db;
     });
 
-    const wins = scored.filter(p => p.correct === true).length;
+    const wins = scored.filter(p => resultOf(p) === true).length;
 
     // Longest win streak and longest losing streak — track the END
     // index of each run so we can pull the actual picks involved.
     let best = 0, worst = 0, winRun = 0, lossRun = 0;
     let bestEnd = -1, worstEnd = -1;
     scored.forEach((p, i) => {
-      if (p.correct === true) {
+      if (resultOf(p) === true) {
         winRun += 1; lossRun = 0;
         if (winRun > best) { best = winRun; bestEnd = i; }
       } else {
@@ -641,7 +662,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     // Current streak — walk back from the most recent pick
     let current = 0;
     for (let i = scored.length - 1; i >= 0; i--) {
-      const won = scored[i].correct === true;
+      const won = resultOf(scored[i]) === true;
       if (i === scored.length - 1) current = won ? 1 : -1;
       else if (won && current > 0) current += 1;
       else if (!won && current < 0) current -= 1;
@@ -701,16 +722,16 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     .sort((a, b) => b.missedBy - a.missedBy)
     .slice(0, 5);
 
-  // ---- Totals ----
-  const allScored = seasonPicks.filter((p: any) => p.correct === true || p.correct === false);
-  const totalCorrect = allScored.filter((p: any) => p.correct === true).length;
+  // ---- Totals (spread, moneyline AND over/under all count) ----
+  const allScored = seasonPicks.filter((p: any) => resultOf(p) !== null);
+  const totalCorrect = allScored.filter((p: any) => resultOf(p) === true).length;
   const groupAccuracy = allScored.length > 0
     ? Math.round((totalCorrect / allScored.length) * 100) : null;
 
   // ---- Trends — only surface splits backed by real data ----
   const trends: SeasonRecapTrend[] = [];
   const winRate = (arr: any[]): number | null =>
-    arr.length ? Math.round((arr.filter(p => p.correct === true).length / arr.length) * 100) : null;
+    arr.length ? Math.round((arr.filter(p => resultOf(p) === true).length / arr.length) * 100) : null;
 
   // Favorites vs underdogs
   const favs = allScored.filter((p: any) => p.picked_favorite === true);

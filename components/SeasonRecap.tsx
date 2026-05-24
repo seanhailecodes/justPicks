@@ -109,25 +109,37 @@ export default function SeasonRecap({ groupId, season, seasonLabel, resolveName 
               {open && (
                 <View style={styles.streakDetail}>
                   {picks.map((p, i) => {
-                    const awayPicked = p.pickedSide === 'away';
-                    const homePicked = p.pickedSide === 'home';
-                    // The picked team is highlighted — green if the pick
-                    // hit, red if it missed.
+                    // The pick is highlighted — green if it hit, red if not.
                     const pickedColor = p.won ? styles.streakTeamWon : styles.streakTeamLost;
+                    const isTotal = p.betType === 'total';
+                    const awayPicked = !isTotal && p.pickedSide === 'away';
+                    const homePicked = !isTotal && p.pickedSide === 'home';
                     return (
                       <View key={i} style={styles.streakPick}>
                         <View style={styles.streakPickTop}>
-                          <Text style={styles.streakPickMatchup}>
-                            <Text style={[styles.streakTeam, awayPicked && pickedColor]}>
-                              {p.awayTeam}{awayPicked && p.spread ? ` ${p.spread}` : ''}
+                          {isTotal ? (
+                            <Text style={styles.streakPickMatchup}>
+                              <Text style={[styles.streakTeam, pickedColor]}>
+                                {p.ouPick ? p.ouPick.toUpperCase() : 'TOTAL'}
+                                {p.line ? ` ${p.line}` : ''}
+                              </Text>
                             </Text>
-                            <Text style={styles.streakAt}>  @  </Text>
-                            <Text style={[styles.streakTeam, homePicked && pickedColor]}>
-                              {p.homeTeam}{homePicked && p.spread ? ` ${p.spread}` : ''}
+                          ) : (
+                            <Text style={styles.streakPickMatchup}>
+                              <Text style={[styles.streakTeam, awayPicked && pickedColor]}>
+                                {p.awayTeam}{awayPicked && p.line ? ` ${p.line}` : ''}
+                              </Text>
+                              <Text style={styles.streakAt}>  @  </Text>
+                              <Text style={[styles.streakTeam, homePicked && pickedColor]}>
+                                {p.homeTeam}{homePicked && p.line ? ` ${p.line}` : ''}
+                              </Text>
                             </Text>
-                          </Text>
+                          )}
                           <Text style={styles.streakPickDate}>{formatDate(p.date)}</Text>
                         </View>
+                        {isTotal && (
+                          <Text style={styles.streakPickSub}>{p.awayTeam} @ {p.homeTeam}</Text>
+                        )}
                         {(!!p.confidence || !!p.source) && (
                           <Text style={styles.streakPickSub}>
                             {[
