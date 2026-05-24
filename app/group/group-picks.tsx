@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase, getCurrentSeason } from '../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
+import SeasonRecap from '../../components/SeasonRecap';
 import { Sport } from '../../services/pickrating';
+import { getSeasonOptions, SeasonOption } from '../../services/seasons';
+import { isSportInSeason, getSport } from '../../services/activeSport';
 
 interface FriendPick {
   id: string;
@@ -54,6 +57,11 @@ export default function GroupPicksScreen() {
   // NFL week state
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+
+  // Season-over-season state. When a sport is out of season we swap
+  // the week strip for a season picker + the Season Recap.
+  const [seasonOptions, setSeasonOptions] = useState<SeasonOption[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
 
   // Shared state
   const [gamesData, setGamesData] = useState<any[]>([]);
@@ -133,6 +141,18 @@ export default function GroupPicksScreen() {
     };
     
     loadCurrentWeek();
+  }, []);
+
+  // Load the list of seasons that actually exist in the games table.
+  // The newest is flagged isCurrent and becomes the default selection.
+  useEffect(() => {
+    const loadSeasons = async () => {
+      const opts = await getSeasonOptions();
+      setSeasonOptions(opts);
+      const current = opts.find(o => o.isCurrent) ?? opts[0];
+      if (current) setSelectedSeason(current.value);
+    };
+    loadSeasons();
   }, []);
 
   // Load games when sport/week changes. NFL is week-based and needs
@@ -507,13 +527,29 @@ export default function GroupPicksScreen() {
   };
 
   const getHeaderSubtitle = () => {
+    if (recapMode) return `${recapSeasonLabel} Season`;
     if (groupInfo?.sport === 'nba' || groupInfo?.sport === 'ncaab' || groupInfo?.sport === 'soccer') {
       return 'Recent & Upcoming';
     }
     return `Week ${selectedWeek}`;
   };
 
-  if (loading) {
+  // ---- Season-over-season view derivation ----
+  // A sport that's out of season shows the Season Recap instead of
+  // the upcoming-games list; an in-season group can also reach a
+  // past season by tapping an older chip in the season picker.
+  const sportConfig = groupInfo ? getSport(groupInfo.sport) : null;
+  const sportInSeason = sportConfig ? isSportInSeason(sportConfig.season) : true;
+  const currentSeasonValue =
+    seasonOptions.find(o => o.isCurrent)?.value ?? getCurrentSeason();
+  const recapSeason = selectedSeason ?? currentSeasonValue;
+  const recapSeasonLabel =
+    seasonOptions.find(o => o.value === recapSeason)?.label ?? `${recapSeason}`;
+  const recapMode =
+    !!groupInfo && (!sportInSeason || recapSeason !== currentSeasonValue);
+  const showSeasonPicker = seasonOptions.length > 1 || recapMode;
+
+  if (loading && !recapMode) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -820,11 +856,40 @@ export default function GroupPicksScreen() {
             </View>
           </View>
 
-          {/* Week Selector - NFL Only */}
-          {groupInfo?.sport === 'nfl' && (
-            <ScrollView 
+          {/* Season Picker — shown whenever multiple seasons exist
+              or we're in the out-of-season Season Recap view. */}
+          {showSeasonPicker && (
+            <ScrollView
+              horizontal
+              style={styles.weekSelector}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.weekSelectorContent}
+            >
+              {seasonOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.weekChip,
+                    recapSeason === opt.value && styles.weekChipActive,
+                  ]}
+                  onPress={() => setSelectedSeason(opt.value)}
+                >
+                  <Text style={[
+                    styles.weekChipText,
+                    recapSeason === opt.value && styles.weekChipTextActive,
+                  ]}>
+                    {opt.label} Season
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Week Selector - NFL, in-season current view only */}
+          {groupInfo?.sport === 'nfl' && !recapMode && (
+            <ScrollView
               ref={weekScrollViewRef}
-              horizontal 
+              horizontal
               style={styles.weekSelector}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.weekSelectorContent}
@@ -849,53 +914,67 @@ export default function GroupPicksScreen() {
             </ScrollView>
           )}
 
-          {/* Games List */}
-          <ScrollView 
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {groupInfo?.sport !== 'nfl' ? (
-              // NBA/NCAAB/Soccer: Group by date
-              Object.entries(gamesByDate).map(([dateGroup, games]) => (
-                <View key={dateGroup}>
-                  <Text style={styles.dateGroupHeader}>{dateGroup}</Text>
-                  {(games as any[]).map(game => renderGameCard(game))}
+          {/* Body — Season Recap when out of season / viewing a past
+              season, otherwise the live upcoming-games list. */}
+          {recapMode ? (
+            <SeasonRecap
+              groupId={groupId}
+              season={recapSeason}
+              seasonLabel={recapSeasonLabel}
+              resolveName={(uid, fallback) =>
+                groupInfo?.visibility === 'public'
+                  ? getPublicAlias(uid, groupId)
+                  : fallback
+              }
+            />
+          ) : (
+            <ScrollView
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {groupInfo?.sport !== 'nfl' ? (
+                // NBA/NCAAB/Soccer: Group by date
+                Object.entries(gamesByDate).map(([dateGroup, games]) => (
+                  <View key={dateGroup}>
+                    <Text style={styles.dateGroupHeader}>{dateGroup}</Text>
+                    {(games as any[]).map(game => renderGameCard(game))}
+                  </View>
+                ))
+              ) : (
+                // NFL: Flat list
+                gamesData.map(game => renderGameCard(game))
+              )}
+
+              {gamesData.length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Text style={{ fontSize: 36, marginBottom: 12 }}>🏟️</Text>
+                  <Text style={styles.emptyText}>No picks yet this week</Text>
+                  <Text style={[styles.emptyText, { fontSize: 13, color: '#636366', marginBottom: 16 }]}>
+                    Be the first to make picks for this group
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.makePicksButton}
+                    onPress={() => router.push('/(tabs)/games')}
+                  >
+                    <Text style={styles.makePicksText}>Make Picks →</Text>
+                  </TouchableOpacity>
                 </View>
-              ))
-            ) : (
-              // NFL: Flat list
-              gamesData.map(game => renderGameCard(game))
-            )}
+              )}
 
-            {gamesData.length === 0 && (
-              <View style={styles.emptyContainer}>
-                <Text style={{ fontSize: 36, marginBottom: 12 }}>🏟️</Text>
-                <Text style={styles.emptyText}>No picks yet this week</Text>
-                <Text style={[styles.emptyText, { fontSize: 13, color: '#636366', marginBottom: 16 }]}>
-                  Be the first to make picks for this group
-                </Text>
-                <TouchableOpacity
-                  style={styles.makePicksButton}
-                  onPress={() => router.push('/(tabs)/games')}
-                >
-                  <Text style={styles.makePicksText}>Make Picks →</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Summary Stats */}
-            {gamesData.length > 0 && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>
-                  {groupInfo?.sport === 'nfl' ? `Week ${selectedWeek} Summary` : 'Recent Activity'}
-                </Text>
-                <Text style={styles.summaryText}>
-                  {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
-                </Text>
-              </View>
-            )}
-          </ScrollView>
+              {/* Summary Stats */}
+              {gamesData.length > 0 && (
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryTitle}>
+                    {groupInfo?.sport === 'nfl' ? `Week ${selectedWeek} Summary` : 'Recent Activity'}
+                  </Text>
+                  <Text style={styles.summaryText}>
+                    {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
         </>
       )}
 

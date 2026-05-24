@@ -327,7 +327,7 @@ export function calculateConsensus(picks: PickWithUser[]): GameConsensus | null 
 }
 
 // Calculate group accuracy metrics from group_picks table only
-export async function getGroupAccuracy(groupId: string): Promise<{
+export async function getGroupAccuracy(groupId: string, season?: number): Promise<{
   rating: number | null;
   weekAccuracy: number | null;
   monthAccuracy: number | null;
@@ -401,7 +401,7 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   const gameIds = [...new Set(scoredPicks.map(p => (p.picks as any)?.game_id).filter(Boolean))];
   const { data: games } = await supabase
     .from('games')
-    .select('id, game_date, league')
+    .select('id, game_date, league, season')
     .in('id', gameIds);
     
   if (!games) {
@@ -416,14 +416,16 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   }
   
   // Create a map of game_id to game_date
-  const gameMap = new Map(games.map(g => [g.id, { date: new Date(g.game_date), league: (g.league || '').toLowerCase() }]));
+  const gameMap = new Map(games.map(g => [g.id, { date: new Date(g.game_date), league: (g.league || '').toLowerCase(), season: g.season as number }]));
   
-  // Add game dates to picks — keep only games in this group's sport.
+  // Add game data to picks — keep only this group's sport, and (when a
+  // season is given) only that season. For a past season the week/month
+  // windows naturally come up empty, so it reads as a season summary.
   const picksWithDates = scoredPicks.map(gp => {
     const pick: any = gp.picks;
     const g = gameMap.get(pick?.game_id);
-    return { correct: pick?.correct, gameDate: g?.date, league: g?.league };
-  }).filter(p => p.gameDate && p.league === groupSport);
+    return { correct: pick?.correct, gameDate: g?.date, league: g?.league, season: g?.season };
+  }).filter(p => p.gameDate && p.league === groupSport && (season == null || p.season === season));
   
   // Helper to calculate accuracy for a set of picks
   const calculateAccuracy = (filteredPicks: any[]) => {
@@ -454,6 +456,284 @@ export async function getGroupAccuracy(groupId: string): Promise<{
     allTimeAccuracy,
     totalPicks: groupPicks.length,
     trend
+  };
+}
+
+// ============================================================
+// SEASON RECAP — end-of-season summary for a group.
+//
+// Aggregates every pick shared to the group for ONE season into a
+// leaderboard, hot streaks, biggest misses, trends and totals.
+// Powers the out-of-season "2025-26 Season" view on the group
+// screen (when a sport is out of season we show this instead of
+// the week-by-week strip).
+//
+// Scoped to the group's own sport + the requested season so an
+// NFL group's recap never mixes in members' NBA/MLB picks.
+// ============================================================
+
+export interface SeasonRecapMember {
+  userId: string;
+  name: string;
+  picks: number;          // scored picks (correct is true/false)
+  wins: number;
+  accuracy: number;       // 0-100
+  bestStreak: number;     // longest win streak this season
+  currentStreak: number;  // streak ending on the latest pick (+win / -loss)
+}
+
+export interface SeasonRecapMiss {
+  userId: string;
+  name: string;
+  matchup: string;        // "AWY @ HOM"
+  pickLabel: string;      // "Cowboys -3.5"
+  missedBy: number;       // points short of covering (always positive)
+  badBeat: boolean;
+}
+
+export interface SeasonRecapTrend {
+  emoji: string;
+  label: string;
+  detail: string;
+}
+
+export interface SeasonRecapData {
+  season: number;
+  hasData: boolean;
+  scoredPicks: number;
+  totalCorrect: number;
+  groupAccuracy: number | null;
+  pickerCount: number;            // distinct members who picked
+  leaderboard: SeasonRecapMember[];
+  hotStreaks: SeasonRecapMember[];
+  biggestMisses: SeasonRecapMiss[];
+  trends: SeasonRecapTrend[];
+}
+
+export async function getSeasonRecap(groupId: string, season: number): Promise<SeasonRecapData> {
+  const empty: SeasonRecapData = {
+    season, hasData: false, scoredPicks: 0, totalCorrect: 0,
+    groupAccuracy: null, pickerCount: 0,
+    leaderboard: [], hotStreaks: [], biggestMisses: [], trends: [],
+  };
+
+  // Group sport — only this sport's games count toward the recap.
+  const { data: groupRow } = await supabase
+    .from('groups').select('sport').eq('id', groupId).single();
+  const groupSport = (groupRow?.sport || 'nfl').toLowerCase();
+
+  // Members
+  const { data: members } = await supabase
+    .from('group_members').select('user_id').eq('group_id', groupId);
+  const memberIds = [...new Set((members || []).map(m => m.user_id))];
+  if (memberIds.length === 0) return empty;
+
+  // Picks shared to this group by its members
+  const { data: picks } = await supabase
+    .from('picks')
+    .select('id, user_id, game_id, pick, team_picked, picked_team, spread_value, correct, cover_margin, was_close, bad_beat, pick_source, picked_favorite, with_public, created_at')
+    .contains('groups', [groupId])
+    .in('user_id', memberIds);
+  if (!picks || picks.length === 0) return empty;
+
+  // Games — used to filter by sport + season and to label matchups.
+  const gameIds = [...new Set(picks.map(p => p.game_id).filter(Boolean))];
+  const { data: games } = await supabase
+    .from('games')
+    .select('id, game_date, league, season, home_team, away_team')
+    .in('id', gameIds);
+  const gameMap = new Map((games || []).map((g: any) => [g.id, g]));
+
+  // Keep only this season + this sport.
+  const seasonPicks = picks.filter((p: any) => {
+    const g = gameMap.get(p.game_id);
+    return g && (g.league || '').toLowerCase() === groupSport && g.season === season;
+  });
+  if (seasonPicks.length === 0) return { ...empty, pickerCount: 0 };
+
+  // Member names
+  const { data: profiles } = await supabase
+    .from('profiles').select('id, display_name, username').in('id', memberIds);
+  const nameMap = new Map(
+    (profiles || []).map((p: any) => [p.id, p.username || p.display_name || 'Member'])
+  );
+
+  // ---- Per-member aggregation ----
+  const byMember = new Map<string, any[]>();
+  seasonPicks.forEach((p: any) => {
+    if (!byMember.has(p.user_id)) byMember.set(p.user_id, []);
+    byMember.get(p.user_id)!.push(p);
+  });
+
+  const memberStats: SeasonRecapMember[] = [];
+  byMember.forEach((mPicks, userId) => {
+    const scored = mPicks.filter(p => p.correct === true || p.correct === false);
+    if (scored.length === 0) return;
+
+    // Order chronologically by game date so streaks read correctly.
+    scored.sort((a, b) => {
+      const da = new Date(gameMap.get(a.game_id)?.game_date || a.created_at).getTime();
+      const db = new Date(gameMap.get(b.game_id)?.game_date || b.created_at).getTime();
+      return da - db;
+    });
+
+    const wins = scored.filter(p => p.correct === true).length;
+
+    // Longest win streak
+    let best = 0, run = 0;
+    scored.forEach(p => {
+      if (p.correct === true) { run += 1; best = Math.max(best, run); }
+      else run = 0;
+    });
+
+    // Current streak — walk back from the most recent pick
+    let current = 0;
+    for (let i = scored.length - 1; i >= 0; i--) {
+      const won = scored[i].correct === true;
+      if (i === scored.length - 1) current = won ? 1 : -1;
+      else if (won && current > 0) current += 1;
+      else if (!won && current < 0) current -= 1;
+      else break;
+    }
+
+    memberStats.push({
+      userId,
+      name: nameMap.get(userId) || 'Member',
+      picks: scored.length,
+      wins,
+      accuracy: Math.round((wins / scored.length) * 100),
+      bestStreak: best,
+      currentStreak: current,
+    });
+  });
+
+  if (memberStats.length === 0) return { ...empty, pickerCount: 0 };
+
+  // Leaderboard — best accuracy first, tie-break on volume.
+  const leaderboard = [...memberStats].sort(
+    (a, b) => b.accuracy - a.accuracy || b.picks - a.picks
+  );
+
+  // Hot streaks — biggest win streak first; only streaks of 2+.
+  const hotStreaks = [...memberStats]
+    .filter(m => m.bestStreak >= 2)
+    .sort((a, b) => b.bestStreak - a.bestStreak || b.accuracy - a.accuracy);
+
+  // ---- Biggest misses — losses ranked by how far short they fell ----
+  const biggestMisses: SeasonRecapMiss[] = seasonPicks
+    .filter((p: any) => p.correct === false && p.cover_margin != null)
+    .map((p: any) => {
+      const g = gameMap.get(p.game_id);
+      const team = p.team_picked || p.picked_team
+        || (p.pick === 'home' ? g?.home_team : g?.away_team) || 'Pick';
+      const spread = p.spread_value != null
+        ? ` ${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '';
+      return {
+        userId: p.user_id,
+        name: nameMap.get(p.user_id) || 'Member',
+        matchup: g ? `${g.away_team} @ ${g.home_team}` : '',
+        pickLabel: `${team}${spread}`,
+        missedBy: Math.abs(Number(p.cover_margin)),
+        badBeat: p.bad_beat === true,
+      };
+    })
+    .sort((a, b) => b.missedBy - a.missedBy)
+    .slice(0, 5);
+
+  // ---- Totals ----
+  const allScored = seasonPicks.filter((p: any) => p.correct === true || p.correct === false);
+  const totalCorrect = allScored.filter((p: any) => p.correct === true).length;
+  const groupAccuracy = allScored.length > 0
+    ? Math.round((totalCorrect / allScored.length) * 100) : null;
+
+  // ---- Trends — only surface splits backed by real data ----
+  const trends: SeasonRecapTrend[] = [];
+  const winRate = (arr: any[]): number | null =>
+    arr.length ? Math.round((arr.filter(p => p.correct === true).length / arr.length) * 100) : null;
+
+  // Favorites vs underdogs
+  const favs = allScored.filter((p: any) => p.picked_favorite === true);
+  const dogs = allScored.filter((p: any) => p.picked_favorite === false);
+  if (favs.length >= 3 && dogs.length >= 3) {
+    const fr = winRate(favs)!, dr = winRate(dogs)!;
+    const better = fr >= dr ? 'favorites' : 'underdogs';
+    trends.push({
+      emoji: better === 'favorites' ? '⭐' : '🐶',
+      label: `Stronger on ${better}`,
+      detail: `Favorites ${fr}% (${favs.length}) · Underdogs ${dr}% (${dogs.length})`,
+    });
+  } else if (favs.length + dogs.length >= 3) {
+    const favShare = Math.round((favs.length / (favs.length + dogs.length)) * 100);
+    trends.push({
+      emoji: favShare >= 60 ? '⭐' : favShare <= 40 ? '🐶' : '⚖️',
+      label: favShare >= 60 ? 'Favorite-leaning group'
+        : favShare <= 40 ? 'Underdog-leaning group' : 'Balanced fav/dog mix',
+      detail: `${favShare}% of picks were on favorites`,
+    });
+  }
+
+  // With the public vs contrarian
+  const withPub = allScored.filter((p: any) => p.with_public === true);
+  const fade = allScored.filter((p: any) => p.with_public === false);
+  if (withPub.length >= 3 && fade.length >= 3) {
+    const wr = winRate(withPub)!, fp = winRate(fade)!;
+    trends.push({
+      emoji: '👥',
+      label: fp > wr ? 'Sharp — fading the public pays off' : 'Rides with the public',
+      detail: `With public ${wr}% · Contrarian ${fp}%`,
+    });
+  }
+
+  // Pick-source distribution
+  const withSource = seasonPicks.filter((p: any) => p.pick_source);
+  if (withSource.length >= 3) {
+    const counts = new Map<string, number>();
+    withSource.forEach((p: any) => counts.set(p.pick_source, (counts.get(p.pick_source) || 0) + 1));
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (top) {
+      const label = top[0].replace(/_/g, ' ');
+      trends.push({
+        emoji: '🧭',
+        label: `Go-to approach: ${label}`,
+        detail: `${top[1]} of ${withSource.length} picks cited "${label}"`,
+      });
+    }
+  }
+
+  // Bad beats
+  const badBeats = seasonPicks.filter((p: any) => p.bad_beat === true).length;
+  if (badBeats > 0) {
+    trends.push({
+      emoji: '💔',
+      label: `${badBeats} bad beat${badBeats === 1 ? '' : 's'}`,
+      detail: 'Picks that were covering until the final whistle',
+    });
+  }
+
+  // Close games
+  const closeGames = allScored.filter((p: any) => p.was_close === true);
+  if (closeGames.length >= 3) {
+    const cr = winRate(closeGames);
+    if (cr != null) {
+      trends.push({
+        emoji: '🎯',
+        label: `${cr}% in nail-biters`,
+        detail: `${closeGames.length} picks decided by a close margin`,
+      });
+    }
+  }
+
+  return {
+    season,
+    hasData: true,
+    scoredPicks: allScored.length,
+    totalCorrect,
+    groupAccuracy,
+    pickerCount: memberStats.length,
+    leaderboard,
+    hotStreaks,
+    biggestMisses,
+    trends,
   };
 }
 
