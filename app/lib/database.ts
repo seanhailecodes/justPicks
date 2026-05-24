@@ -378,7 +378,7 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   }
   
   // Filter to only scored picks (correct is not null)
-  const scoredPicks = groupPicks.filter(gp => gp.picks?.correct !== null);
+  const scoredPicks = groupPicks.filter(gp => (gp.picks as any)?.correct !== null);
   
   if (!scoredPicks.length) {
     return {
@@ -392,10 +392,16 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   }
   
   // Get game dates for time-based filtering
-  const gameIds = [...new Set(scoredPicks.map(p => p.picks?.game_id).filter(Boolean))];
+  // This group's sport — the rating must reflect only this sport's
+  // games, not every pick a member auto-shares into the group.
+  const { data: groupRow } = await supabase
+    .from('groups').select('sport').eq('id', groupId).single();
+  const groupSport = (groupRow?.sport || 'nfl').toLowerCase();
+
+  const gameIds = [...new Set(scoredPicks.map(p => (p.picks as any)?.game_id).filter(Boolean))];
   const { data: games } = await supabase
     .from('games')
-    .select('id, game_date')
+    .select('id, game_date, league')
     .in('id', gameIds);
     
   if (!games) {
@@ -410,13 +416,14 @@ export async function getGroupAccuracy(groupId: string): Promise<{
   }
   
   // Create a map of game_id to game_date
-  const gameMap = new Map(games.map(g => [g.id, new Date(g.game_date)]));
+  const gameMap = new Map(games.map(g => [g.id, { date: new Date(g.game_date), league: (g.league || '').toLowerCase() }]));
   
-  // Add game dates to picks
-  const picksWithDates = scoredPicks.map(gp => ({
-    correct: gp.picks?.correct,
-    gameDate: gameMap.get(gp.picks?.game_id)
-  })).filter(p => p.gameDate);
+  // Add game dates to picks — keep only games in this group's sport.
+  const picksWithDates = scoredPicks.map(gp => {
+    const pick: any = gp.picks;
+    const g = gameMap.get(pick?.game_id);
+    return { correct: pick?.correct, gameDate: g?.date, league: g?.league };
+  }).filter(p => p.gameDate && p.league === groupSport);
   
   // Helper to calculate accuracy for a set of picks
   const calculateAccuracy = (filteredPicks: any[]) => {
