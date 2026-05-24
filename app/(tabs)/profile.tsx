@@ -8,6 +8,7 @@ import SportTabs from '../../components/SportTabs';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
+import { getSeasonOptions, SeasonOption } from '../../services/seasons';
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
@@ -60,10 +61,16 @@ export default function ProfileScreen() {
   const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport());
   const [hiddenIdentity, setHiddenIdentity] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [sportStats, setSportStats] = useState<Record<Sport, SportStats>>({} as Record<Sport, SportStats>);
+  // Stats are cached per `${sport}-${season}` so switching sport or
+  // season back and forth doesn't re-query.
+  const [sportStats, setSportStats] = useState<Record<string, SportStats>>({});
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const sortedSports = useSortedSports(userProfile?.id ?? null);
+
+  // Season-over-season state
+  const [seasonOptions, setSeasonOptions] = useState<SeasonOption[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
 
   const sportScrollRef = useRef<ScrollView>(null);
 
@@ -78,12 +85,23 @@ export default function ProfileScreen() {
     loadUserData();
   }, []);
 
-  // Reload stats when sport changes
+  // Load the seasons that exist in the games table; default to newest.
   useEffect(() => {
-    if (userProfile?.id && !sportStats[selectedSport]) {
-      loadSportStats(userProfile.id, selectedSport);
+    (async () => {
+      const opts = await getSeasonOptions();
+      setSeasonOptions(opts);
+      const current = opts.find(o => o.isCurrent) ?? opts[0];
+      if (current) setSelectedSeason(current.value);
+    })();
+  }, []);
+
+  // (Re)load stats when the sport or season changes — cached per pair.
+  useEffect(() => {
+    if (userProfile?.id && selectedSeason != null) {
+      const key = `${selectedSport}-${selectedSeason}`;
+      if (!sportStats[key]) loadSportStats(userProfile.id, selectedSport, selectedSeason);
     }
-  }, [selectedSport, userProfile]);
+  }, [selectedSport, selectedSeason, userProfile]);
 
   const loadUserData = async () => {
     try {
@@ -99,10 +117,7 @@ export default function ProfileScreen() {
           created_at: user.created_at || new Date().toISOString()
         });
         
-        // Load stats for default sport
-        await loadSportStats(user.id, getDefaultSport());
-        
-        // userSports is derived from AVAILABLE_SPORTS — no setter needed
+        // Stats load via the sport/season effect once seasons resolve.
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -112,7 +127,8 @@ export default function ProfileScreen() {
     }
   };
 
-  const loadSportStats = async (userId: string, sport: Sport) => {
+  const loadSportStats = async (userId: string, sport: Sport, season: number) => {
+    const statsKey = `${sport}-${season}`;
     try {
       // Map sport key to league name in database — must match APP_SPORTS[].league values
       const leagueMap: Record<string, string> = {
@@ -130,7 +146,7 @@ export default function ProfileScreen() {
 
       const league = leagueMap[sport];
       if (!league) {
-        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        setSportStats(prev => ({ ...prev, [statsKey]: defaultSportStats }));
         return;
       }
 
@@ -142,7 +158,7 @@ export default function ProfileScreen() {
 
       if (picksError) {
         console.error('Error fetching picks:', picksError);
-        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        setSportStats(prev => ({ ...prev, [statsKey]: defaultSportStats }));
         return;
       }
 
@@ -150,26 +166,33 @@ export default function ProfileScreen() {
       const gameIds = [...new Set(allPicks?.map(p => p.game_id) || [])];
       
       if (gameIds.length === 0) {
-        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        setSportStats(prev => ({ ...prev, [statsKey]: defaultSportStats }));
         return;
       }
 
-      // Get games for those picks — exclude voided games so they don't count as pending
+      // Get games for those picks. Fetch every game (not just this
+      // league) so the cross-sport P&L can also be season-filtered.
       const { data: games, error: gamesError } = await supabase
         .from('games')
-        .select('id, league, game_status')
-        .in('id', gameIds)
-        .eq('league', league)
-        .neq('game_status', 'voided');
+        .select('id, league, game_status, season')
+        .in('id', gameIds);
 
       if (gamesError) {
         console.error('Error fetching games:', gamesError);
-        setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+        setSportStats(prev => ({ ...prev, [statsKey]: defaultSportStats }));
         return;
       }
 
-      // Filter picks to only those for this league
-      const leagueGameIds = new Set(games?.map(g => g.id) || []);
+      // Per-game lookup used for both league filtering and P&L.
+      const gameInfo = new Map((games || []).map(g => [g.id, g]));
+
+      // Filter picks to this league + selected season; exclude voided
+      // games so they don't count as pending.
+      const leagueGameIds = new Set(
+        (games || [])
+          .filter(g => g.league === league && g.game_status !== 'voided' && g.season === season)
+          .map(g => g.id)
+      );
       const picks = allPicks?.filter(p => leagueGameIds.has(p.game_id)) || [];
 
       // Calculate statistics
@@ -219,11 +242,15 @@ export default function ProfileScreen() {
       const lmLosses = lastMonthPicks.filter(p => p.correct === false).length;
       const lmTotal = lmWins + lmLosses;
 
-      // P&L — across every sport (so it matches Pick History), decided
-      // wagered picks only. Uses the user's actual entered payout so
-      // non -110 odds are reflected; the -110 formula is only a fallback
-      // for legacy picks saved without a potential_win.
-      const wageredPicks = (allPicks || []).filter(p => p.wager_amount != null && p.correct !== null);
+      // P&L — across every sport but scoped to the selected season.
+      // Decided, wagered picks only. Uses the user's actual entered
+      // payout so non -110 odds are reflected; the -110 formula is only
+      // a fallback for legacy picks saved without a potential_win.
+      const wageredPicks = (allPicks || []).filter(p => {
+        if (p.wager_amount == null || p.correct === null) return false;
+        const g = gameInfo.get(p.game_id);
+        return !!g && g.game_status !== 'voided' && g.season === season;
+      });
       let pnl: { amount: number; currency: string } | null = null;
       if (wageredPicks.length > 0) {
         const currency = wageredPicks[wageredPicks.length - 1].currency || 'USD';
@@ -249,10 +276,10 @@ export default function ProfileScreen() {
         pnl,
       };
 
-      setSportStats(prev => ({ ...prev, [sport]: stats }));
+      setSportStats(prev => ({ ...prev, [statsKey]: stats }));
     } catch (error) {
       console.error('Error loading sport stats:', error);
-      setSportStats(prev => ({ ...prev, [sport]: defaultSportStats }));
+      setSportStats(prev => ({ ...prev, [statsKey]: defaultSportStats }));
     }
   };
 
@@ -402,7 +429,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const currentStats = sportStats[selectedSport] || defaultSportStats;
+  const currentStats = sportStats[`${selectedSport}-${selectedSeason}`] || defaultSportStats;
   const sportConfig = getSportConfig(selectedSport);
   const displayName = userProfile.display_name || userProfile.username || 'PickMaster';
   const sportDisplayName = getSportDisplayName(selectedSport);
@@ -426,7 +453,32 @@ export default function ProfileScreen() {
         isDisabled={(s) => !s.enabled}
       />
 
-      <ScrollView 
+      {/* Season picker — only shown once more than one season exists. */}
+      {seasonOptions.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.seasonRow}
+          contentContainerStyle={styles.seasonRowContent}
+        >
+          {seasonOptions.map(opt => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[styles.seasonChip, selectedSeason === opt.value && styles.seasonChipActive]}
+              onPress={() => setSelectedSeason(opt.value)}
+            >
+              <Text style={[
+                styles.seasonChipText,
+                selectedSeason === opt.value && styles.seasonChipTextActive,
+              ]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      <ScrollView
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -703,6 +755,34 @@ const styles = StyleSheet.create({
   },
   sportEmojiDisabled: {
     opacity: 0.4,
+  },
+  seasonRow: {
+    maxHeight: 44,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  seasonRowContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  seasonChip: {
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  seasonChipActive: {
+    backgroundColor: '#FF6B35',
+  },
+  seasonChipText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  seasonChipTextActive: {
+    color: '#FFF',
   },
   content: {
     flex: 1,
