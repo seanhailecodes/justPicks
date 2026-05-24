@@ -768,9 +768,9 @@ const styles = StyleSheet.create({
   },
   seasonChip: {
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 8,
     marginRight: 8,
   },
   seasonChipActive: {
