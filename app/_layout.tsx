@@ -1,6 +1,7 @@
 // app/_layout.tsx
 import { Stack } from 'expo-router';
 import { NotificationProvider } from '../components/NotificationContext';
+import AlertHost from '../components/AlertHost';
 
 export default function RootLayout() {
   return (
@@ -19,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="group/browse-groups" options={{ headerShown: false }} />
         <Stack.Screen name="share/[pickId]" options={{ headerShown: false }} />
       </Stack>
+      <AlertHost />
     </NotificationProvider>
   );
 }

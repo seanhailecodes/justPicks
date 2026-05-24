@@ -10,6 +10,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
+import type { AlertButton } from 'react-native';
 import { useEffect, useRef } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
@@ -23,6 +24,7 @@ interface NotificationModalProps {
   buttonText?: string;
   facebookShareUrl?: string;
   shareText?: string; // Pre-filled pick text for share posts
+  buttons?: AlertButton[]; // Action buttons for Alert.alert-style popups
 }
 
 const { width } = Dimensions.get('window');
@@ -36,6 +38,7 @@ export default function NotificationModal({
   buttonText = 'Got It!',
   facebookShareUrl,
   shareText,
+  buttons,
 }: NotificationModalProps) {
   const [copied, setCopied] = useState(false);
 
@@ -206,8 +209,36 @@ export default function NotificationModal({
             {/* Message */}
             <Text style={styles.message}>{message}</Text>
 
-            {/* "Got It!" button — only show when there's no share option */}
-            {!facebookShareUrl && (
+            {/* Action buttons (Alert.alert-style) — or the default "Got It!" */}
+            {buttons && buttons.length > 0 ? (
+              <View style={styles.buttonRow}>
+                {buttons.map((btn, i) => {
+                  const bg =
+                    btn.style === 'cancel'
+                      ? '#2C2C2E'
+                      : btn.style === 'destructive'
+                        ? '#FF3B30'
+                        : accentColor;
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      style={[
+                        styles.button,
+                        buttons.length > 1 && styles.buttonFlex,
+                        { backgroundColor: bg },
+                      ]}
+                      onPress={() => {
+                        onClose();
+                        btn.onPress?.();
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.buttonText}>{btn.text || 'OK'}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : !facebookShareUrl ? (
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: accentColor }]}
                 onPress={onClose}
@@ -215,7 +246,7 @@ export default function NotificationModal({
               >
                 <Text style={styles.buttonText}>{buttonText}</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
 
             {/* Social share buttons */}
             {facebookShareUrl && (
@@ -436,6 +467,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignSelf: 'stretch',
+  },
+  buttonFlex: {
+    flex: 1,
+    minWidth: 0,
   },
   fallbackLabel: {
     color: '#8E8E93',
