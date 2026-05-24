@@ -404,27 +404,32 @@ export const savePick = async (userId: string, pickData: {
   currency?: string | null;
 }): Promise<{ success: boolean; data?: any; error?: string }> => {
   try {
-    // First, check if a pick already exists for this game
+    const isOverUnder = pickData.overUnderPick === 'over' || pickData.overUnderPick === 'under';
+
+    // Each bet type is its own pick row, keyed on (user_id, game_id,
+    // bet_type) — so a spread, a moneyline, and a total on the same game
+    // can all coexist instead of overwriting each other in one row.
+    const betType: string = isOverUnder ? 'total' : (pickData.bet_type || 'spread');
+
+    // Find an existing pick of THIS bet type for this game — so re-saving
+    // the same bet edits it, while a different bet type adds a new row.
     const { data: existingPick, error: fetchError } = await supabase
       .from('picks')
-      .select('*')
+      .select('id')
       .eq('user_id', userId)
       .eq('game_id', pickData.game_id)
+      .eq('bet_type', betType)
       .maybeSingle();
 
-    // If fetch error (e.g., multiple rows exist), log it
     if (fetchError) {
       console.warn('Fetch existing pick warning:', fetchError);
     }
 
-    // Determine if this is a spread/ML pick or O/U pick
-    const isSpreadOrML = pickData.pick === 'home' || pickData.pick === 'away';
-    const isOverUnder = pickData.overUnderPick === 'over' || pickData.overUnderPick === 'under';
-
-    // Build the payload, preserving existing values for the other pick type
-    let payload: any = {
+    // Build the payload for this single bet.
+    const payload: any = {
       user_id: userId,
       game_id: pickData.game_id,
+      bet_type: betType,
       pick_type: pickData.pick_type,
       groups: pickData.groups || [],
       reasoning: pickData.reasoning || '',
@@ -433,65 +438,41 @@ export const savePick = async (userId: string, pickData: {
       wager_amount: pickData.wager_amount ?? null,
       potential_win: pickData.potential_win ?? null,
       currency: pickData.currency ?? null,
+      // AI/analytics context — captured on every pick.
+      time_before_game_minutes: pickData.time_before_game_minutes ?? null,
+      picked_at_time: pickData.picked_at_time ?? null,
+      picked_day_of_week: pickData.picked_day_of_week ?? null,
+      pick_source: pickData.pick_source ?? null,
     };
 
-    if (isSpreadOrML) {
-      // Saving a spread/ML pick - preserve existing O/U data
+    if (isOverUnder) {
+      // Totals bet — `pick` is a NOT NULL column, so it holds the side.
+      payload.pick = pickData.overUnderPick;
+      payload.team_picked = null;
+      payload.confidence = pickData.overUnderConfidence || 'Medium';
+      payload.over_under_pick = pickData.overUnderPick;
+      payload.over_under_confidence = pickData.overUnderConfidence;
+      payload.total_line_at_pick = pickData.total_line_at_pick ?? null;
+    } else {
+      // Spread or moneyline bet.
       payload.pick = pickData.pick;
       payload.team_picked = pickData.team_picked;
       payload.confidence = pickData.confidence;
-      payload.bet_type = pickData.bet_type ?? 'spread';
       payload.ml_odds = pickData.ml_odds ?? null;
       payload.spread_size = pickData.spread_size ?? null;
       payload.spread_category = pickData.spread_category ?? null;
       payload.picked_favorite = pickData.picked_favorite ?? null;
       payload.picked_team = pickData.picked_team ?? null;
       payload.opponent_team = pickData.opponent_team ?? null;
-      // Snapshot the line at pick time. Without this, the resolver has to
-      // fall back to the game row's spread, which can drift if odds keep
-      // updating after the pick — and grades incorrectly.
+      // Snapshot the line at pick time so the resolver grades against the
+      // number the user actually saw, even if odds drift afterward.
       payload.spread_line_at_pick = pickData.spread_line_at_pick ?? null;
-
-      // Preserve existing O/U pick AND its snapshot if it exists
-      if (existingPick) {
-        payload.over_under_pick = existingPick.over_under_pick;
-        payload.over_under_confidence = existingPick.over_under_confidence;
-        payload.total_line_at_pick = existingPick.total_line_at_pick;
-      }
-    } else if (isOverUnder) {
-      // Saving an O/U pick - preserve existing spread/ML data
-      payload.over_under_pick = pickData.overUnderPick;
-      payload.over_under_confidence = pickData.overUnderConfidence;
-      // Snapshot the total at pick time.
-      payload.total_line_at_pick = pickData.total_line_at_pick ?? null;
-
-      // Preserve existing spread pick AND its snapshot if it exists
-      if (existingPick) {
-        payload.pick = existingPick.pick;
-        payload.team_picked = existingPick.team_picked;
-        payload.confidence = existingPick.confidence;
-        payload.spread_line_at_pick = existingPick.spread_line_at_pick;
-        payload.ml_odds = existingPick.ml_odds;
-        payload.bet_type = existingPick.bet_type;
-      } else {
-        // No existing pick, need to set pick to something (required field)
-        payload.pick = pickData.overUnderPick;
-        payload.team_picked = null;
-        payload.confidence = pickData.overUnderConfidence || 'Medium';
-      }
     }
 
-    // AI/analytics context — set on every pick save so we have the
-    // pick-time context regardless of bet type.
-    payload.time_before_game_minutes = pickData.time_before_game_minutes ?? null;
-    payload.picked_at_time = pickData.picked_at_time ?? null;
-    payload.picked_day_of_week = pickData.picked_day_of_week ?? null;
-    payload.pick_source = pickData.pick_source ?? null;
-
     let result;
-    
+
     if (existingPick) {
-      // Update existing pick
+      // Re-saving this same bet — update it in place.
       result = await supabase
         .from('picks')
         .update(payload)
@@ -499,7 +480,7 @@ export const savePick = async (userId: string, pickData: {
         .select()
         .single();
     } else {
-      // Insert new pick (use upsert to handle race conditions)
+      // New bet — insert. upsert on (user, game, bet_type) guards races.
       result = await supabase
         .from('picks')
         .upsert({
@@ -507,7 +488,7 @@ export const savePick = async (userId: string, pickData: {
           correct: null,
           over_under_correct: null,
           created_at: new Date().toISOString()
-        }, { onConflict: 'user_id,game_id' })
+        }, { onConflict: 'user_id,game_id,bet_type' })
         .select()
         .single();
     }
