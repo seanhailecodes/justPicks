@@ -555,7 +555,7 @@ export default function HomeScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your {sportConfig.shortName} Groups</Text>
             <TouchableOpacity onPress={() => router.push({ pathname: '/group/create', params: { sport: selectedSport } })}>
-              <Text style={styles.sectionAction}>+ New</Text>
+              <Text style={styles.sectionAction}>+ Create</Text>
             </TouchableOpacity>
           </View>
 
