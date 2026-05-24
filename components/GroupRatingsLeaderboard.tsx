@@ -235,7 +235,10 @@ export default function GroupRatingsLeaderboard({
               return (
                 <View key={user.userId} style={styles.memberCard}>
                   <View style={styles.rankSection}>
-                    <Text style={[styles.rankNumber, { color: user.rank === 1 ? '#FFD700' : '#FF6B35' }]}>
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.rankNumber, { color: user.rank === 1 ? '#FFD700' : '#FF6B35' }]}
+                    >
                       #{user.rank}
                     </Text>
                     <View style={styles.nameSection}>
@@ -441,7 +444,8 @@ const styles = StyleSheet.create({
   rankNumber: {
     fontSize: 20,
     fontWeight: 'bold',
-    width: 35,
+    width: 46,
+    textAlign: 'center',
   },
   nameSection: {
     flex: 1,

@@ -349,7 +349,7 @@ export default function LeaderboardScreen() {
                   key={player.userId}
                   style={[styles.playerCard, player.isYou && styles.playerCardYou]}
                 >
-                  <Text style={[styles.rank, player.rank <= 3 && styles.rankTop]}>
+                  <Text numberOfLines={1} style={[styles.rank, player.rank <= 3 && styles.rankTop]}>
                     {getRankDisplay(player.rank)}
                   </Text>
                   <View style={styles.playerInfo}>
