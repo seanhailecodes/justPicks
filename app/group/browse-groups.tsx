@@ -10,6 +10,7 @@ interface PublicGroup {
   created_by: string;
   visibility: string;
   require_approval: boolean;
+  join_type: string;
   invite_code: string;
   created_at: string;
   sport: string;
@@ -119,7 +120,17 @@ export default function BrowseGroupsScreen() {
     setJoiningGroupId(group.id);
 
     try {
-      if (group.require_approval) {
+      // Invite-only groups can't be joined from Browse — you need an
+      // invite link. (The DB policy enforces this too; this is the
+      // friendly UI-side message.)
+      if (group.join_type === 'invite_only') {
+        showNotification(
+          'Invite Only',
+          'This group is invite-only — you need an invite link from a member to join.'
+        );
+        return;
+      }
+      if (group.join_type === 'request_to_join' || group.require_approval) {
         // Create join request (future feature)
         showNotification(
           'Approval Required',
@@ -128,7 +139,7 @@ export default function BrowseGroupsScreen() {
         return;
       }
 
-      // Join directly.
+      // Open group — join directly.
       const { error } = await supabase
         .from('group_members')
         .insert({
@@ -255,6 +266,10 @@ export default function BrowseGroupsScreen() {
                 <View style={styles.joinedButton}>
                   <Text style={styles.joinedButtonText}>✓ Already Joined</Text>
                 </View>
+              ) : group.join_type === 'invite_only' ? (
+                <View style={styles.joinedButton}>
+                  <Text style={styles.joinedButtonText}>🔒 Invite Only</Text>
+                </View>
               ) : (
                 <TouchableOpacity
                   style={[
@@ -267,7 +282,7 @@ export default function BrowseGroupsScreen() {
                   <Text style={styles.joinButtonText}>
                     {joiningGroupId === group.id
                       ? 'Joining...'
-                      : group.require_approval
+                      : (group.require_approval || group.join_type === 'request_to_join')
                         ? '✉️ Request to Join'
                         : '➕ Join Group'}
                   </Text>
