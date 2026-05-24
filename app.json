@@ -2,7 +2,13 @@
   "expo": {
     "name": "justPicks",
     "slug": "justPicks",
-    "version": "1.2.2",
+    "version": "1.3.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1dd72ef5-21be-40f0-89be-2a7f218162d6"
+    },
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "justpicks",
