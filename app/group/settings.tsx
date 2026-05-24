@@ -93,16 +93,12 @@ export default function GroupSettingsScreen() {
   };
 
   const showConfirm = (title: string, message: string, onConfirm: () => void) => {
-    if (Platform.OS === 'web') {
-      if (window.confirm(`${title}\n\n${message}`)) {
-        onConfirm();
-      }
-    } else {
-      Alert.alert(title, message, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm', style: 'destructive', onPress: onConfirm },
-      ]);
-    }
+    // Alert is the cross-platform shim — on web this renders the in-app
+    // NotificationModal with buttons, not the browser's window.confirm.
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', style: 'destructive', onPress: onConfirm },
+    ]);
   };
 
   const confirmLeave = async () => {
@@ -141,20 +137,14 @@ export default function GroupSettingsScreen() {
   };
 
   const handleDeleteGroup = () => {
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Are you sure you want to delete "${groupName}"?`)) {
-        confirmDelete();
-      }
-    } else {
-      Alert.alert(
-        'Delete Group',
-        `Are you sure you want to delete "${groupName}"?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: confirmDelete },
-        ]
-      );
-    }
+    Alert.alert(
+      'Delete Group',
+      `Are you sure you want to delete "${groupName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+      ]
+    );
   };
 
   const confirmDelete = async () => {
