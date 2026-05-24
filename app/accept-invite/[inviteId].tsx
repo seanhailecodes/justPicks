@@ -167,11 +167,11 @@ export default function AcceptInviteScreen() {
         return;
       }
 
-      const { data: groupData } = await supabase
-        .from('groups')
-        .select('name')
-        .eq('id', inviteData.group_id)
-        .single();
+      // Resolve the group name via a SECURITY DEFINER RPC. Direct
+      // reads of `groups` are now restricted to public / member
+      // groups, so private-group invites must go through this.
+      const { data: groupName } = await supabase
+        .rpc('get_group_name_for_invite', { _invite_id: inviteId });
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -182,7 +182,7 @@ export default function AcceptInviteScreen() {
       setInvite({
         id: inviteData.id,
         group_id: inviteData.group_id,
-        group_name: groupData?.name || 'Unknown Group',
+        group_name: groupName || 'Unknown Group',
         inviter_name: profileData?.display_name || profileData?.username || 'Someone',
         status: inviteData.status,
         expires_at: inviteData.expires_at,

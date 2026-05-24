@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, Image, ImageSourcePropType, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ImageSourcePropType, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert } from '../lib/crossPlatformAlert';
 import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
 import FeedbackModal from '../../components/FeedbackModal';
 import SportTabs from '../../components/SportTabs';
@@ -18,6 +19,7 @@ interface SportStats {
   upcomingPicks: number;
   winRate: number;
   spreadAccuracy: { percentage: number; wins: number; total: number };
+  moneylineAccuracy: { percentage: number; wins: number; total: number };
   overUnderAccuracy: { percentage: number; wins: number; total: number };
   tier: string;
   lastWeek?: { record: string; winRate: number };
@@ -41,6 +43,7 @@ const defaultSportStats: SportStats = {
   upcomingPicks: 0,
   winRate: 0,
   spreadAccuracy: { percentage: 0, wins: 0, total: 0 },
+  moneylineAccuracy: { percentage: 0, wins: 0, total: 0 },
   overUnderAccuracy: { percentage: 0, wins: 0, total: 0 },
   tier: 'Bronze',
 };
@@ -178,11 +181,21 @@ export default function ProfileScreen() {
       const decidedPicks = correctPicks + incorrectPicks;
       const winRate = decidedPicks > 0 ? Math.round((correctPicks / decidedPicks) * 100) : 0;
 
-      // Spread accuracy
-      const spreadPicks = picks.filter(p => p.team_picked);
+      // Spread accuracy — only true spread bets (not moneyline). Previously
+      // filtered on `team_picked`, which is set for BOTH spread and ML picks,
+      // so ML picks (golf/UFC/boxing always, team sports sometimes) were being
+      // mis-bucketed here.
+      const spreadPicks = picks.filter(p => p.bet_type === 'spread');
       const spreadCorrect = spreadPicks.filter(p => p.correct === true).length;
       const spreadDecided = spreadPicks.filter(p => p.correct !== null).length;
       const spreadPercentage = spreadDecided > 0 ? Math.round((spreadCorrect / spreadDecided) * 100) : 0;
+
+      // Moneyline accuracy — own bucket so ML-only sports (golf, UFC, boxing)
+      // get a meaningful breakdown and team-sports ML picks aren't lost.
+      const mlPicks = picks.filter(p => p.bet_type === 'moneyline');
+      const mlCorrect = mlPicks.filter(p => p.correct === true).length;
+      const mlDecided = mlPicks.filter(p => p.correct !== null).length;
+      const mlPercentage = mlDecided > 0 ? Math.round((mlCorrect / mlDecided) * 100) : 0;
 
       // Over/Under accuracy
       const ouPicks = picks.filter(p => p.over_under_pick);
@@ -224,6 +237,7 @@ export default function ProfileScreen() {
         upcomingPicks: pendingPicks,
         winRate,
         spreadAccuracy: { percentage: spreadPercentage, wins: spreadCorrect, total: spreadDecided },
+        moneylineAccuracy: { percentage: mlPercentage, wins: mlCorrect, total: mlDecided },
         overUnderAccuracy: { percentage: ouPercentage, wins: ouCorrect, total: ouDecided },
         tier: getTierFromWinRate(winRate),
         lastWeek: lwTotal > 0 ? { record: `${lwWins}-${lwLosses}`, winRate: Math.round((lwWins / lwTotal) * 100) } : undefined,
@@ -492,6 +506,12 @@ export default function ProfileScreen() {
               <Text style={styles.breakdownLabel}>Spread:</Text>
               <Text style={styles.breakdownValue}>
                 {currentStats.spreadAccuracy.percentage}% ({currentStats.spreadAccuracy.wins}/{currentStats.spreadAccuracy.total})
+              </Text>
+            </View>
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Moneyline:</Text>
+              <Text style={styles.breakdownValue}>
+                {currentStats.moneylineAccuracy.percentage}% ({currentStats.moneylineAccuracy.wins}/{currentStats.moneylineAccuracy.total})
               </Text>
             </View>
             <View style={styles.breakdownRow}>

@@ -45,12 +45,12 @@ export default function JoinByCodeScreen() {
 
   const loadGroupAndCheckAuth = async () => {
     try {
-      // Find group by invite code
-      const { data: groupData, error: groupError } = await supabase
-        .from('groups')
-        .select('id, name, created_by')
-        .eq('invite_code', code?.toUpperCase())
-        .single();
+      // Find group by invite code via a SECURITY DEFINER RPC.
+      // Direct reads of `groups` are now restricted to public /
+      // member groups, so code lookups must go through this.
+      const { data: groupRows, error: groupError } = await supabase
+        .rpc('get_group_by_invite_code', { _code: code || '' });
+      const groupData = groupRows && groupRows.length > 0 ? groupRows[0] : null;
 
       if (groupError || !groupData) {
         setError('Invalid invite code. Please check and try again.');

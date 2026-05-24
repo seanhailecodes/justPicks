@@ -135,18 +135,16 @@ export default function GroupPicksScreen() {
     loadCurrentWeek();
   }, []);
 
-  // Load games when sport/week changes
+  // Load games when sport/week changes. NFL is week-based and needs
+  // selectedWeek resolved first; every other sport loads directly.
+  // (Previously this allow-listed only nfl/nba/ncaab/soccer, so
+  // MLB/NHL/UFC/Boxing/Golf group pages hung on the loading spinner.)
   useEffect(() => {
-    if (groupInfo) {
-      if (groupInfo.sport === 'nfl' && selectedWeek !== null) {
-        loadGamesAndPicks();
-      } else if (groupInfo.sport === 'nba') {
-        loadGamesAndPicks();
-      } else if (groupInfo.sport === 'ncaab') {
-        loadGamesAndPicks();
-      } else if (groupInfo.sport === 'soccer') {
-        loadGamesAndPicks();
-      }
+    if (!groupInfo) return;
+    if (groupInfo.sport === 'nfl') {
+      if (selectedWeek !== null) loadGamesAndPicks();
+    } else {
+      loadGamesAndPicks();
     }
   }, [groupInfo, selectedWeek]);
 
