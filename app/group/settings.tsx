@@ -129,6 +129,17 @@ export default function GroupSettingsScreen() {
     }
   };
 
+  // The "Leave Group" button referenced this handler, but it was never
+  // defined — so tapping the button did nothing. Wire it to the confirm
+  // dialog + the existing confirmLeave logic.
+  const handleLeaveGroup = () => {
+    showConfirm(
+      'Leave Group?',
+      `Are you sure you want to leave "${groupName}"?`,
+      confirmLeave
+    );
+  };
+
   const handleDeleteGroup = () => {
     if (Platform.OS === 'web') {
       if (window.confirm(`Are you sure you want to delete "${groupName}"?`)) {
