@@ -863,7 +863,7 @@ export default function GroupPicksScreen() {
               horizontal
               style={styles.weekSelector}
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.weekSelectorContent}
+              contentContainerStyle={styles.seasonSelectorContent}
             >
               {seasonOptions.map((opt) => (
                 <TouchableOpacity
@@ -1093,6 +1093,13 @@ const styles = StyleSheet.create({
   weekSelectorContent: {
     paddingHorizontal: 16,
     paddingRight: 32,
+  },
+  // Season chips are few — center them; flexGrow keeps them centered
+  // when they fit and still lets them scroll if they ever overflow.
+  seasonSelectorContent: {
+    paddingHorizontal: 16,
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   weekChip: {
     backgroundColor: '#1C1C1E',

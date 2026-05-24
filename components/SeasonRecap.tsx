@@ -4,13 +4,14 @@
 // screen when the group's sport is out of season (or when an
 // older season is selected). Replaces the week-by-week strip.
 //
-// Five cards: Leaderboard, Hot Streaks, Biggest Misses, Trends,
-// Season Totals. Data comes from getSeasonRecap() — every card
-// hides itself when it has nothing real to show.
+// Cards: Leaderboard, Hot Streaks, Cold Streaks, Biggest Misses,
+// Trends, Season Totals. Data comes from getSeasonRecap() — every
+// card hides itself when it has nothing real to show. Streak rows
+// expand to reveal the individual picks that made up the run.
 
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getSeasonRecap, SeasonRecapData } from '../app/lib/database';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getSeasonRecap, SeasonRecapData, SeasonRecapMember } from '../app/lib/database';
 
 interface SeasonRecapProps {
   groupId: string;
@@ -23,6 +24,8 @@ interface SeasonRecapProps {
 export default function SeasonRecap({ groupId, season, seasonLabel, resolveName }: SeasonRecapProps) {
   const [recap, setRecap] = useState<SeasonRecapData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Which streak row is expanded — keyed `${kind}-${userId}`.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +64,77 @@ export default function SeasonRecap({ groupId, season, seasonLabel, resolveName 
 
   const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`);
 
+  const formatDate = (d: string): string => {
+    if (!d) return '';
+    try {
+      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
+  // A streak card whose rows expand to reveal the picks in the run.
+  const renderStreakCard = (
+    kind: 'hot' | 'cold',
+    title: string,
+    hint: string,
+    members: SeasonRecapMember[],
+  ) => {
+    if (members.length === 0) return null;
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardHint}>{hint}</Text>
+        {members.map(m => {
+          const rowKey = `${kind}-${m.userId}`;
+          const open = expandedKey === rowKey;
+          const picks = kind === 'hot' ? m.bestStreakPicks : m.worstStreakPicks;
+          const count = kind === 'hot' ? m.bestStreak : m.worstStreak;
+          return (
+            <View key={m.userId}>
+              <TouchableOpacity
+                style={styles.row}
+                activeOpacity={0.6}
+                onPress={() => setExpandedKey(open ? null : rowKey)}
+              >
+                <Text style={styles.chevron}>{open ? '▾' : '▸'}</Text>
+                <View style={styles.rowMain}>
+                  <Text style={styles.rowName}>{name(m.userId, m.name)}</Text>
+                  <Text style={styles.rowMeta}>{m.wins}-{m.picks - m.wins} on the season</Text>
+                </View>
+                <Text style={kind === 'hot' ? styles.streakStat : styles.coldStat}>
+                  {count} {kind === 'hot' ? 'wins 🔥' : 'losses 🥶'}
+                </Text>
+              </TouchableOpacity>
+              {open && (
+                <View style={styles.streakDetail}>
+                  {picks.map((p, i) => (
+                    <View key={i} style={styles.streakPick}>
+                      <View style={styles.streakPickTop}>
+                        <Text style={styles.streakPickLabel}>{p.pickLabel}</Text>
+                        <Text style={styles.streakPickDate}>{formatDate(p.date)}</Text>
+                      </View>
+                      {!!p.matchup && <Text style={styles.streakPickSub}>{p.matchup}</Text>}
+                      {(!!p.confidence || !!p.source) && (
+                        <Text style={styles.streakPickSub}>
+                          {[
+                            p.confidence ? `${p.confidence} confidence` : null,
+                            p.source ? `via ${p.source}` : null,
+                          ].filter(Boolean).join('  ·  ')}
+                        </Text>
+                      )}
+                      {!!p.notes && <Text style={styles.streakPickNotes}>💬 {p.notes}</Text>}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -90,38 +164,20 @@ export default function SeasonRecap({ groupId, season, seasonLabel, resolveName 
         ))}
       </View>
 
-      {/* ---- Hot Streaks — longest WIN streak each member ran off ---- */}
-      {recap.hotStreaks.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>🔥 Hot Streaks</Text>
-          <Text style={styles.cardHint}>Longest run of wins in a row this season</Text>
-          {recap.hotStreaks.map(m => (
-            <View key={m.userId} style={styles.row}>
-              <View style={styles.rowMain}>
-                <Text style={styles.rowName}>{name(m.userId, m.name)}</Text>
-                <Text style={styles.rowMeta}>{m.wins}-{m.picks - m.wins} on the season</Text>
-              </View>
-              <Text style={styles.streakStat}>{m.bestStreak} wins 🔥</Text>
-            </View>
-          ))}
-        </View>
+      {/* ---- Hot Streaks — longest WIN run; rows expand to the picks ---- */}
+      {renderStreakCard(
+        'hot',
+        '🔥 Hot Streaks',
+        'Longest win streak this season — tap a name to see the picks',
+        recap.hotStreaks,
       )}
 
-      {/* ---- Cold Streaks — longest LOSING streak; its own category ---- */}
-      {recap.coldStreaks.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>🥶 Cold Streaks</Text>
-          <Text style={styles.cardHint}>Longest run of losses in a row this season</Text>
-          {recap.coldStreaks.map(m => (
-            <View key={m.userId} style={styles.row}>
-              <View style={styles.rowMain}>
-                <Text style={styles.rowName}>{name(m.userId, m.name)}</Text>
-                <Text style={styles.rowMeta}>{m.wins}-{m.picks - m.wins} on the season</Text>
-              </View>
-              <Text style={styles.coldStat}>{m.worstStreak} losses 🥶</Text>
-            </View>
-          ))}
-        </View>
+      {/* ---- Cold Streaks — longest LOSING run; its own category ---- */}
+      {renderStreakCard(
+        'cold',
+        '🥶 Cold Streaks',
+        'Longest losing streak this season — tap a name to see the picks',
+        recap.coldStreaks,
       )}
 
       {/* ---- Biggest Misses ---- */}
@@ -238,6 +294,25 @@ const styles = StyleSheet.create({
   streakStat: { color: '#FF6B35', fontSize: 15, fontWeight: '700' },
   coldStat: { color: '#5AC8FA', fontSize: 15, fontWeight: '700' },
   missStat: { color: '#FF453A', fontSize: 16, fontWeight: '700' },
+
+  // Expandable streak detail
+  chevron: { width: 22, color: '#8E8E93', fontSize: 12, fontWeight: '700' },
+  streakDetail: { paddingLeft: 22, paddingTop: 2, paddingBottom: 6 },
+  streakPick: {
+    backgroundColor: '#121214',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
+  },
+  streakPickTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  streakPickLabel: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  streakPickDate: { color: '#8E8E93', fontSize: 12 },
+  streakPickSub: { color: '#8E8E93', fontSize: 12, marginTop: 3 },
+  streakPickNotes: { color: '#C7C7CC', fontSize: 12, marginTop: 5, fontStyle: 'italic' },
 
   trendRow: {
     flexDirection: 'row',

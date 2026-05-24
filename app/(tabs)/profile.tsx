@@ -765,6 +765,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 8,
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   seasonChip: {
     backgroundColor: '#1C1C1E',
