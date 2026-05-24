@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { Alert } from '../lib/crossPlatformAlert';
+import { useNotificationContext } from '../../components/NotificationContext';
 import { supabase } from '../lib/supabase';
 
 interface PublicGroup {
@@ -25,6 +25,7 @@ export default function BrowseGroupsScreen() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
+  const { showNotification } = useNotificationContext();
 
   useEffect(() => {
     loadPublicGroups();
@@ -103,7 +104,7 @@ export default function BrowseGroupsScreen() {
       setFilteredGroups(groupsWithDetails);
     } catch (error) {
       console.error('Error loading public groups:', error);
-      Alert.alert('Error', 'Failed to load groups');
+      showNotification('Error', 'Failed to load groups');
     } finally {
       setLoading(false);
     }
@@ -111,7 +112,7 @@ export default function BrowseGroupsScreen() {
 
   const handleJoinGroup = async (group: PublicGroup) => {
     if (!currentUserId) {
-      Alert.alert('Error', 'You must be logged in to join groups');
+      showNotification('Error', 'You must be logged in to join groups');
       return;
     }
 
@@ -120,7 +121,7 @@ export default function BrowseGroupsScreen() {
     try {
       if (group.require_approval) {
         // Create join request (future feature)
-        Alert.alert(
+        showNotification(
           'Approval Required',
           'This group requires owner approval. This feature is coming soon!'
         );
@@ -152,10 +153,10 @@ export default function BrowseGroupsScreen() {
         )
       );
 
-      Alert.alert('Success!', `You've joined "${group.name}".`);
+      showNotification('Success!', `You've joined "${group.name}".`);
     } catch (error) {
       console.error('Error joining group:', error);
-      Alert.alert('Error', 'Failed to join group. Please try again.');
+      showNotification('Error', 'Failed to join group. Please try again.');
     } finally {
       setJoiningGroupId(null);
     }
