@@ -9,6 +9,7 @@ import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
+import { getLatestActiveSeasonForUser } from '../lib/database';
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
@@ -85,15 +86,22 @@ export default function ProfileScreen() {
     loadUserData();
   }, []);
 
-  // Load the seasons that exist in the games table; default to newest.
+  // Load the seasons that exist in the games table.
   useEffect(() => {
-    (async () => {
-      const opts = await getSeasonOptions();
-      setSeasonOptions(opts);
-      const current = opts.find(o => o.isCurrent) ?? opts[0];
-      if (current) setSelectedSeason(current.value);
-    })();
+    getSeasonOptions().then(setSeasonOptions);
   }, []);
+
+  // Default the season picker to where the user is actually active —
+  // the most recent season they have picks in — falling back to the
+  // newest season. Keeps Profile from opening to an empty new season.
+  useEffect(() => {
+    if (selectedSeason != null) return;
+    if (seasonOptions.length === 0 || !userProfile?.id) return;
+    const newest = seasonOptions.find(o => o.isCurrent)?.value ?? seasonOptions[0].value;
+    getLatestActiveSeasonForUser(userProfile.id).then(active => {
+      setSelectedSeason(active ?? newest);
+    });
+  }, [seasonOptions, userProfile, selectedSeason]);
 
   // (Re)load stats when the sport or season changes — cached per pair.
   useEffect(() => {
