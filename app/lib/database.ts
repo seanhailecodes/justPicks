@@ -579,21 +579,51 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     (profiles || []).map((p: any) => [p.id, p.username || p.display_name || 'Member'])
   );
 
-  // A pick's graded result. A totals bet keeps its result in
-  // over_under_correct; spread / moneyline bets use `correct`. This
-  // is the key to counting O/U picks — the resolver leaves `correct`
-  // null on total-bet rows, so reading `correct` alone drops them.
-  const resultOf = (p: any): boolean | null => {
-    const v = p.bet_type === 'total' ? p.over_under_correct : p.correct;
-    return v === true ? true : v === false ? false : null;
+  // ---- Explode each pick row into its component bets ----
+  // A pre-migration row carries a spread/moneyline pick AND
+  // (optionally) an over/under pick on the SAME row; newer
+  // one-row-per-bet-type rows carry exactly one. Either way every
+  // individual bet — spread, moneyline and over/under — should be
+  // counted and streaked on its own.
+  type RecapBet = {
+    pick: any;
+    kind: 'spread' | 'moneyline' | 'total';
+    won: boolean;
+    ts: number; // game timestamp, for ordering streaks
   };
 
-  // Builds the expandable detail for one pick inside a streak.
-  // Handles spread / moneyline (a team is picked) and totals
-  // (over / under is picked). `pick` is the canonical side.
-  const toStreakPick = (p: any): SeasonRecapStreakPick => {
+  const tsOf = (p: any): number =>
+    new Date(gameMap.get(p.game_id)?.game_date || p.created_at).getTime();
+
+  const bets: RecapBet[] = [];
+  seasonPicks.forEach((p: any) => {
+    const ts = tsOf(p);
+    if (p.bet_type === 'total') {
+      // Dedicated over/under row (one-row-per-bet-type).
+      if (p.over_under_correct === true || p.over_under_correct === false)
+        bets.push({ pick: p, kind: 'total', won: p.over_under_correct === true, ts });
+    } else {
+      // Spread / moneyline (or legacy) row — the primary bet.
+      if (p.correct === true || p.correct === false)
+        bets.push({
+          pick: p,
+          kind: p.bet_type === 'moneyline' ? 'moneyline' : 'spread',
+          won: p.correct === true,
+          ts,
+        });
+      // A legacy row may ALSO carry an over/under pick — count it too.
+      if ((p.over_under_pick === 'over' || p.over_under_pick === 'under')
+          && (p.over_under_correct === true || p.over_under_correct === false))
+        bets.push({ pick: p, kind: 'total', won: p.over_under_correct === true, ts });
+    }
+  });
+  if (bets.length === 0) return { ...empty, pickerCount: 0 };
+
+  // Builds the expandable detail for one bet inside a streak.
+  const toStreakPick = (b: RecapBet): SeasonRecapStreakPick => {
+    const p = b.pick;
     const g = gameMap.get(p.game_id);
-    const isTotal = p.bet_type === 'total';
+    const isTotal = b.kind === 'total';
     const side: 'home' | 'away' = p.pick === 'away' ? 'away' : 'home';
     const ouPick: 'over' | 'under' | null =
       p.over_under_pick === 'over' || p.over_under_pick === 'under' ? p.over_under_pick
@@ -606,13 +636,13 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     const note = p.reasoning != null && String(p.reasoning).trim() !== ''
       ? String(p.reasoning).trim() : null;
     return {
-      betType: isTotal ? 'total' : (p.bet_type === 'moneyline' ? 'moneyline' : 'spread'),
+      betType: b.kind,
       awayTeam: g?.away_team || 'Away',
       homeTeam: g?.home_team || 'Home',
       pickedSide: side,
       ouPick,
       line,
-      won: resultOf(p) === true,
+      won: b.won,
       date: g?.game_date || p.created_at || '',
       confidence: p.confidence || null,
       source: p.pick_source ? String(p.pick_source).replace(/_/g, ' ') : null,
@@ -620,33 +650,27 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     };
   };
 
-  // ---- Per-member aggregation ----
-  const byMember = new Map<string, any[]>();
-  seasonPicks.forEach((p: any) => {
-    if (!byMember.has(p.user_id)) byMember.set(p.user_id, []);
-    byMember.get(p.user_id)!.push(p);
+  // ---- Per-member aggregation (over individual bets) ----
+  const byMember = new Map<string, RecapBet[]>();
+  bets.forEach(b => {
+    const uid = b.pick.user_id;
+    if (!byMember.has(uid)) byMember.set(uid, []);
+    byMember.get(uid)!.push(b);
   });
 
   const memberStats: SeasonRecapMember[] = [];
-  byMember.forEach((mPicks, userId) => {
-    const scored = mPicks.filter(p => resultOf(p) !== null);
-    if (scored.length === 0) return;
+  byMember.forEach((mBets, userId) => {
+    if (mBets.length === 0) return;
+    // Order chronologically so streaks read correctly.
+    const scored = [...mBets].sort((a, b) => a.ts - b.ts);
+    const wins = scored.filter(b => b.won).length;
 
-    // Order chronologically by game date so streaks read correctly.
-    scored.sort((a, b) => {
-      const da = new Date(gameMap.get(a.game_id)?.game_date || a.created_at).getTime();
-      const db = new Date(gameMap.get(b.game_id)?.game_date || b.created_at).getTime();
-      return da - db;
-    });
-
-    const wins = scored.filter(p => resultOf(p) === true).length;
-
-    // Longest win streak and longest losing streak — track the END
-    // index of each run so we can pull the actual picks involved.
+    // Longest win streak and longest losing streak — track each run's
+    // END index so we can pull the actual bets involved.
     let best = 0, worst = 0, winRun = 0, lossRun = 0;
     let bestEnd = -1, worstEnd = -1;
-    scored.forEach((p, i) => {
-      if (resultOf(p) === true) {
+    scored.forEach((b, i) => {
+      if (b.won) {
         winRun += 1; lossRun = 0;
         if (winRun > best) { best = winRun; bestEnd = i; }
       } else {
@@ -659,10 +683,10 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     const worstStreakPicks = worst >= 2
       ? scored.slice(worstEnd - worst + 1, worstEnd + 1).map(toStreakPick) : [];
 
-    // Current streak — walk back from the most recent pick
+    // Current streak — walk back from the most recent bet.
     let current = 0;
     for (let i = scored.length - 1; i >= 0; i--) {
-      const won = resultOf(scored[i]) === true;
+      const won = scored[i].won;
       if (i === scored.length - 1) current = won ? 1 : -1;
       else if (won && current > 0) current += 1;
       else if (!won && current < 0) current -= 1;
@@ -701,10 +725,11 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     .filter(m => m.worstStreak >= 2)
     .sort((a, b) => b.worstStreak - a.worstStreak || a.accuracy - b.accuracy);
 
-  // ---- Biggest misses — losses ranked by how far short they fell ----
-  const biggestMisses: SeasonRecapMiss[] = seasonPicks
-    .filter((p: any) => p.correct === false && p.cover_margin != null)
-    .map((p: any) => {
+  // ---- Biggest misses — spread bets that didn't cover ----
+  const biggestMisses: SeasonRecapMiss[] = bets
+    .filter(b => b.kind === 'spread' && !b.won && b.pick.cover_margin != null)
+    .map(b => {
+      const p = b.pick;
       const g = gameMap.get(p.game_id);
       const team = (p.pick === 'away' ? g?.away_team : g?.home_team)
         || p.team_picked || p.picked_team || 'Pick';
@@ -723,19 +748,21 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     .slice(0, 5);
 
   // ---- Totals (spread, moneyline AND over/under all count) ----
-  const allScored = seasonPicks.filter((p: any) => resultOf(p) !== null);
-  const totalCorrect = allScored.filter((p: any) => resultOf(p) === true).length;
-  const groupAccuracy = allScored.length > 0
-    ? Math.round((totalCorrect / allScored.length) * 100) : null;
+  const totalCorrect = bets.filter(b => b.won).length;
+  const groupAccuracy = bets.length > 0
+    ? Math.round((totalCorrect / bets.length) * 100) : null;
 
   // ---- Trends — only surface splits backed by real data ----
+  // The favorite / public / close splits are spread-pick concepts,
+  // so they read off the spread rows and their `correct` result.
   const trends: SeasonRecapTrend[] = [];
+  const scoredRows = seasonPicks.filter((p: any) => p.correct === true || p.correct === false);
   const winRate = (arr: any[]): number | null =>
-    arr.length ? Math.round((arr.filter(p => resultOf(p) === true).length / arr.length) * 100) : null;
+    arr.length ? Math.round((arr.filter(p => p.correct === true).length / arr.length) * 100) : null;
 
   // Favorites vs underdogs
-  const favs = allScored.filter((p: any) => p.picked_favorite === true);
-  const dogs = allScored.filter((p: any) => p.picked_favorite === false);
+  const favs = scoredRows.filter((p: any) => p.picked_favorite === true);
+  const dogs = scoredRows.filter((p: any) => p.picked_favorite === false);
   if (favs.length >= 3 && dogs.length >= 3) {
     const fr = winRate(favs)!, dr = winRate(dogs)!;
     const better = fr >= dr ? 'favorites' : 'underdogs';
@@ -755,8 +782,8 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   }
 
   // With the public vs contrarian
-  const withPub = allScored.filter((p: any) => p.with_public === true);
-  const fade = allScored.filter((p: any) => p.with_public === false);
+  const withPub = scoredRows.filter((p: any) => p.with_public === true);
+  const fade = scoredRows.filter((p: any) => p.with_public === false);
   if (withPub.length >= 3 && fade.length >= 3) {
     const wr = winRate(withPub)!, fp = winRate(fade)!;
     trends.push({
@@ -792,8 +819,19 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     });
   }
 
+  // Over/under record — now that O/U bets are counted on their own.
+  const ouBets = bets.filter(b => b.kind === 'total');
+  if (ouBets.length >= 3) {
+    const ouWins = ouBets.filter(b => b.won).length;
+    trends.push({
+      emoji: '📊',
+      label: `${Math.round((ouWins / ouBets.length) * 100)}% on over/unders`,
+      detail: `${ouWins}-${ouBets.length - ouWins} on total-points bets`,
+    });
+  }
+
   // Close games
-  const closeGames = allScored.filter((p: any) => p.was_close === true);
+  const closeGames = scoredRows.filter((p: any) => p.was_close === true);
   if (closeGames.length >= 3) {
     const cr = winRate(closeGames);
     if (cr != null) {
@@ -808,7 +846,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   return {
     season,
     hasData: true,
-    scoredPicks: allScored.length,
+    scoredPicks: bets.length,
     totalCorrect,
     groupAccuracy,
     pickerCount: memberStats.length,
