@@ -178,7 +178,12 @@ Deno.serve(async (req) => {
             }
           }
 
-          const correct = pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
+          // This resolver does not grade over/under, so a totals bet
+          // is left ungraded (null) rather than mis-scored against the
+          // spread — which would otherwise read as a false loss.
+          const correct = pick.bet_type === 'total'
+            ? null
+            : pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
 
           // Calculate win weight
           const winWeight = calcWinWeight(correct, pick.bet_type, pick.ml_odds)

@@ -177,7 +177,13 @@ Deno.serve(async (req) => {
           }
         }
 
-        const pickCorrect = pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
+        // `correct` must reflect the result of THIS bet: a totals bet
+        // is graded on the over/under, a moneyline on the winner, and
+        // everything else on the spread. Previously a 'total' row fell
+        // through to spreadCorrect (always null) and never got graded.
+        const pickCorrect = pick.bet_type === 'total'
+          ? overUnderCorrect
+          : pick.bet_type === 'moneyline' ? mlCorrect : spreadCorrect
         const winWeight = calcWinWeight(pickCorrect, pick.bet_type, pick.ml_odds)
 
         const { error: pickUpdateError } = await supabase

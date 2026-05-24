@@ -203,14 +203,19 @@ Deno.serve(async (req) => {
           overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, pickOverUnder)
         }
 
+        // A totals bet is graded on the over/under; everything else
+        // on the spread. Previously a 'total' row stored spreadCorrect
+        // (always null) in `correct` and never got graded.
+        const pickCorrect = pick.bet_type === 'total' ? overUnderCorrect : spreadCorrect
+
         const { error: pickError } = await supabase
           .from('picks')
-          .update({ correct: spreadCorrect, over_under_correct: overUnderCorrect })
+          .update({ correct: pickCorrect, over_under_correct: overUnderCorrect })
           .eq('id', pick.id)
 
         if (!pickError) {
           picksResolved++
-          console.log(`  Pick ${pick.id}: spread=${spreadCorrect}, o/u=${overUnderCorrect}`)
+          console.log(`  Pick ${pick.id}: correct=${pickCorrect}, spread=${spreadCorrect}, o/u=${overUnderCorrect}`)
         }
       }
     }
