@@ -869,14 +869,14 @@ export default function GroupPicksScreen() {
                 <TouchableOpacity
                   key={opt.value}
                   style={[
-                    styles.weekChip,
-                    recapSeason === opt.value && styles.weekChipActive,
+                    styles.seasonChip,
+                    recapSeason === opt.value && styles.seasonChipActive,
                   ]}
                   onPress={() => setSelectedSeason(opt.value)}
                 >
                   <Text style={[
-                    styles.weekChipText,
-                    recapSeason === opt.value && styles.weekChipTextActive,
+                    styles.seasonChipText,
+                    recapSeason === opt.value && styles.seasonChipTextActive,
                   ]}>
                     {opt.label} Season
                   </Text>
@@ -1110,6 +1110,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   weekChipTextActive: {
+    color: '#FFF',
+  },
+  // Season chips — sleek squared style, matching the Create Group
+  // sport pills (borderRadius 8, tighter padding).
+  seasonChip: {
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  seasonChipActive: {
+    backgroundColor: '#FF6B35',
+  },
+  seasonChipText: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  seasonChipTextActive: {
     color: '#FFF',
   },
   dateGroupHeader: {
