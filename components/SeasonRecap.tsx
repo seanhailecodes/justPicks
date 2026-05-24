@@ -108,24 +108,38 @@ export default function SeasonRecap({ groupId, season, seasonLabel, resolveName 
               </TouchableOpacity>
               {open && (
                 <View style={styles.streakDetail}>
-                  {picks.map((p, i) => (
-                    <View key={i} style={styles.streakPick}>
-                      <View style={styles.streakPickTop}>
-                        <Text style={styles.streakPickLabel}>{p.pickLabel}</Text>
-                        <Text style={styles.streakPickDate}>{formatDate(p.date)}</Text>
+                  {picks.map((p, i) => {
+                    const awayPicked = p.pickedSide === 'away';
+                    const homePicked = p.pickedSide === 'home';
+                    // The picked team is highlighted — green if the pick
+                    // hit, red if it missed.
+                    const pickedColor = p.won ? styles.streakTeamWon : styles.streakTeamLost;
+                    return (
+                      <View key={i} style={styles.streakPick}>
+                        <View style={styles.streakPickTop}>
+                          <Text style={styles.streakPickMatchup}>
+                            <Text style={[styles.streakTeam, awayPicked && pickedColor]}>
+                              {p.awayTeam}{awayPicked && p.spread ? ` ${p.spread}` : ''}
+                            </Text>
+                            <Text style={styles.streakAt}>  @  </Text>
+                            <Text style={[styles.streakTeam, homePicked && pickedColor]}>
+                              {p.homeTeam}{homePicked && p.spread ? ` ${p.spread}` : ''}
+                            </Text>
+                          </Text>
+                          <Text style={styles.streakPickDate}>{formatDate(p.date)}</Text>
+                        </View>
+                        {(!!p.confidence || !!p.source) && (
+                          <Text style={styles.streakPickSub}>
+                            {[
+                              p.confidence ? `${p.confidence} confidence` : null,
+                              p.source ? `via ${p.source}` : null,
+                            ].filter(Boolean).join('  ·  ')}
+                          </Text>
+                        )}
+                        {!!p.notes && <Text style={styles.streakPickNotes}>💬 {p.notes}</Text>}
                       </View>
-                      {!!p.matchup && <Text style={styles.streakPickSub}>{p.matchup}</Text>}
-                      {(!!p.confidence || !!p.source) && (
-                        <Text style={styles.streakPickSub}>
-                          {[
-                            p.confidence ? `${p.confidence} confidence` : null,
-                            p.source ? `via ${p.source}` : null,
-                          ].filter(Boolean).join('  ·  ')}
-                        </Text>
-                      )}
-                      {!!p.notes && <Text style={styles.streakPickNotes}>💬 {p.notes}</Text>}
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -309,7 +323,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  streakPickLabel: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  streakPickMatchup: { fontSize: 14 },
+  streakTeam: { color: '#8E8E93', fontSize: 14, fontWeight: '600' },
+  streakTeamWon: { color: '#00E676', fontWeight: '800' },
+  streakTeamLost: { color: '#FF453A', fontWeight: '800' },
+  streakAt: { color: '#5A5A5E', fontSize: 14, fontWeight: '600' },
   streakPickDate: { color: '#8E8E93', fontSize: 12 },
   streakPickSub: { color: '#8E8E93', fontSize: 12, marginTop: 3 },
   streakPickNotes: { color: '#C7C7CC', fontSize: 12, marginTop: 5, fontStyle: 'italic' },
