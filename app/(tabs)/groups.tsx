@@ -378,14 +378,17 @@ export default function GroupsScreen() {
               </TouchableOpacity>
             )}
 
-            {group.role === 'primary_owner' && (
-              <TouchableOpacity
-                style={styles.settingsButton}
-                onPress={() => router.push(`/group/settings?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
-              >
-                <Text style={styles.settingsButtonText}>⚙️ Group Settings</Text>
-              </TouchableOpacity>
-            )}
+            {/* Owners get full settings; members get a way to leave.
+               Both land on the group settings screen, which shows
+               role-appropriate content (owner controls vs. Leave Group). */}
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => router.push(`/group/settings?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
+            >
+              <Text style={styles.settingsButtonText}>
+                {group.role === 'primary_owner' ? '⚙️ Group Settings' : '👋 Leave Group'}
+              </Text>
+            </TouchableOpacity>
           </View>
         ))}
 
