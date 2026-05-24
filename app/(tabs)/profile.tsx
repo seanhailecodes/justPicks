@@ -219,13 +219,17 @@ export default function ProfileScreen() {
       const lmLosses = lastMonthPicks.filter(p => p.correct === false).length;
       const lmTotal = lmWins + lmLosses;
 
-      // P&L — only for decided picks that have a wager_amount
-      const wageredPicks = picks.filter(p => p.wager_amount != null && p.correct !== null);
+      // P&L — across every sport (so it matches Pick History), decided
+      // wagered picks only. Uses the user's actual entered payout so
+      // non -110 odds are reflected; the -110 formula is only a fallback
+      // for legacy picks saved without a potential_win.
+      const wageredPicks = (allPicks || []).filter(p => p.wager_amount != null && p.correct !== null);
       let pnl: { amount: number; currency: string } | null = null;
       if (wageredPicks.length > 0) {
         const currency = wageredPicks[wageredPicks.length - 1].currency || 'USD';
         const total = wageredPicks.reduce((sum, p) => {
-          return sum + (p.correct ? calculatePayout(p.wager_amount) : -p.wager_amount);
+          const payout = p.potential_win ?? calculatePayout(p.wager_amount);
+          return sum + (p.correct ? payout : -p.wager_amount);
         }, 0);
         pnl = { amount: parseFloat(total.toFixed(2)), currency };
       }
