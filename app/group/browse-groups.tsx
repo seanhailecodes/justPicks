@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { Alert } from '../lib/crossPlatformAlert';
 import { supabase } from '../lib/supabase';
 
 interface PublicGroup {
@@ -121,34 +122,37 @@ export default function BrowseGroupsScreen() {
         // Create join request (future feature)
         Alert.alert(
           'Approval Required',
-          'This group requires owner approval. This feature is coming soon!',
-          [{ text: 'OK' }]
+          'This group requires owner approval. This feature is coming soon!'
         );
-        setJoiningGroupId(null);
         return;
-      } else {
-        // Join directly
-        const { error } = await supabase
-          .from('group_members')
-          .insert({
-            group_id: group.id,
-            user_id: currentUserId,
-            role: 'member'
-          });
-
-        if (error) throw error;
-
-        Alert.alert(
-          'Success!',
-          `You've joined "${group.name}"!`,
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/(tabs)/groups')
-            }
-          ]
-        );
       }
+
+      // Join directly.
+      const { error } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: group.id,
+          user_id: currentUserId,
+          role: 'member'
+        });
+
+      // 23505 = unique_violation: the user is already a member,
+      // which we treat as success rather than a failure.
+      const alreadyMember = error?.code === '23505';
+      if (error && !alreadyMember) throw error;
+
+      // Update the card in place so the orange "Join" button flips
+      // to "Already Joined" and the member count ticks up. This is
+      // the reliable cross-platform feedback (Alert is a web no-op).
+      setGroups(prev =>
+        prev.map(g =>
+          g.id === group.id
+            ? { ...g, isMember: true, memberCount: g.memberCount + (alreadyMember ? 0 : 1) }
+            : g
+        )
+      );
+
+      Alert.alert('Success!', `You've joined "${group.name}".`);
     } catch (error) {
       console.error('Error joining group:', error);
       Alert.alert('Error', 'Failed to join group. Please try again.');
