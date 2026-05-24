@@ -474,12 +474,15 @@ export async function getGroupAccuracy(groupId: string, season?: number): Promis
 
 // One pick inside a streak — surfaced when a streak row is expanded.
 export interface SeasonRecapStreakPick {
-  matchup: string;             // "AWY @ HOM"
-  pickLabel: string;           // "Cowboys -3.5"
-  date: string;                // game date (ISO)
-  confidence: string | null;   // e.g. "High"
-  source: string | null;       // pick rationale, e.g. "research"
-  notes: string | null;        // the member's own written reasoning
+  awayTeam: string;
+  homeTeam: string;
+  pickedSide: 'home' | 'away';  // which team the member picked
+  spread: string;               // "-3.5", "+7" or "" — attached to the pick
+  won: boolean;                 // did the pick hit
+  date: string;                 // game date (ISO)
+  confidence: string | null;    // e.g. "High"
+  source: string | null;        // pick rationale, e.g. "research"
+  notes: string | null;         // the member's own written reasoning
 }
 
 export interface SeasonRecapMember {
@@ -573,17 +576,22 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   );
 
   // Builds the expandable detail for one pick inside a streak.
+  // `pick` ('home'/'away') is the canonical side — team_picked is
+  // unreliable (sometimes stores 'home'/'away'), so resolve the real
+  // team name off the game.
   const toStreakPick = (p: any): SeasonRecapStreakPick => {
     const g = gameMap.get(p.game_id);
-    const team = p.team_picked || p.picked_team
-      || (p.pick === 'home' ? g?.home_team : g?.away_team) || 'Pick';
+    const side: 'home' | 'away' = p.pick === 'away' ? 'away' : 'home';
     const spread = p.spread_value != null
-      ? ` ${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '';
+      ? `${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '';
     const note = p.reasoning != null && String(p.reasoning).trim() !== ''
       ? String(p.reasoning).trim() : null;
     return {
-      matchup: g ? `${g.away_team} @ ${g.home_team}` : '',
-      pickLabel: `${team}${spread}`,
+      awayTeam: g?.away_team || 'Away',
+      homeTeam: g?.home_team || 'Home',
+      pickedSide: side,
+      spread,
+      won: p.correct === true,
       date: g?.game_date || p.created_at || '',
       confidence: p.confidence || null,
       source: p.pick_source ? String(p.pick_source).replace(/_/g, ' ') : null,
@@ -677,8 +685,8 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     .filter((p: any) => p.correct === false && p.cover_margin != null)
     .map((p: any) => {
       const g = gameMap.get(p.game_id);
-      const team = p.team_picked || p.picked_team
-        || (p.pick === 'home' ? g?.home_team : g?.away_team) || 'Pick';
+      const team = (p.pick === 'away' ? g?.away_team : g?.home_team)
+        || p.team_picked || p.picked_team || 'Pick';
       const spread = p.spread_value != null
         ? ` ${Number(p.spread_value) > 0 ? '+' : ''}${p.spread_value}` : '';
       return {
