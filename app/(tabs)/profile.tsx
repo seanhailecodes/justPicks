@@ -765,15 +765,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 8,
-    flexGrow: 1,
-    justifyContent: 'center',
   },
   seasonChip: {
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 16,
     marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   seasonChipActive: {
     backgroundColor: '#FF6B35',
@@ -782,6 +782,7 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
   },
   seasonChipTextActive: {
     color: '#FFF',
