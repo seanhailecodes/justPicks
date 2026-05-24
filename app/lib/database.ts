@@ -479,6 +479,7 @@ export interface SeasonRecapMember {
   wins: number;
   accuracy: number;       // 0-100
   bestStreak: number;     // longest win streak this season
+  worstStreak: number;    // longest losing streak this season
   currentStreak: number;  // streak ending on the latest pick (+win / -loss)
 }
 
@@ -506,6 +507,7 @@ export interface SeasonRecapData {
   pickerCount: number;            // distinct members who picked
   leaderboard: SeasonRecapMember[];
   hotStreaks: SeasonRecapMember[];
+  coldStreaks: SeasonRecapMember[];
   biggestMisses: SeasonRecapMiss[];
   trends: SeasonRecapTrend[];
 }
@@ -514,7 +516,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   const empty: SeasonRecapData = {
     season, hasData: false, scoredPicks: 0, totalCorrect: 0,
     groupAccuracy: null, pickerCount: 0,
-    leaderboard: [], hotStreaks: [], biggestMisses: [], trends: [],
+    leaderboard: [], hotStreaks: [], coldStreaks: [], biggestMisses: [], trends: [],
   };
 
   // Group sport — only this sport's games count toward the recap.
@@ -579,11 +581,14 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
 
     const wins = scored.filter(p => p.correct === true).length;
 
-    // Longest win streak
-    let best = 0, run = 0;
+    // Longest win streak and longest losing streak
+    let best = 0, worst = 0, winRun = 0, lossRun = 0;
     scored.forEach(p => {
-      if (p.correct === true) { run += 1; best = Math.max(best, run); }
-      else run = 0;
+      if (p.correct === true) {
+        winRun += 1; best = Math.max(best, winRun); lossRun = 0;
+      } else {
+        lossRun += 1; worst = Math.max(worst, lossRun); winRun = 0;
+      }
     });
 
     // Current streak — walk back from the most recent pick
@@ -603,6 +608,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
       wins,
       accuracy: Math.round((wins / scored.length) * 100),
       bestStreak: best,
+      worstStreak: worst,
       currentStreak: current,
     });
   });
@@ -614,10 +620,16 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     (a, b) => b.accuracy - a.accuracy || b.picks - a.picks
   );
 
-  // Hot streaks — biggest win streak first; only streaks of 2+.
+  // Hot streaks — longest WIN streak each member put together (2+).
   const hotStreaks = [...memberStats]
     .filter(m => m.bestStreak >= 2)
     .sort((a, b) => b.bestStreak - a.bestStreak || b.accuracy - a.accuracy);
+
+  // Cold streaks — longest LOSING streak each member hit (2+).
+  // Its own category so it never gets mixed into Hot Streaks.
+  const coldStreaks = [...memberStats]
+    .filter(m => m.worstStreak >= 2)
+    .sort((a, b) => b.worstStreak - a.worstStreak || a.accuracy - b.accuracy);
 
   // ---- Biggest misses — losses ranked by how far short they fell ----
   const biggestMisses: SeasonRecapMiss[] = seasonPicks
@@ -732,6 +744,7 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
     pickerCount: memberStats.length,
     leaderboard,
     hotStreaks,
+    coldStreaks,
     biggestMisses,
     trends,
   };

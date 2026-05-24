@@ -90,23 +90,35 @@ export default function SeasonRecap({ groupId, season, seasonLabel, resolveName 
         ))}
       </View>
 
-      {/* ---- Hot Streaks ---- */}
+      {/* ---- Hot Streaks — longest WIN streak each member ran off ---- */}
       {recap.hotStreaks.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>🔥 Hot Streaks</Text>
+          <Text style={styles.cardHint}>Longest run of wins in a row this season</Text>
           {recap.hotStreaks.map(m => (
             <View key={m.userId} style={styles.row}>
               <View style={styles.rowMain}>
                 <Text style={styles.rowName}>{name(m.userId, m.name)}</Text>
-                <Text style={styles.rowMeta}>
-                  {m.currentStreak > 0
-                    ? `Riding ${m.currentStreak} straight`
-                    : m.currentStreak < 0
-                      ? `Cooled off (${-m.currentStreak} L)`
-                      : 'Season high'}
-                </Text>
+                <Text style={styles.rowMeta}>{m.wins}-{m.picks - m.wins} on the season</Text>
               </View>
-              <Text style={styles.streakStat}>{m.bestStreak} 🔥</Text>
+              <Text style={styles.streakStat}>{m.bestStreak} wins 🔥</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ---- Cold Streaks — longest LOSING streak; its own category ---- */}
+      {recap.coldStreaks.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🥶 Cold Streaks</Text>
+          <Text style={styles.cardHint}>Longest run of losses in a row this season</Text>
+          {recap.coldStreaks.map(m => (
+            <View key={m.userId} style={styles.row}>
+              <View style={styles.rowMain}>
+                <Text style={styles.rowName}>{name(m.userId, m.name)}</Text>
+                <Text style={styles.rowMeta}>{m.wins}-{m.picks - m.wins} on the season</Text>
+              </View>
+              <Text style={styles.coldStat}>{m.worstStreak} losses 🥶</Text>
             </View>
           ))}
         </View>
@@ -224,6 +236,7 @@ const styles = StyleSheet.create({
   rowStat: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   rowStatTop: { color: '#00E676' },
   streakStat: { color: '#FF6B35', fontSize: 15, fontWeight: '700' },
+  coldStat: { color: '#5AC8FA', fontSize: 15, fontWeight: '700' },
   missStat: { color: '#FF453A', fontSize: 16, fontWeight: '700' },
 
   trendRow: {
