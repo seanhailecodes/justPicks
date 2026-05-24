@@ -4,15 +4,12 @@ import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, Touchabl
 import { Alert } from '../lib/crossPlatformAlert';
 import { supabase } from '../lib/supabase';
 import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
-import { getDefaultSport } from '../../services/activeSport';
+import { getDefaultSport, ENABLED_SPORTS } from '../../services/activeSport';
 
-// Available sports for group creation
-const SPORTS = [
-  { key: 'nfl', label: 'NFL', emoji: '🏈' },
-  { key: 'nba', label: 'NBA', emoji: '🏀' },
-  { key: 'ncaab', label: 'NCAAB', emoji: '🏀' },
-  { key: 'soccer', label: 'Soccer', emoji: '⚽' },
-];
+// Available sports for group creation — pulled from the central sport
+// config (activeSport.ts) so the picker covers every enabled sport
+// (MLB, NHL, UFC, Boxing, Golf, ...) and stays in sync with the app.
+const SPORTS = ENABLED_SPORTS;
 
 export default function CreateGroupScreen() {
   const { sport: sportParam } = useLocalSearchParams<{ sport?: string }>();
