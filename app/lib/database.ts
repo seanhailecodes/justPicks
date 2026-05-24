@@ -799,6 +799,76 @@ export async function getSeasonRecap(groupId: string, season: number): Promise<S
   };
 }
 
+// ============================================================
+// Default-season helpers — keep season pickers pointed at real
+// data when a new season rolls in.
+//
+// When a fresh season's schedule loads (games tagged with the new
+// season) but no games have been played yet, the newest season has
+// no graded results. These let the pickers default to the most
+// recent season that actually has activity instead.
+// ============================================================
+
+/**
+ * Most recent season the GROUP has GRADED picks for, in its own
+ * sport. Used so the out-of-season Season Recap defaults to a season
+ * with real results. Returns null if the group has no graded picks.
+ */
+export async function getLatestGradedSeasonForGroup(groupId: string): Promise<number | null> {
+  const { data: groupRow } = await supabase
+    .from('groups').select('sport').eq('id', groupId).single();
+  const groupSport = (groupRow?.sport || 'nfl').toLowerCase();
+
+  const { data: picks } = await supabase
+    .from('picks')
+    .select('game_id')
+    .contains('groups', [groupId])
+    .not('correct', 'is', null);
+  if (!picks || picks.length === 0) return null;
+
+  const gameIds = [...new Set(picks.map(p => p.game_id).filter(Boolean))];
+  if (gameIds.length === 0) return null;
+
+  const { data: games } = await supabase
+    .from('games')
+    .select('season, league')
+    .in('id', gameIds);
+  if (!games) return null;
+
+  const seasons = games
+    .filter((g: any) => (g.league || '').toLowerCase() === groupSport && typeof g.season === 'number')
+    .map((g: any) => g.season as number);
+  return seasons.length ? Math.max(...seasons) : null;
+}
+
+/**
+ * Most recent season the USER has any pick in (graded or not). Used
+ * so the Profile season picker defaults to where the user is actually
+ * active rather than a brand-new empty season. Returns null if the
+ * user has no picks at all.
+ */
+export async function getLatestActiveSeasonForUser(userId: string): Promise<number | null> {
+  const { data: picks } = await supabase
+    .from('picks')
+    .select('game_id')
+    .eq('user_id', userId);
+  if (!picks || picks.length === 0) return null;
+
+  const gameIds = [...new Set(picks.map(p => p.game_id).filter(Boolean))];
+  if (gameIds.length === 0) return null;
+
+  const { data: games } = await supabase
+    .from('games')
+    .select('season')
+    .in('id', gameIds);
+  if (!games) return null;
+
+  const seasons = (games as any[])
+    .map(g => g.season)
+    .filter((s): s is number => typeof s === 'number');
+  return seasons.length ? Math.max(...seasons) : null;
+}
+
 // Get user groups with performance metrics
 export async function getUserGroups(userId: string): Promise<UserGroup[]> {
   try {

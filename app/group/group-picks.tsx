@@ -7,6 +7,7 @@ import SeasonRecap from '../../components/SeasonRecap';
 import { Sport } from '../../services/pickrating';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
 import { isSportInSeason, getSport } from '../../services/activeSport';
+import { getLatestGradedSeasonForGroup } from '../lib/database';
 
 interface FriendPick {
   id: string;
@@ -144,16 +145,28 @@ export default function GroupPicksScreen() {
   }, []);
 
   // Load the list of seasons that actually exist in the games table.
-  // The newest is flagged isCurrent and becomes the default selection.
   useEffect(() => {
-    const loadSeasons = async () => {
-      const opts = await getSeasonOptions();
-      setSeasonOptions(opts);
-      const current = opts.find(o => o.isCurrent) ?? opts[0];
-      if (current) setSelectedSeason(current.value);
-    };
-    loadSeasons();
+    getSeasonOptions().then(setSeasonOptions);
   }, []);
+
+  // Pick the default season once the seasons and the group's sport
+  // are known. In season → the newest (live) season. Out of season →
+  // the most recent season the group actually has graded results for,
+  // so when a new season's schedule loads the recap never opens to an
+  // empty upcoming season. Everything flows automatically from there.
+  useEffect(() => {
+    if (selectedSeason != null) return;
+    if (seasonOptions.length === 0 || !groupInfo) return;
+
+    const newest = seasonOptions.find(o => o.isCurrent)?.value ?? seasonOptions[0].value;
+    if (isSportInSeason(getSport(groupInfo.sport).season)) {
+      setSelectedSeason(newest);
+      return;
+    }
+    getLatestGradedSeasonForGroup(groupId).then(graded => {
+      setSelectedSeason(graded ?? newest);
+    });
+  }, [seasonOptions, groupInfo, selectedSeason, groupId]);
 
   // Load games when sport/week changes. NFL is week-based and needs
   // selectedWeek resolved first; every other sport loads directly.
