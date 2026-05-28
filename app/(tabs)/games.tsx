@@ -379,25 +379,83 @@ export default function GamesScreen() {
 
   const loadUserPicks = async (userId: string, sportOverride?: SportConfig) => {
     try {
-      // Load all picks for this user (we'll filter by game later)
       const result = await getUserPicks(userId, null);
 
-      const picksMap = new Map();
+      // Multi-bet model: each game can have a spread row, a moneyline
+      // row, and a total row. The Map value carries one slot per bet
+      // type plus top-level legacy fields that older read sites
+      // (game.selectedPick, the wager UI) still depend on. The old
+      // single-row write here silently dropped whichever bet wasn't
+      // iterated last — leaving the ML cell un-highlighted on any
+      // game where the user also took the spread.
+      const picksMap = new Map<string, any>();
 
       if (result.success && result.data) {
         result.data.forEach(pick => {
-          picksMap.set(pick.game_id, {
-            id: pick.id,
-            pick: pick.team_picked,
-            pickType: pick.pick_type,
-            confidence: pick.confidence,
+          const existing = picksMap.get(pick.game_id) || {
+            spread: undefined,
+            total: undefined,
+            moneyline: undefined,
+            // Legacy top-level fields, kept for backwards compat with
+            // game.selectedPick / wager UI / etc.
+            id: null,
+            pick: null,
+            pickType: null,
+            confidence: null,
+            overUnderPick: null,
+            overUnderConfidence: null,
             groups: [],
-            reasoning: pick.reasoning,
+            reasoning: '',
+            wager_amount: null,
+            potential_win: null,
+            currency: null,
+          };
+
+          const entry = {
+            id: pick.id,
+            bet_type: pick.bet_type,
+            pick: pick.team_picked,
+            confidence: pick.confidence,
             overUnderPick: pick.over_under_pick,
             overUnderConfidence: pick.over_under_confidence,
             wager_amount: pick.wager_amount ?? null,
+            potential_win: pick.potential_win ?? null,
             currency: pick.currency ?? null,
-          });
+            ml_odds: pick.ml_odds ?? null,
+            pickType: pick.pick_type,
+            reasoning: pick.reasoning,
+          };
+
+          if (pick.bet_type === 'spread') {
+            existing.spread = entry;
+            // Mirror spread fields up to the legacy top level so the
+            // wager UI / "you picked this game" gate keep working.
+            existing.pick = pick.team_picked;
+            existing.confidence = pick.confidence;
+            existing.pickType = pick.pick_type;
+            existing.reasoning = pick.reasoning;
+          } else if (pick.bet_type === 'total') {
+            existing.total = entry;
+            existing.overUnderPick = pick.over_under_pick;
+            existing.overUnderConfidence = pick.over_under_confidence;
+          } else if (pick.bet_type === 'moneyline') {
+            existing.moneyline = entry;
+          }
+
+          // Backfill so a game with only a non-spread bet still reads
+          // as "you've picked this game."
+          if (!existing.pickType) existing.pickType = pick.pick_type;
+          if (!existing.id) existing.id = pick.id;
+
+          // Wager precedence: first non-null wins. Spread first
+          // (pre-multi-bet default), then ML, then total.
+          if (existing.wager_amount == null && pick.wager_amount != null) {
+            existing.wager_amount = pick.wager_amount;
+            existing.potential_win = pick.potential_win ?? null;
+            existing.currency = pick.currency ?? null;
+          }
+
+          picksMap.set(pick.game_id, existing);
         });
       }
 
@@ -940,23 +998,26 @@ export default function GamesScreen() {
                 const isLocked = timeToLock === 'LOCKED';
                 
                 // Helper to check if a cell is selected (saved or pending)
+                // Reads from per-bet-type slots on userPicks so a game
+                // with both a spread and an ML highlights both cells.
+                // The old logic checked a single top-level bet_type
+                // which only ever matched whichever row was iterated
+                // last in loadUserPicks.
                 const isCellSelected = (betType: string, side: string) => {
-                  // Check pending picks first
                   const pending = pendingPicks.find(
                     p => p.gameId === game.originalId && p.betType === betType && p.side === side
                   );
                   if (pending) return 'pending';
 
-                  // Check saved picks
-                  if (betType === 'spread' && game.selectedPick === side) return 'saved';
+                  const saved = userPicks.get(game.originalId!);
+                  if (!saved) return false;
+
+                  if (betType === 'spread' && saved.spread?.pick === side) return 'saved';
                   if (betType === 'total') {
-                    if (side === 'over' && game.selectedOverUnderPick === 'over') return 'saved';
-                    if (side === 'under' && game.selectedOverUnderPick === 'under') return 'saved';
+                    if (side === 'over' && saved.total?.overUnderPick === 'over') return 'saved';
+                    if (side === 'under' && saved.total?.overUnderPick === 'under') return 'saved';
                   }
-                  if (betType === 'moneyline') {
-                    const saved = userPicks.get(game.originalId!);
-                    if (saved?.bet_type === 'moneyline' && saved?.pick === side) return 'saved';
-                  }
+                  if (betType === 'moneyline' && saved.moneyline?.pick === side) return 'saved';
                   return false;
                 };
                 
