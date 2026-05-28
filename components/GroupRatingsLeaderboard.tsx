@@ -77,7 +77,7 @@ export default function GroupRatingsLeaderboard({
           console.log('Global data received:', data);
         } else {
           console.log('Fetching group leaderboard for group:', groupId);
-          data = await getGroupLeaderboard(groupId, selectedTimeframe, sport);
+          data = await getGroupLeaderboard(groupId, selectedTimeframe, sport, userId);
           console.log('Group data received:', data);
         }
 
@@ -243,7 +243,12 @@ export default function GroupRatingsLeaderboard({
                     </Text>
                     <View style={styles.nameSection}>
                       <View style={styles.nameRow}>
-                        <Text style={styles.memberName}>{user.displayName}</Text>
+                        {/* Prefix the viewer's own row with "You ·" so they can
+                            find themselves quickly even when the leaderboard
+                            mixes their real handle in among anonymised others. */}
+                        <Text style={styles.memberName}>
+                          {user.userId === userId ? `You · ${user.displayName}` : user.displayName}
+                        </Text>
                         {user.isAnonymized && (
                           <View style={styles.anonBadge}>
                             <Text style={styles.anonBadgeText}>Anon</Text>

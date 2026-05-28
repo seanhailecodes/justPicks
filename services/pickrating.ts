@@ -1,4 +1,5 @@
 import { supabase } from '../app/lib/supabase';
+import { displayNameForPublicGroup } from './anonymity';
 
 /**
  * Pick rating system - calculates user ratings based on:
@@ -1088,9 +1089,23 @@ export async function getTopPerformersGlobally(
 export async function getGroupLeaderboard(
   groupId: string,
   timeframe: 'week' | 'month' | 'season' | 'allTime' = 'week',
-  sport: Sport = 'nfl'
+  sport: Sport = 'nfl',
+  // Current viewer's user id — needed so we can show their own real
+  // username (labelled "You") in public groups instead of anonymising
+  // them to themselves. Optional for backwards compatibility; without
+  // it, the viewer's own row will also be aliased in public groups.
+  currentUserId?: string | null,
 ): Promise<LeaderboardUser[]> {
   try {
+    // Pull the group's visibility so we know whether to anonymise other
+    // members. Public groups → aliases; private groups → real usernames.
+    const { data: groupRow } = await supabase
+      .from('groups')
+      .select('visibility')
+      .eq('id', groupId)
+      .single();
+    const isPublicGroup = groupRow?.visibility === 'public';
+
     const { data: groupMembers, error: membersError } = await supabase
       .from('group_members')
       .select('user_id')
@@ -1127,10 +1142,18 @@ export async function getGroupLeaderboard(
 
         const decidedPicks = stats.correctPicks + stats.incorrectPicks;
 
+        // Public groups: everyone but the viewer gets a deterministic
+        // word-pair alias (e.g. "CleverFox"). Private groups keep real
+        // usernames so members can still recognise each other.
+        const realName = profile.display_name || profile.username || 'User';
+        const { displayName, isAnonymized } = isPublicGroup
+          ? displayNameForPublicGroup(oderId, realName, currentUserId)
+          : { displayName: realName, isAnonymized: false };
+
         leaderboardUsers.push({
           userId: oderId,
-          displayName: profile.display_name || profile.username || 'User',
-          isAnonymized: false,
+          displayName,
+          isAnonymized,
           rating: stats.rating,
           totalPicks: stats.totalPicks,
           correctPicks: stats.correctPicks,
