@@ -506,9 +506,44 @@ export default function GamesScreen() {
         return;
       }
 
+      // Drop conditional matchups: in every major sport a team plays at
+      // most once per day, so if a team shows up in 2+ rows on the same
+      // ET date all of those rows are contingent on a prior series
+      // (e.g. NBA Finals listed as both "NYK @ OKC" and "NYK @ SAS"
+      // while the WCF is still being played). Hide them until the
+      // upstream series resolves and the API stops returning the
+      // losing matchup.
+      //
+      // game_id is keyed `<league>_<YYYY-MM-DD>_<away>_<home>` where the
+      // date is ET — so grouping by that segment gives us the right
+      // bucket without needing to re-derive the timezone.
+      const teamsPerDate = new Map<string, Map<string, number>>();
+      for (const g of dbGames) {
+        const parts = String(g.id || '').split('_');
+        if (parts.length < 4) continue;
+        const dateKey = parts[1];
+        const teams = [g.home_team_code, g.away_team_code].filter(Boolean) as string[];
+        const bucket = teamsPerDate.get(dateKey) || new Map<string, number>();
+        for (const t of teams) bucket.set(t, (bucket.get(t) || 0) + 1);
+        teamsPerDate.set(dateKey, bucket);
+      }
+      const filteredDbGames = dbGames.filter((g: any) => {
+        const parts = String(g.id || '').split('_');
+        if (parts.length < 4) return true;
+        const dateKey = parts[1];
+        const bucket = teamsPerDate.get(dateKey);
+        if (!bucket) return true;
+        const teams = [g.home_team_code, g.away_team_code].filter(Boolean) as string[];
+        return !teams.some(t => (bucket.get(t) || 0) > 1);
+      });
+      const droppedCount = dbGames.length - filteredDbGames.length;
+      if (droppedCount > 0) {
+        console.log(`[${sport.league}] Hid ${droppedCount} conditional matchup(s) waiting on a prior series`);
+      }
+
       const picks = picksToUse || userPicks;
 
-      const transformedGames: Game[] = (dbGames || []).map((dbGame, index) => {
+      const transformedGames: Game[] = (filteredDbGames || []).map((dbGame, index) => {
         // Parse date as UTC
         const utcDateStr = toUTCDateString(dbGame.game_date);
         const gameDateTime = new Date(utcDateStr);
