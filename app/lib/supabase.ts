@@ -344,29 +344,20 @@ export const getUserPickHistory = async (userId: string) => {
   // Create a map for quick game lookup
   const gamesMap = new Map(games?.map(game => [game.id, game]) || []);
 
-  // Combine picks with games data
+  // Combine picks with games data. Each pick row (spread / moneyline /
+  // total) stands on its own — do NOT dedupe by game_id. The old
+  // reduce-by-game_id here was a leftover from the pre-multi-bet era,
+  // when only one pick per game could exist; it was silently hiding the
+  // second bet on any game where a user took both a spread and an ML
+  // (or a total + ML, etc.), so Pick History only ever showed one row
+  // per game even though both were saved and graded in the DB.
   const picksWithGames = picks.map(pick => ({
     ...pick,
     games: gamesMap.get(pick.game_id) || null
   }));
 
-  // Remove duplicates - keep the most recent pick for each game
-  const uniquePicks = picksWithGames.reduce((acc, pick) => {
-    const existingPick = acc.find(p => p.game_id === pick.game_id);
-    if (!existingPick) {
-      acc.push(pick);
-    } else {
-      // Keep the more recent pick
-      if (new Date(pick.created_at) > new Date(existingPick.created_at)) {
-        const index = acc.indexOf(existingPick);
-        acc[index] = pick;
-      }
-    }
-    return acc;
-  }, [] as any[]);
-  
-  // Sort by created_at descending
-  return uniquePicks.sort((a, b) => 
+  // Sort by created_at descending (most recent first).
+  return picksWithGames.sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 };
