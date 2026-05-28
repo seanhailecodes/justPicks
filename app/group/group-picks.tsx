@@ -8,6 +8,7 @@ import { Sport } from '../../services/pickrating';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
 import { isSportInSeason, getSport } from '../../services/activeSport';
 import { getLatestGradedSeasonForGroup } from '../lib/database';
+import { getPublicAlias } from '../../services/anonymity';
 
 interface FriendPick {
   id: string;
@@ -31,18 +32,6 @@ interface GroupInfo {
   sport: Sport;
   visibility: string;
 }
-
-// Generates a consistent fun alias for a user in a public group
-// e.g. "ClutchPick42" — deterministic so same user always gets same alias
-const getPublicAlias = (userId: string, groupId: string): string => {
-  const seed = [...(userId + groupId)].reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const adjectives = ['Sharp', 'Clutch', 'Bold', 'Slick', 'Hot', 'Cold', 'Wild', 'Solid', 'Smooth', 'Quick'];
-  const nouns = ['Pick', 'Call', 'Shot', 'Read', 'Line', 'Move', 'Play', 'Take'];
-  const adj = adjectives[seed % adjectives.length];
-  const noun = nouns[Math.floor(seed / adjectives.length) % nouns.length];
-  const num = (seed % 98) + 1;
-  return `${adj}${noun}${num}`;
-};
 
 export default function GroupPicksScreen() {
   const params = useLocalSearchParams();
@@ -297,7 +286,7 @@ export default function GroupPicksScreen() {
           username: pick.user_id === user.id
             ? 'You'
             : isPublicGroup
-              ? getPublicAlias(pick.user_id, groupId)
+              ? getPublicAlias(pick.user_id)
               : (usernameMap.get(pick.user_id) || 'Unknown')
         }));
       }
@@ -936,7 +925,7 @@ export default function GroupPicksScreen() {
               seasonLabel={recapSeasonLabel}
               resolveName={(uid, fallback) =>
                 groupInfo?.visibility === 'public'
-                  ? getPublicAlias(uid, groupId)
+                  ? getPublicAlias(uid)
                   : fallback
               }
             />
