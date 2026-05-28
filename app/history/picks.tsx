@@ -195,12 +195,17 @@ export default function PickHistoryScreen() {
   // past and future dates. Pass the GAME's commence time (game_date), not
   // when the pick was created.
   //
-  // Postgres timestamptz can come back as "2026-05-04 02:00:00+00" (space
-  // instead of T, no trailing Z); normalize to a parseable ISO string first.
+  // games.game_date is `timestamp without time zone` in Postgres and stores
+  // UTC wall clock (commence_time from The Odds API gets its offset stripped
+  // on insert). PostgREST hands back either "2026-05-29 00:40:00" or
+  // "2026-05-29T00:40:00" with no 'Z' / offset. JS Date parses the second
+  // form as LOCAL time, which made tonight's late games render as "Tomorrow"
+  // for any user in or east of UTC. Always tag UTC unless the string already
+  // carries an explicit offset.
   const formatDate = (dateString: string) => {
-    const normalized = dateString.includes('T') || dateString.endsWith('Z')
-      ? dateString
-      : dateString.replace(' ', 'T') + 'Z';
+    const withT = dateString.includes('T') ? dateString : dateString.replace(' ', 'T');
+    const hasOffset = withT.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(withT);
+    const normalized = hasOffset ? withT : withT + 'Z';
     const date = new Date(normalized);
     const now  = new Date();
     const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
