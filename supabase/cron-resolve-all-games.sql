@@ -23,6 +23,7 @@
 
 -- Step 1: Remove any old resolve jobs
 SELECT cron.unschedule('resolve-nba-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-nba-games');
+SELECT cron.unschedule('resolve-wnba-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-wnba-games');
 SELECT cron.unschedule('resolve-nhl-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-nhl-games');
 SELECT cron.unschedule('resolve-ncaab-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-ncaab-games');
 SELECT cron.unschedule('resolve-nfl-games') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'resolve-nfl-games');
@@ -37,6 +38,22 @@ SELECT cron.schedule(
   $$
   SELECT net.http_post(
     url     := 'https://oyedfzsqqqdfrmhbcbwb.supabase.co/functions/v1/resolve-nba-games',
+    headers := jsonb_build_object(
+      'Content-Type',  'application/json',
+      'Authorization', 'Bearer <PASTE_YOUR_SERVICE_ROLE_KEY_HERE>'
+    ),
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
+-- WNBA — same 5×-daily cadence as NBA (summer season). Sends pick push notifications.
+SELECT cron.schedule(
+  'resolve-wnba-games',
+  '0 4,7,13,17,23 * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://oyedfzsqqqdfrmhbcbwb.supabase.co/functions/v1/resolve-wnba-games',
     headers := jsonb_build_object(
       'Content-Type',  'application/json',
       'Authorization', 'Bearer <PASTE_YOUR_SERVICE_ROLE_KEY_HERE>'
@@ -132,6 +149,7 @@ SELECT jobid, jobname, schedule, active
 FROM cron.job
 WHERE jobname IN (
   'resolve-nba-games',
+  'resolve-wnba-games',
   'resolve-nhl-games',
   'resolve-ncaab-games',
   'resolve-nfl-games',

@@ -366,3 +366,14 @@ entrypoint = "./functions/fetch-nba-games/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/fetch-nba-games/*.html" ]
+
+[functions.fetch-wnba-games]
+enabled = true
+verify_jwt = true
+import_map = "./functions/fetch-wnba-games/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/fetch-wnba-games/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/fetch-wnba-games/*.html" ]

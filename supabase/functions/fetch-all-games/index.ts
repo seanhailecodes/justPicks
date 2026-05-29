@@ -10,6 +10,7 @@
  *
  * Cron jobs (run setup SQL in Supabase SQL editor — see cron-fetch-all-games.sql):
  *   NBA:            Daily 7:30am ET  (12:30 UTC) + 2pm ET (19:00 UTC)
+ *   WNBA:           Daily 10am ET    (15:00 UTC)  [May–Oct season]
  *   NCAAB + NHL:    Daily 10am ET    (15:00 UTC)
  *   Soccer/Golf/UFC: Mon + Sat 10am ET (15:00 UTC)
  */
@@ -26,6 +27,7 @@ const SPORT_FETCH_FUNCTIONS: Array<{
   season: [number, number, number, number] | null;
 }> = [
   { name: "NBA",    fn: "fetch-nba-games",    season: [10, 1, 6, 30]  },
+  { name: "WNBA",   fn: "fetch-wnba-games",   season: [5, 1, 10, 31]  },
   { name: "NHL",    fn: "fetch-nhl-games",    season: [10, 1, 6, 30]  },
   { name: "MLB",    fn: "fetch-mlb-games",    season: [2, 20, 10, 31] },
   { name: "NCAAB",  fn: "fetch-ncaab-games",  season: [11, 1, 4, 10]  },

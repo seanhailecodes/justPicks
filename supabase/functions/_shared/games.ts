@@ -31,7 +31,7 @@ export function isSaneSpread(point: number | null | undefined, league: string): 
   const abs = Math.abs(point);
   // Reasonable upper bounds per league. Anything above is suspicious.
   const ceilingByLeague: Record<string, number> = {
-    NBA: 30, NCAAB: 50, NFL: 30, NHL: 5, MLB: 5, SOCCER: 5,
+    NBA: 30, WNBA: 30, NCAAB: 50, NFL: 30, NHL: 5, MLB: 5, SOCCER: 5,
   };
   const ceiling = ceilingByLeague[league] ?? 50;
   return abs <= ceiling;
