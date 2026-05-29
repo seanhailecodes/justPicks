@@ -11,8 +11,9 @@
 -- If running during EDT (summer, UTC-4), adjust each hour -1.
 --
 -- Schedule summary:
---   NBA + NHL + MLB:  Daily 7× — midnight, 3am, 6am, 10am, noon, 5pm, 8pm ET
+--   NBA + WNBA + NHL + MLB:  Daily 7× — midnight, 3am, 6am, 10am, noon, 5pm, 8pm ET
 --                     → 05:00, 08:00, 11:00, 15:00, 17:00, 22:00, 01:00 UTC
+--                     (out-of-season auto-skip: NBA/NHL winter, WNBA/MLB summer)
 --   NCAAB:            Daily once — 10:00am ET → 15:00 UTC
 --   Soccer/Golf/UFC/Boxing: Mon + Sat — 10:00am ET → 15:00 UTC
 --
@@ -28,7 +29,7 @@ SELECT cron.unschedule('fetch-ncaab-nhl-daily');
 SELECT cron.unschedule('fetch-other-sports-mon-sat');
 SELECT cron.unschedule('fetch-active-sports-daily');
 
--- Step 2: NBA + NHL + MLB — 6× daily at midnight, 3am, 6am, 10am, noon, 5pm ET
+-- Step 2: NBA + WNBA + NHL + MLB — 6× daily at midnight, 3am, 6am, 10am, noon, 5pm ET
 --         (01:00 UTC handles the 8pm ET slot — see Step 3)
 SELECT cron.schedule(
   'fetch-active-sports-6x-daily',
@@ -40,12 +41,12 @@ SELECT cron.schedule(
       'Content-Type',  'application/json',
       'Authorization', 'Bearer <PASTE_YOUR_SERVICE_ROLE_KEY_HERE>'
     ),
-    body    := '{"sports":["NBA","NHL","MLB"]}'::jsonb
+    body    := '{"sports":["NBA","WNBA","NHL","MLB"]}'::jsonb
   );
   $$
 );
 
--- Step 3: NBA + NHL + MLB — 8pm ET (01:00 UTC next day)
+-- Step 3: NBA + WNBA + NHL + MLB — 8pm ET (01:00 UTC next day)
 SELECT cron.schedule(
   'fetch-active-sports-8pm-et',
   '0 1 * * *',
@@ -56,7 +57,7 @@ SELECT cron.schedule(
       'Content-Type',  'application/json',
       'Authorization', 'Bearer <PASTE_YOUR_SERVICE_ROLE_KEY_HERE>'
     ),
-    body    := '{"sports":["NBA","NHL","MLB"]}'::jsonb
+    body    := '{"sports":["NBA","WNBA","NHL","MLB"]}'::jsonb
   );
   $$
 );
@@ -97,8 +98,8 @@ SELECT cron.schedule(
 SELECT jobid, jobname, schedule, active
 FROM cron.job
 WHERE jobname IN (
-  'fetch-active-sports-6x-daily',
-  'fetch-active-sports-8pm-et',
+  'fetch-active-sports-6x-daily',  -- includes WNBA (summer) alongside NBA/NHL (winter) + MLB
+  'fetch-active-sports-8pm-et',    -- includes WNBA
   'fetch-ncaab-daily',
   'fetch-other-sports-mon-sat'
 )

@@ -8,6 +8,7 @@ const corsHeaders = {
 // Maps DB league name → Odds API sport key(s)
 const LEAGUE_ODDS_KEYS: Record<string, string[]> = {
   NBA:   ['basketball_nba'],
+  WNBA:  ['basketball_wnba'],
   NFL:   ['americanfootball_nfl'],
   NCAAB: ['basketball_ncaab'],
   NHL:   ['icehockey_nhl'],
