@@ -25,6 +25,7 @@ export interface NFLGame {
   tv: string[];
   isPrimetime: boolean;
   isNeutralSite?: boolean;
+  notes?: string;
 }
 
 export const NFL_WEEK_13_2025: NFLGame[] = [

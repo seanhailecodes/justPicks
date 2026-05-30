@@ -37,7 +37,7 @@ export async function resolveAllPastWeeks() {
       }
     } catch (error) {
       console.error(`❌ Week ${weekNum} error:`, error);
-      results.push({ week: weekNum, success: false, games: 0, error: error.message });
+      results.push({ week: weekNum, success: false, games: 0, error: (error as Error).message });
     }
   }
   

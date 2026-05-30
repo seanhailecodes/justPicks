@@ -156,13 +156,12 @@ export default function GroupDiscussionScreen() {
 
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { maxHeight: 100 }]}
             placeholder="Share your thoughts..."
             placeholderTextColor="#8E8E93"
             value={message}
             onChangeText={setMessage}
             multiline
-            maxHeight={100}
           />
           <TouchableOpacity 
             style={[styles.sendButton, !message.trim() && styles.sendButtonDisabled]}

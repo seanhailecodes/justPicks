@@ -142,7 +142,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           ? "Let's Go!" 
           : "Fresh Start!";
         
-        showNotification(msg.title, msg.message, msg.type, buttonText);
+        showNotification(msg.title, msg.message, msg.type === 'neutral' ? 'info' : msg.type, buttonText);
 
         // Update storage to prevent showing again this week
         await AsyncStorage.setItem(

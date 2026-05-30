@@ -49,8 +49,8 @@ export default function GroupRatingsLeaderboard({
           .select(sportConfig.appStateKey!)
           .single();
         
-        if (data?.[sportConfig.appStateKey!]) {
-          setCurrentWeek(data[sportConfig.appStateKey!]);
+        if ((data as any)?.[sportConfig.appStateKey!]) {
+          setCurrentWeek((data as any)[sportConfig.appStateKey!]);
         }
       };
       fetchCurrentWeek();
