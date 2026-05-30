@@ -199,6 +199,14 @@ export default function GamesScreen() {
   const [lockedToWinText, setLockedToWinText] = useState<Record<string, string>>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const gameYPositions = useRef<Record<string, number>>({});
+  // Tracks the sport value we've already applied from the `sport` URL param.
+  // expo-router re-emits params on re-focus/re-render, so without this a stale
+  // param (e.g. the sport we arrived with) would repeatedly override the user's
+  // manual tab selection and snap them back. We apply each distinct param value
+  // at most once. Seeded with the initial param so first mount doesn't re-apply.
+  const appliedSportParamRef = useRef<string | null>(
+    params.sport ? (params.sport as string).toLowerCase() : null
+  );
   // NOTE: must stay AFTER session declaration to avoid hook ordering crash
   const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
@@ -265,12 +273,18 @@ export default function GamesScreen() {
     setCollapsedBuckets(prev => ({ ...prev, [label]: !isBucketCollapsed(label) }));
   };
 
-  // Handle incoming sport parameter changes (for when navigating while already on the screen)
+  // Handle incoming sport parameter changes (for when navigating while already
+  // on the screen). Only act when the param is a NEW value we haven't applied
+  // yet — re-emissions of the same param (on re-focus/re-render) are ignored so
+  // they can't clobber a sport the user picked manually afterward.
   useEffect(() => {
-    if (params.sport) {
-      const sportKey = (params.sport as string).toLowerCase();
-      const sportConfig = SPORTS.find(s => s.key === sportKey);
-      if (sportConfig && sportConfig.enabled && sportConfig.key !== selectedSport.key) {
+    if (!params.sport) return;
+    const sportKey = (params.sport as string).toLowerCase();
+    if (sportKey === appliedSportParamRef.current) return;
+    const sportConfig = SPORTS.find(s => s.key === sportKey);
+    if (sportConfig && sportConfig.enabled) {
+      appliedSportParamRef.current = sportKey;
+      if (sportConfig.key !== selectedSport.key) {
         setSelectedSport(sportConfig);
       }
     }
@@ -972,7 +986,14 @@ export default function GamesScreen() {
         selectedKey={selectedSport.key}
         onSelect={(key) => {
           const next = SPORTS.find((s) => s.key === key);
-          if (next) setSelectedSport(next);
+          if (next) {
+            setSelectedSport(next);
+            // Keep the URL param + applied-param ref in sync with the manual
+            // choice so a later param re-emission can't revert it, and so a
+            // remount re-initializes to what the user actually picked.
+            appliedSportParamRef.current = key;
+            router.setParams({ sport: key });
+          }
         }}
         userId={session?.user?.id ?? null}
       />
