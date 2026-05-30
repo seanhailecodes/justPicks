@@ -898,7 +898,7 @@ export async function getGroupMembersRatings(
         const allTimeStats = await calculateTimeframeStats(oderId, 'allTime', profile.username, sport, groupId);
 
         ratings.push({
-          oderId,
+          userId: oderId,
           username: profile.username || 'User',
           email: profile.email || '',
           weekStats,
@@ -1050,7 +1050,7 @@ export async function getTopPerformersGlobally(
         const decidedPicks = stats.correctPicks + stats.incorrectPicks;
 
         allUsersWithRatings.push({
-          oderId,
+          userId: oderId,
           displayName: isKnown ? profile.username : anonymizeUsername(oderId),
           isAnonymized: !isKnown,
           rating: stats.rating,
