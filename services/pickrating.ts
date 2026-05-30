@@ -364,7 +364,7 @@ async function getCurrentWeek(sport: Sport): Promise<number> {
       return 1;
     }
 
-    const week = data?.[config.appStateKey] || 1;
+    const week = (data as any)?.[config.appStateKey] || 1;
     
     weekCache[cacheKey] = {
       week,
@@ -976,7 +976,7 @@ export async function rankGroupMembers(
 
   const ranked = ratings
     .map((user) => ({
-      ...user[statsKey as keyof typeof user],
+      ...user[statsKey],
       rank: 0
     }))
     .sort((a, b) => b.rating - a.rating)

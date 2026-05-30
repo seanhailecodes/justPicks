@@ -152,7 +152,7 @@ export default function AuthCallback() {
       } else if (pendingGroupCode) {
         router.replace(`/join/${pendingGroupCode}`);
       } else {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/home');
       }
     };
 

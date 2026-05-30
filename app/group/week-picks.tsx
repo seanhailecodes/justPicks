@@ -3,7 +3,7 @@ import PickModal from '@/components/PickModal';
 import { getGamesForWeek, savePick } from '@/services/picks';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { NFLGame } from '../data/nfl-week1-2025';
+import { NFLGame } from '../data/schedule/nfl-week1-2025';
 // import { useSupabase } from '../contexts/SupabaseContext';
 
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';

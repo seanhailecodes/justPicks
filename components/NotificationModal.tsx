@@ -383,7 +383,7 @@ export function useNotifications() {
       const msg = getWeeklyPerformanceMessage(winRate, wins, losses);
 
       if (msg) {
-        showNotification(msg.title, msg.message, msg.type);
+        showNotification(msg.title, msg.message, msg.type === 'neutral' ? 'info' : msg.type);
 
         // Update storage
         await AsyncStorage.setItem(

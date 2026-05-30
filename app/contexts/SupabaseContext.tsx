@@ -1,6 +1,6 @@
 // app/(tabs)/games.tsx
 import PickModal from '@/components/PickModal';
-import { NFLGame } from '@/data/nfl-week1-2025';
+import { NFLGame } from '@/app/data/schedule/nfl-week1-2025';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';

@@ -331,7 +331,7 @@ export default function GamesScreen() {
       }
     } catch (error) {
       console.error('Resolution error:', error);
-      alert(`❌ Error: ${error.message}`);
+      alert(`❌ Error: ${(error as Error).message}`);
     }
   };
 
@@ -393,7 +393,7 @@ export default function GamesScreen() {
 
   const loadUserPicks = async (userId: string, sportOverride?: SportConfig) => {
     try {
-      const result = await getUserPicks(userId, null);
+      const result = await getUserPicks(userId, undefined);
 
       // Multi-bet model: each game can have a spread row, a moneyline
       // row, and a total row. The Map value carries one slot per bet
