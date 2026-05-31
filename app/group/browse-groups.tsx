@@ -19,7 +19,7 @@ interface PublicGroup {
   isMember: boolean;
 }
 
-type Tab = 'public' | 'personal';
+type Tab = 'public' | 'private';
 
 const SPORT_EMOJI: Record<string, string> = {
   nfl: '🏈', nba: '🏀', wnba: '🏀', mlb: '⚾', nhl: '🏒',
@@ -41,11 +41,11 @@ export default function BrowseGroupsScreen() {
     loadGroups();
   }, []);
 
-  // Groups belonging to the active tab (before sport/search filters).
+  // Only groups the user is a member of, split by visibility.
   const tabGroups = useMemo(
-    () => (tab === 'personal'
-      ? groups.filter(g => g.isMember)
-      : groups.filter(g => g.visibility === 'public' && !g.isMember)),
+    () => groups.filter(g => g.isMember && (
+      tab === 'private' ? g.visibility !== 'public' : g.visibility === 'public'
+    )),
     [groups, tab]
   );
 
@@ -85,26 +85,20 @@ export default function BrowseGroupsScreen() {
         .eq('user_id', user.id);
       const memberGroupIds = new Set((userMemberships || []).map(m => m.group_id));
 
-      // Public groups (Public tab) + the user's own groups (Personal tab,
-      // includes private ones they're a member of — RLS allows reading those).
-      const { data: publicGroups, error: groupsError } = await supabase
+      // Only the groups the user belongs to (public + private).
+      const ids = [...memberGroupIds];
+      if (ids.length === 0) {
+        setGroups([]);
+        setLoading(false);
+        return;
+      }
+      const { data: myGroups, error: groupsError } = await supabase
         .from('groups')
         .select('*')
-        .eq('visibility', 'public')
+        .in('id', ids)
         .order('created_at', { ascending: false });
       if (groupsError) throw groupsError;
-
-      let myGroups: any[] = [];
-      const ids = [...memberGroupIds];
-      if (ids.length > 0) {
-        const { data } = await supabase.from('groups').select('*').in('id', ids);
-        myGroups = data || [];
-      }
-
-      // Merge unique by id.
-      const byId = new Map<string, any>();
-      [...(publicGroups || []), ...myGroups].forEach(g => byId.set(g.id, g));
-      const merged = [...byId.values()];
+      const merged = myGroups || [];
 
       const withDetails = await Promise.all(
         merged.map(async (group) => {
@@ -195,16 +189,16 @@ export default function BrowseGroupsScreen() {
       {/* Personal / Public toggle */}
       <View style={styles.segment}>
         <TouchableOpacity
-          style={[styles.segmentBtn, tab === 'personal' && styles.segmentBtnActive]}
-          onPress={() => switchTab('personal')}
-        >
-          <Text style={[styles.segmentText, tab === 'personal' && styles.segmentTextActive]}>👤 My Groups</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.segmentBtn, tab === 'public' && styles.segmentBtnActive]}
           onPress={() => switchTab('public')}
         >
-          <Text style={[styles.segmentText, tab === 'public' && styles.segmentTextActive]}>🌐 Public</Text>
+          <Text style={[styles.segmentText, tab === 'public' && styles.segmentTextActive]}>🌐 My Public</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentBtn, tab === 'private' && styles.segmentBtnActive]}
+          onPress={() => switchTab('private')}
+        >
+          <Text style={[styles.segmentText, tab === 'private' && styles.segmentTextActive]}>🔒 My Private</Text>
         </TouchableOpacity>
       </View>
 
@@ -256,16 +250,14 @@ export default function BrowseGroupsScreen() {
             <Text style={styles.emptyTitle}>
               {searchQuery
                 ? 'No groups found'
-                : tab === 'personal'
-                  ? "You're not in any groups yet"
-                  : 'No public groups available'}
+                : tab === 'private'
+                  ? "You're not in any private groups"
+                  : "You're not in any public groups"}
             </Text>
             <Text style={styles.emptyText}>
               {searchQuery
                 ? 'Try a different search term'
-                : tab === 'personal'
-                  ? 'Join a public group or create your own to get started!'
-                  : 'Create your own group to get started!'}
+                : 'Create or join a group to get started!'}
             </Text>
           </View>
         ) : (
