@@ -20,7 +20,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const API_KEY = Deno.env.get('ODDS_API_KEY') || '4004f66c4a3a2905f3152c00dceedc4d'
+    const API_KEY = Deno.env.get('ODDS_API_KEY')
+    if (!API_KEY) throw new Error('ODDS_API_KEY not set')
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
     const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -69,35 +70,41 @@ Deno.serve(async (req) => {
     const gamesToUpsert = allGames.map((game) => {
       const gameDate = new Date(game.commence_time)
       
-      // Find spreads and totals from bookmakers
-      let homeSpread = 0
-      let awaySpread = 0
-      let overUnderLine = 2.5
-      let homeMoneyline = -110
-      let awayMoneyline = -110
+      // Real market values only — leave null when no book has posted a line.
+      // (Previously these defaulted to 0 / 2.5 / -110, which made every
+      // not-yet-priced fixture — e.g. World Cup group games listed months out —
+      // render identical fake "pick'em" lines.)
+      let homeSpread: number | null = null
+      let awaySpread: number | null = null
+      let overUnderLine: number | null = null
+      let homeMoneyline: number | null = null
+      let awayMoneyline: number | null = null
+      let hasSpread = false
 
-      // Get first available bookmaker's odds
-      if (game.bookmakers && game.bookmakers.length > 0) {
-        const bookmaker = game.bookmakers[0]
-        
+      // Prefer DraftKings, then FanDuel, then whatever's first.
+      const bookmaker = game.bookmakers?.find((b: any) => b.key === 'draftkings')
+        || game.bookmakers?.find((b: any) => b.key === 'fanduel')
+        || game.bookmakers?.[0]
+
+      if (bookmaker) {
         for (const market of bookmaker.markets || []) {
           if (market.key === 'spreads') {
-            const homeOutcome = market.outcomes.find((o: any) => o.name === game.home_team)
-            const awayOutcome = market.outcomes.find((o: any) => o.name === game.away_team)
-            if (homeOutcome) {
-              homeSpread = homeOutcome.point || 0
-              homeMoneyline = homeOutcome.price || -110
-            }
-            if (awayOutcome) {
-              awaySpread = awayOutcome.point || 0
-              awayMoneyline = awayOutcome.price || -110
+            const homeOutcome = market.outcomes?.find((o: any) => o.name === game.home_team)
+            const awayOutcome = market.outcomes?.find((o: any) => o.name === game.away_team)
+            // Only a real spread when both sides actually carry a point.
+            if (homeOutcome?.point != null && awayOutcome?.point != null) {
+              homeSpread = homeOutcome.point
+              awaySpread = awayOutcome.point
+              homeMoneyline = homeOutcome.price ?? null
+              awayMoneyline = awayOutcome.price ?? null
+              hasSpread = true
             }
           }
-          
+
           if (market.key === 'totals') {
-            const overOutcome = market.outcomes.find((o: any) => o.name === 'Over')
-            if (overOutcome) {
-              overUnderLine = overOutcome.point || 2.5
+            const overOutcome = market.outcomes?.find((o: any) => o.name === 'Over')
+            if (overOutcome?.point != null) {
+              overUnderLine = overOutcome.point
             }
           }
         }
@@ -123,15 +130,25 @@ Deno.serve(async (req) => {
         home_moneyline: homeMoneyline,
         away_moneyline: awayMoneyline,
         over_under_line: overUnderLine,
-        season: 2024,
+        // Season named for the year it starts (July 1 cutoff), matching the
+        // app's getCurrentSeason() convention — replaces the old hardcoded 2024.
+        season: gameDate.getMonth() >= 6 ? gameDate.getFullYear() : gameDate.getFullYear() - 1,
         week: getWeekNumber(gameDate),
         locked: gameDate < new Date(),
         external_id: game.id,
+        _hasSpread: hasSpread,
       }
     })
 
-    if (gamesToUpsert.length > 0) {
-      const upsertable = await filterLockedGames(supabase, 'SOCCER', gamesToUpsert)
+    // Only persist games that actually have a posted spread — skip fixtures
+    // with no real market so they don't surface as fake identical lines.
+    const bettable = gamesToUpsert
+      .filter((g: any) => g._hasSpread)
+      .map(({ _hasSpread, ...g }: any) => g)
+    const skipped = gamesToUpsert.length - bettable.length
+
+    if (bettable.length > 0) {
+      const upsertable = await filterLockedGames(supabase, 'SOCCER', bettable)
       const { data, error } = await supabase
         .from('games')
         .upsert(upsertable, {
@@ -144,15 +161,16 @@ Deno.serve(async (req) => {
         throw error
       }
 
-      console.log(`Successfully upserted ${gamesToUpsert.length} soccer games`)
+      console.log(`Successfully upserted ${bettable.length} soccer games (skipped ${skipped} with no posted line)`)
 
-      await mergeDuplicateGames(supabase, 'SOCCER', gamesToUpsert)
+      await mergeDuplicateGames(supabase, 'SOCCER', bettable)
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        gamesCount: gamesToUpsert.length,
+        gamesCount: bettable.length,
+        skipped,
         requestsUsed,
         requestsRemaining,
         leagues: SOCCER_SPORTS.map(s => s.name),
