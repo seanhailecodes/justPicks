@@ -901,6 +901,34 @@ export async function getLatestGradedSeasonForGroup(groupId: string): Promise<nu
 }
 
 /**
+ * All seasons the group has at least one pick in (graded or pending),
+ * newest first. Used to hide season chips the group never played in so
+ * users can't select an always-empty season.
+ */
+export async function getPickSeasonsForGroup(groupId: string): Promise<number[]> {
+  const { data: groupRow } = await supabase
+    .from('groups').select('sport').eq('id', groupId).single();
+  const groupSport = (groupRow?.sport || 'nfl').toLowerCase();
+
+  const { data: picks } = await supabase
+    .from('picks').select('game_id').contains('groups', [groupId]);
+  if (!picks || picks.length === 0) return [];
+
+  const gameIds = [...new Set(picks.map(p => p.game_id).filter(Boolean))];
+  if (gameIds.length === 0) return [];
+
+  const { data: games } = await supabase
+    .from('games').select('season, league').in('id', gameIds);
+  if (!games) return [];
+
+  return [...new Set(
+    games
+      .filter((g: any) => (g.league || '').toLowerCase() === groupSport && typeof g.season === 'number')
+      .map((g: any) => g.season as number)
+  )].sort((a, b) => b - a);
+}
+
+/**
  * Most recent season the USER has any pick in (graded or not). Used
  * so the Profile season picker defaults to where the user is actually
  * active rather than a brand-new empty season. Returns null if the
