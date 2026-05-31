@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { etDateString, mergeDuplicateGames, filterLockedGames } from "../_shared/games.ts";
+import { etDateString, mergeDuplicateGames, filterLockedGames, seasonForDate } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
         league: "BOXING",
         game_date: event.commence_time,
         locked: isStarted,
-        season: 2025,
+        season: seasonForDate(new Date(event.commence_time), "calendar"),
         game_status: isStarted ? "in_progress" : "scheduled",
         created_at: new Date().toISOString(),
       };

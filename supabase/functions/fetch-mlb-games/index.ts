@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread } from "../_shared/games.ts";
+import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread, seasonForDate } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
         league: "MLB",
         game_date: game.commence_time,
         locked: new Date(game.commence_time) <= new Date(),
-        season: 2026,
+        season: seasonForDate(new Date(game.commence_time), "calendar"),
         game_status: new Date(game.commence_time) <= new Date() ? "in_progress" : "scheduled",
         created_at: new Date().toISOString(),
       };
