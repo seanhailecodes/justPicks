@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    console.log(`Upserted ${upsertable.length} Boxing fights (skipped ${games.length - upsertable.length} locked)`);
+    console.log(`Upserted ${upsertable.length} Boxing fights (skipped ${games.length - upsertable.length} locked/unpriced)`);
 
     await mergeDuplicateGames(supabase, "BOXING", games);
 
