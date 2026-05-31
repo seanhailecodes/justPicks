@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { etDateString, mergeDuplicateGames, filterLockedGames, seasonForDate } from "../_shared/games.ts";
+import { etDateString, mergeDuplicateGames, filterLockedGames, seasonForDate, pruneDelistedGames } from "../_shared/games.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -122,6 +122,13 @@ Deno.serve(async (req) => {
     console.log(`Upserted ${upsertable.length} Boxing fights (skipped ${games.length - upsertable.length} locked/unpriced)`);
 
     await mergeDuplicateGames(supabase, "BOXING", games);
+
+    // Remove fights the book de-listed since the last fetch (e.g. a cancelled bout).
+    await pruneDelistedGames(
+      supabase, "BOXING",
+      oddsData.map((e: any) => e.id),
+      oddsData.length ? new Date(Math.max(...oddsData.map((e: any) => +new Date(e.commence_time)))).toISOString() : null,
+    );
 
     return new Response(
       JSON.stringify({

@@ -121,6 +121,67 @@ export async function filterLockedGames(
   return filtered;
 }
 
+// Remove games the book has de-listed. After a fetch we know the authoritative
+// set of still-live events (the feed response). Any of OUR rows for this league
+// that are unlocked, still upcoming, pick-free, fall within the window the feed
+// actually covered, and whose external_id is NOT in that set were pulled by the
+// book — e.g. a conditional Finals matchup ("X @ Y") that's no longer possible
+// once the prior series ends, or a postponed/cancelled game. We delete those so
+// they stop polluting the slate (and stop tripping the conditional-matchup
+// filter) instead of lingering until their date passes.
+//
+// Safety rails:
+//   - Empty feed → no-op (treat as an outage; never mass-delete).
+//   - Only within [now, maxFeedDate] — never touch games beyond the feed's
+//     horizon (a book simply hasn't listed them yet).
+//   - Never delete a row that has picks — orphaning a user's pick is worse than
+//     a stale row; those are left for manual review.
+export async function pruneDelistedGames(
+  supabase: any,
+  league: string,
+  liveExternalIds: Array<string | null | undefined>,
+  maxFeedDate: string | null,
+): Promise<number> {
+  const live = new Set(liveExternalIds.filter(Boolean) as string[]);
+  if (live.size === 0 || !maxFeedDate) return 0; // outage / nothing to compare against
+
+  const nowIso = new Date().toISOString();
+  const { data: rows, error } = await supabase
+    .from("games")
+    .select("id, external_id")
+    .eq("league", league)
+    .eq("locked", false)
+    .gt("game_date", nowIso)
+    .lte("game_date", maxFeedDate);
+
+  if (error || !rows) {
+    if (error) console.error(`[${league}] Prune query failed:`, error);
+    return 0;
+  }
+
+  const phantomIds = (rows as any[])
+    .filter((r) => !live.has(r.external_id))
+    .map((r) => r.id);
+  if (phantomIds.length === 0) return 0;
+
+  // Protect any phantom that somehow has picks attached.
+  const { data: picked } = await supabase
+    .from("picks")
+    .select("game_id")
+    .in("game_id", phantomIds);
+  const pickedSet = new Set((picked ?? []).map((p: any) => p.game_id));
+  const deletable = phantomIds.filter((id) => !pickedSet.has(id));
+  if (deletable.length === 0) return 0;
+
+  const { error: delErr } = await supabase.from("games").delete().in("id", deletable);
+  if (delErr) {
+    console.error(`[${league}] Prune delete failed:`, delErr);
+    return 0;
+  }
+  console.log(`[${league}] Pruned ${deletable.length} de-listed game(s): ${deletable.join(", ")}`);
+  return deletable.length;
+}
+
 export async function mergeDuplicateGames(
   supabase: any,
   league: string,
