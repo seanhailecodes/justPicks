@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useNotificationContext } from '../../components/NotificationContext';
 import { supabase } from '../lib/supabase';
@@ -19,79 +19,104 @@ interface PublicGroup {
   isMember: boolean;
 }
 
+type Tab = 'public' | 'personal';
+
+const SPORT_EMOJI: Record<string, string> = {
+  nfl: '🏈', nba: '🏀', wnba: '🏀', mlb: '⚾', nhl: '🏒',
+  ncaab: '🏀', soccer: '⚽', ufc: '🥋', boxing: '🥊', pga: '⛳',
+};
+const getSportEmoji = (sport: string) => SPORT_EMOJI[sport] || '🏆';
+
 export default function BrowseGroupsScreen() {
   const [groups, setGroups] = useState<PublicGroup[]>([]);
-  const [filteredGroups, setFilteredGroups] = useState<PublicGroup[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('public');
+  const [sportFilter, setSportFilter] = useState<string>('all');
   const { showNotification } = useNotificationContext();
 
   useEffect(() => {
-    loadPublicGroups();
+    loadGroups();
   }, []);
 
-  useEffect(() => {
-    // Filter groups based on search query
-    if (searchQuery.trim() === '') {
-      setFilteredGroups(groups);
-    } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = groups.filter(group => 
-        group.name.toLowerCase().includes(query) ||
-        group.ownerUsername.toLowerCase().includes(query)
-      );
-      setFilteredGroups(filtered);
-    }
-  }, [searchQuery, groups]);
+  // Groups belonging to the active tab (before sport/search filters).
+  const tabGroups = useMemo(
+    () => (tab === 'personal'
+      ? groups.filter(g => g.isMember)
+      : groups.filter(g => g.visibility === 'public')),
+    [groups, tab]
+  );
 
-  const loadPublicGroups = async () => {
+  // Sport chips available in the current tab (only sports that have groups).
+  const availableSports = useMemo(
+    () => Array.from(new Set(tabGroups.map(g => g.sport || 'nfl'))).sort(),
+    [tabGroups]
+  );
+
+  // Final list: tab → sport → search.
+  const filteredGroups = useMemo(() => {
+    let list = tabGroups;
+    if (sportFilter !== 'all') list = list.filter(g => (g.sport || 'nfl') === sportFilter);
+    const q = searchQuery.trim().toLowerCase();
+    if (q) list = list.filter(g => g.name.toLowerCase().includes(q) || g.ownerUsername.toLowerCase().includes(q));
+    return list;
+  }, [tabGroups, sportFilter, searchQuery]);
+
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    setSportFilter('all'); // a sport from the other tab may not exist here
+  };
+
+  const loadGroups = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
         return;
       }
-
       setCurrentUserId(user.id);
 
-      // Get groups the user is already a member of
+      // Groups the user belongs to.
       const { data: userMemberships } = await supabase
         .from('group_members')
         .select('group_id')
         .eq('user_id', user.id);
+      const memberGroupIds = new Set((userMemberships || []).map(m => m.group_id));
 
-      const memberGroupIds = new Set(userMemberships?.map(m => m.group_id) || []);
-
-      // Get all public groups
+      // Public groups (Public tab) + the user's own groups (Personal tab,
+      // includes private ones they're a member of — RLS allows reading those).
       const { data: publicGroups, error: groupsError } = await supabase
         .from('groups')
         .select('*')
         .eq('visibility', 'public')
         .order('created_at', { ascending: false });
+      if (groupsError) throw groupsError;
 
-      if (groupsError) {
-        console.error('Error fetching public groups:', groupsError);
-        throw groupsError;
+      let myGroups: any[] = [];
+      const ids = [...memberGroupIds];
+      if (ids.length > 0) {
+        const { data } = await supabase.from('groups').select('*').in('id', ids);
+        myGroups = data || [];
       }
 
-      // Get member counts and owner info for each group
-      const groupsWithDetails = await Promise.all(
-        (publicGroups || []).map(async (group) => {
-          // Get member count
+      // Merge unique by id.
+      const byId = new Map<string, any>();
+      [...(publicGroups || []), ...myGroups].forEach(g => byId.set(g.id, g));
+      const merged = [...byId.values()];
+
+      const withDetails = await Promise.all(
+        merged.map(async (group) => {
           const { count } = await supabase
             .from('group_members')
             .select('*', { count: 'exact', head: true })
             .eq('group_id', group.id);
-
-          // Get owner username
           const { data: ownerData } = await supabase
             .from('profiles')
             .select('username, display_name')
             .eq('id', group.created_by)
             .single();
-
           return {
             ...group,
             memberCount: count || 0,
@@ -101,10 +126,9 @@ export default function BrowseGroupsScreen() {
         })
       );
 
-      setGroups(groupsWithDetails);
-      setFilteredGroups(groupsWithDetails);
+      setGroups(withDetails);
     } catch (error) {
-      console.error('Error loading public groups:', error);
+      console.error('Error loading groups:', error);
       showNotification('Error', 'Failed to load groups');
     } finally {
       setLoading(false);
@@ -116,46 +140,22 @@ export default function BrowseGroupsScreen() {
       showNotification('Error', 'You must be logged in to join groups');
       return;
     }
-
     setJoiningGroupId(group.id);
-
     try {
-      // Invite-only groups can't be joined from Browse — you need an
-      // invite link. (The DB policy enforces this too; this is the
-      // friendly UI-side message.)
       if (group.join_type === 'invite_only') {
-        showNotification(
-          'Invite Only',
-          'This group is invite-only — you need an invite link from a member to join.'
-        );
+        showNotification('Invite Only', 'This group is invite-only — you need an invite link from a member to join.');
         return;
       }
       if (group.join_type === 'request_to_join' || group.require_approval) {
-        // Create join request (future feature)
-        showNotification(
-          'Approval Required',
-          'This group requires owner approval. This feature is coming soon!'
-        );
+        showNotification('Approval Required', 'This group requires owner approval. This feature is coming soon!');
         return;
       }
-
-      // Open group — join directly.
       const { error } = await supabase
         .from('group_members')
-        .insert({
-          group_id: group.id,
-          user_id: currentUserId,
-          role: 'member'
-        });
-
-      // 23505 = unique_violation: the user is already a member,
-      // which we treat as success rather than a failure.
+        .insert({ group_id: group.id, user_id: currentUserId, role: 'member' });
       const alreadyMember = error?.code === '23505';
       if (error && !alreadyMember) throw error;
 
-      // Update the card in place so the orange "Join" button flips
-      // to "Already Joined" and the member count ticks up. This is
-      // the reliable cross-platform feedback (Alert is a web no-op).
       setGroups(prev =>
         prev.map(g =>
           g.id === group.id
@@ -163,24 +163,12 @@ export default function BrowseGroupsScreen() {
             : g
         )
       );
-
       showNotification('Success!', `You've joined "${group.name}".`);
     } catch (error) {
       console.error('Error joining group:', error);
       showNotification('Error', 'Failed to join group. Please try again.');
     } finally {
       setJoiningGroupId(null);
-    }
-  };
-
-  const getSportEmoji = (sport: string) => {
-    switch (sport) {
-      case 'nfl': return '🏈';
-      case 'nba': return '🏀';
-      case 'mlb': return '⚾';
-      case 'nhl': return '🏒';
-      case 'soccer_epl': return '⚽';
-      default: return '🏈';
     }
   };
 
@@ -204,6 +192,48 @@ export default function BrowseGroupsScreen() {
         <View style={styles.placeholder} />
       </View>
 
+      {/* Personal / Public toggle */}
+      <View style={styles.segment}>
+        <TouchableOpacity
+          style={[styles.segmentBtn, tab === 'public' && styles.segmentBtnActive]}
+          onPress={() => switchTab('public')}
+        >
+          <Text style={[styles.segmentText, tab === 'public' && styles.segmentTextActive]}>🌐 Public</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentBtn, tab === 'personal' && styles.segmentBtnActive]}
+          onPress={() => switchTab('personal')}
+        >
+          <Text style={[styles.segmentText, tab === 'personal' && styles.segmentTextActive]}>👤 My Groups</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Sport filter (All + sports present in this tab) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.sportChips}
+        contentContainerStyle={styles.sportChipsContent}
+      >
+        <TouchableOpacity
+          style={[styles.sportChip, sportFilter === 'all' && styles.sportChipActive]}
+          onPress={() => setSportFilter('all')}
+        >
+          <Text style={[styles.sportChipText, sportFilter === 'all' && styles.sportChipTextActive]}>All</Text>
+        </TouchableOpacity>
+        {availableSports.map((s) => (
+          <TouchableOpacity
+            key={s}
+            style={[styles.sportChip, sportFilter === s && styles.sportChipActive]}
+            onPress={() => setSportFilter(s)}
+          >
+            <Text style={[styles.sportChipText, sportFilter === s && styles.sportChipTextActive]}>
+              {getSportEmoji(s)} {(s || 'nfl').toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <View style={styles.searchContainer}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
@@ -215,7 +245,7 @@ export default function BrowseGroupsScreen() {
         />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -224,12 +254,18 @@ export default function BrowseGroupsScreen() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🔍</Text>
             <Text style={styles.emptyTitle}>
-              {searchQuery ? 'No groups found' : 'No public groups available'}
+              {searchQuery
+                ? 'No groups found'
+                : tab === 'personal'
+                  ? "You're not in any groups yet"
+                  : 'No public groups available'}
             </Text>
             <Text style={styles.emptyText}>
-              {searchQuery 
+              {searchQuery
                 ? 'Try a different search term'
-                : 'Create your own group to get started!'}
+                : tab === 'personal'
+                  ? 'Join a public group or create your own to get started!'
+                  : 'Create your own group to get started!'}
             </Text>
           </View>
         ) : (
@@ -245,9 +281,15 @@ export default function BrowseGroupsScreen() {
                         {getSportEmoji(group.sport)} {(group.sport || 'nfl').toUpperCase()}
                       </Text>
                     </View>
-                    <View style={styles.publicBadge}>
-                      <Text style={styles.badgeText}>🌐 Public</Text>
-                    </View>
+                    {group.visibility === 'public' ? (
+                      <View style={styles.publicBadge}>
+                        <Text style={styles.badgeText}>🌐 Public</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.privateBadge}>
+                        <Text style={styles.privateBadgeText}>🔒 Private</Text>
+                      </View>
+                    )}
                     {group.require_approval && (
                       <View style={styles.approvalBadge}>
                         <Text style={styles.badgeText}>✓ Approval Required</Text>
@@ -263,19 +305,19 @@ export default function BrowseGroupsScreen() {
               </Text>
 
               {group.isMember ? (
-                <View style={styles.joinedButton}>
-                  <Text style={styles.joinedButtonText}>✓ Already Joined</Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.openButton}
+                  onPress={() => router.push(`/group/${group.id}`)}
+                >
+                  <Text style={styles.openButtonText}>Open →</Text>
+                </TouchableOpacity>
               ) : group.join_type === 'invite_only' ? (
                 <View style={styles.joinedButton}>
                   <Text style={styles.joinedButtonText}>🔒 Invite Only</Text>
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={[
-                    styles.joinButton,
-                    joiningGroupId === group.id && styles.joinButtonDisabled
-                  ]}
+                  style={[styles.joinButton, joiningGroupId === group.id && styles.joinButtonDisabled]}
                   onPress={() => handleJoinGroup(group)}
                   disabled={joiningGroupId === group.id}
                 >
@@ -323,6 +365,61 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 10,
+    padding: 4,
+    marginHorizontal: 16,
+    marginTop: 16,
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  segmentBtnActive: {
+    backgroundColor: '#FF6B35',
+  },
+  segmentText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  segmentTextActive: {
+    color: '#FFF',
+  },
+  sportChips: {
+    maxHeight: 44,
+    marginTop: 12,
+  },
+  sportChipsContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+    alignItems: 'center',
+  },
+  sportChip: {
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  sportChipActive: {
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
+  },
+  sportChipText: {
+    color: '#8E8E93',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  sportChipTextActive: {
+    color: '#FFF',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -393,6 +490,19 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
   },
+  privateBadge: {
+    backgroundColor: '#2C2C2E',
+    borderWidth: 1,
+    borderColor: '#48484A',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  privateBadgeText: {
+    color: '#C7C7CC',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   approvalBadge: {
     backgroundColor: '#FF9500',
     paddingHorizontal: 8,
@@ -435,6 +545,19 @@ const styles = StyleSheet.create({
     color: '#34C759',
     fontSize: 16,
     fontWeight: '600',
+  },
+  openButton: {
+    backgroundColor: '#2C2C2E',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FF6B35',
+  },
+  openButtonText: {
+    color: '#FF6B35',
+    fontSize: 16,
+    fontWeight: '700',
   },
   joinButtonText: {
     color: '#FFF',
