@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNotificationContext } from '../../components/NotificationContext';
 import { supabase } from '../lib/supabase';
 
@@ -17,6 +17,7 @@ interface PublicGroup {
   memberCount: number;
   ownerUsername: string;
   isMember: boolean;
+  role: string | null;
 }
 
 type Tab = 'public' | 'private';
@@ -78,12 +79,13 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
       }
       setCurrentUserId(user.id);
 
-      // Groups the user belongs to.
+      // Groups the user belongs to (+ their role in each).
       const { data: userMemberships } = await supabase
         .from('group_members')
-        .select('group_id')
+        .select('group_id, role')
         .eq('user_id', user.id);
       const memberGroupIds = new Set((userMemberships || []).map(m => m.group_id));
+      const roleByGroup = new Map((userMemberships || []).map(m => [m.group_id, m.role]));
 
       // Only the groups the user belongs to (public + private).
       const ids = [...memberGroupIds];
@@ -116,6 +118,7 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
             memberCount: count || 0,
             ownerUsername: ownerData?.username || ownerData?.display_name || 'Unknown',
             isMember: memberGroupIds.has(group.id),
+            role: roleByGroup.get(group.id) ?? null,
           };
         })
       );
@@ -126,6 +129,24 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
       showNotification('Error', 'Failed to load groups');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInvite = async (group: PublicGroup) => {
+    try {
+      const code = group.invite_code;
+      if (!code) {
+        Alert.alert('Error', 'No invite code found for this group');
+        return;
+      }
+      await Share.share({
+        message: `Join my group "${group.name}" on justPicks! 🏀\n\nUse code: ${code}`,
+        url: `https://justpicks.app/join/${code}`,
+        title: `Join ${group.name} on justPicks`,
+      });
+    } catch (error) {
+      console.error('Error sharing invite:', error);
+      Alert.alert('Error', 'Failed to share invite link');
     }
   };
 
@@ -306,32 +327,27 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
                 Created {new Date(group.created_at).toLocaleDateString()}
               </Text>
 
-              {group.isMember ? (
-                <TouchableOpacity
-                  style={styles.openButton}
-                  onPress={() => router.push(`/group/${group.id}`)}
-                >
-                  <Text style={styles.openButtonText}>Open →</Text>
-                </TouchableOpacity>
-              ) : group.join_type === 'invite_only' ? (
-                <View style={styles.joinedButton}>
-                  <Text style={styles.joinedButtonText}>🔒 Invite Only</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.joinButton, joiningGroupId === group.id && styles.joinButtonDisabled]}
-                  onPress={() => handleJoinGroup(group)}
-                  disabled={joiningGroupId === group.id}
-                >
-                  <Text style={styles.joinButtonText}>
-                    {joiningGroupId === group.id
-                      ? 'Joining...'
-                      : (group.require_approval || group.join_type === 'request_to_join')
-                        ? '✉️ Request to Join'
-                        : '➕ Join Group'}
-                  </Text>
+              <TouchableOpacity
+                style={styles.openButton}
+                onPress={() => router.push(`/group/group-picks?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
+              >
+                <Text style={styles.openButtonText}>📊 See Group Picks →</Text>
+              </TouchableOpacity>
+
+              {(group.role === 'primary_owner' || group.visibility === 'public') && (
+                <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(group)}>
+                  <Text style={styles.inviteButtonText}>📧 Invite Members</Text>
                 </TouchableOpacity>
               )}
+
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={() => router.push(`/group/settings?groupId=${group.id}&groupName=${encodeURIComponent(group.name)}`)}
+              >
+                <Text style={styles.settingsButtonText}>
+                  {group.role === 'primary_owner' ? '⚙️ Group Settings' : '👋 Leave Group'}
+                </Text>
+              </TouchableOpacity>
             </View>
           ))
         )}
@@ -565,6 +581,32 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     fontSize: 16,
     fontWeight: '700',
+  },
+  inviteButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    backgroundColor: '#34C759',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  inviteButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  settingsButton: {
+    marginTop: 8,
+    paddingVertical: 10,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  settingsButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   joinButtonText: {
     color: '#FFF',
