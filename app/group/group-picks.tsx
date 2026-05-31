@@ -7,7 +7,7 @@ import SeasonRecap from '../../components/SeasonRecap';
 import { Sport } from '../../services/pickrating';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
 import { isSportInSeason, getSport } from '../../services/activeSport';
-import { getLatestGradedSeasonForGroup } from '../lib/database';
+import { getLatestGradedSeasonForGroup, getPickSeasonsForGroup } from '../lib/database';
 import { getPublicAlias } from '../../services/anonymity';
 
 interface FriendPick {
@@ -52,6 +52,8 @@ export default function GroupPicksScreen() {
   // the week strip for a season picker + the Season Recap.
   const [seasonOptions, setSeasonOptions] = useState<SeasonOption[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  // Seasons this group actually has picks in (null = not loaded yet).
+  const [groupPickSeasons, setGroupPickSeasons] = useState<number[] | null>(null);
 
   // Shared state
   const [gamesData, setGamesData] = useState<any[]>([]);
@@ -137,6 +139,12 @@ export default function GroupPicksScreen() {
   useEffect(() => {
     getSeasonOptions().then(setSeasonOptions);
   }, []);
+
+  // Load the seasons THIS group has picks in, to hide always-empty chips.
+  useEffect(() => {
+    if (!groupId) return;
+    getPickSeasonsForGroup(groupId).then(setGroupPickSeasons);
+  }, [groupId]);
 
   // Pick the default season once the seasons and the group's sport
   // are known. In season → the newest (live) season. Out of season →
@@ -549,7 +557,15 @@ export default function GroupPicksScreen() {
     seasonOptions.find(o => o.value === recapSeason)?.label ?? `${recapSeason}`;
   const recapMode =
     !!groupInfo && (!sportInSeason || recapSeason !== currentSeasonValue);
-  const showSeasonPicker = seasonOptions.length > 1 || recapMode;
+  // Hide season chips the group has no picks in. Always keep the current
+  // season, the selected one, and (until loaded) fall back to all.
+  const visibleSeasonOptions = seasonOptions.filter(o =>
+    o.isCurrent ||
+    groupPickSeasons == null ||
+    groupPickSeasons.includes(o.value) ||
+    o.value === recapSeason
+  );
+  const showSeasonPicker = visibleSeasonOptions.length > 1 || recapMode;
 
   if (loading && !recapMode) {
     return (
@@ -867,7 +883,7 @@ export default function GroupPicksScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.weekSelectorContent}
             >
-              {seasonOptions.map((opt) => (
+              {visibleSeasonOptions.map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
                   style={[
