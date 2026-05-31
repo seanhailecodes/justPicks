@@ -278,7 +278,7 @@ export default function GroupsScreen() {
           style={styles.browseButton}
           onPress={() => router.push('/group/browse-groups')}
         >
-          <Text style={styles.browseButtonText}>🔍 Browse Public Groups</Text>
+          <Text style={styles.browseButtonText}>👥 My Groups</Text>
         </TouchableOpacity>
 
         {userGroups.map((group) => (
