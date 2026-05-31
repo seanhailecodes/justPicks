@@ -45,7 +45,7 @@ export default function BrowseGroupsScreen() {
   const tabGroups = useMemo(
     () => (tab === 'personal'
       ? groups.filter(g => g.isMember)
-      : groups.filter(g => g.visibility === 'public')),
+      : groups.filter(g => g.visibility === 'public' && !g.isMember)),
     [groups, tab]
   );
 
