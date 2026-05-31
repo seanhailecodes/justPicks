@@ -5,7 +5,7 @@ import { supabase, getCurrentSeason } from '../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 import SeasonRecap from '../../components/SeasonRecap';
 import { Sport } from '../../services/pickrating';
-import { getSeasonOptions, SeasonOption } from '../../services/seasons';
+import { getSeasonOptions, SeasonOption, formatSeasonForSport } from '../../services/seasons';
 import { isSportInSeason, getSport } from '../../services/activeSport';
 import { getLatestGradedSeasonForGroup, getPickSeasonsForGroup } from '../lib/database';
 import { getPublicAlias } from '../../services/anonymity';
@@ -553,8 +553,7 @@ export default function GroupPicksScreen() {
   const currentSeasonValue =
     seasonOptions.find(o => o.isCurrent)?.value ?? getCurrentSeason();
   const recapSeason = selectedSeason ?? currentSeasonValue;
-  const recapSeasonLabel =
-    seasonOptions.find(o => o.value === recapSeason)?.label ?? `${recapSeason}`;
+  const recapSeasonLabel = formatSeasonForSport(recapSeason, groupInfo?.sport ?? 'nfl');
   const recapMode =
     !!groupInfo && (!sportInSeason || recapSeason !== currentSeasonValue);
   // Hide season chips the group has no picks in. Always keep the current
@@ -896,7 +895,7 @@ export default function GroupPicksScreen() {
                     styles.seasonChipText,
                     recapSeason === opt.value && styles.seasonChipTextActive,
                   ]}>
-                    {opt.label} Season
+                    {formatSeasonForSport(opt.value, groupInfo?.sport ?? 'nfl')} Season
                   </Text>
                 </TouchableOpacity>
               ))}
