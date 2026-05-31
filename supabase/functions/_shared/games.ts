@@ -20,6 +20,21 @@ interface GameRow {
   id: string;
   external_id?: string | null;
   game_date?: string | null;
+  home_spread?: unknown;
+  away_spread?: unknown;
+  over_under_line?: unknown;
+  home_moneyline?: unknown;
+  away_moneyline?: unknown;
+}
+
+// A candidate is "priced" if a book has posted at least one real market value
+// (spread, total, or moneyline). Storing unpriced games produces blank/null
+// lines in the app — e.g. tournament/series fixtures listed before odds open.
+// Sports that always carry a market, or that pre-filter (golf/soccer), are
+// unaffected; this is a no-op for them.
+function isPriced(g: GameRow): boolean {
+  return [g.home_spread, g.away_spread, g.over_under_line, g.home_moneyline, g.away_moneyline]
+    .some((v) => v !== null && v !== undefined);
 }
 
 // Sanity-check a spread point value before writing it. Any sportsbook
@@ -51,6 +66,13 @@ export async function filterLockedGames(
   league: string,
   candidateGames: GameRow[]
 ): Promise<GameRow[]> {
+  if (candidateGames.length === 0) return candidateGames;
+
+  // Drop candidates a book hasn't priced yet (no spread, total, or moneyline).
+  const priced = candidateGames.filter(isPriced);
+  const droppedUnpriced = candidateGames.length - priced.length;
+  if (droppedUnpriced > 0) console.log(`[${league}] Dropped ${droppedUnpriced} unpriced candidate(s) (no market posted yet)`);
+  candidateGames = priced;
   if (candidateGames.length === 0) return candidateGames;
 
   const now = Date.now();
