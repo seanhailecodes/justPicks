@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread } from '../_shared/games.ts'
+import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread, seasonForDate } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
         id: gameId,
         external_id: event.id,
         league: 'NFL',
-        season: 2025,
+        season: seasonForDate(gameDate, 'cross-year'),
         week: week,
         home_team: event.home_team,
         away_team: event.away_team,

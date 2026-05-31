@@ -16,6 +16,18 @@ export function etDateString(iso: string): string {
   return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+// Season label for a game, derived from its date instead of a hardcoded year.
+//   'cross-year' (NBA / NHL / NCAAB / NFL / soccer): the season is named for the
+//     year it STARTS, using a July-1 cutoff — matching the app's
+//     getCurrentSeason() convention (e.g. a May 2026 NBA game → 2025).
+//   'calendar' (MLB / WNBA / UFC / Boxing / golf): single-year sports, tagged
+//     with the calendar year of the event.
+export function seasonForDate(date: Date, model: "cross-year" | "calendar"): number {
+  const year = date.getFullYear();
+  if (model === "calendar") return year;
+  return date.getMonth() >= 6 ? year : year - 1;
+}
+
 interface GameRow {
   id: string;
   external_id?: string | null;
