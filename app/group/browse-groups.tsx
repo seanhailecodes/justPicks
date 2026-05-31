@@ -27,7 +27,7 @@ const SPORT_EMOJI: Record<string, string> = {
 };
 const getSportEmoji = (sport: string) => SPORT_EMOJI[sport] || '🏆';
 
-export default function BrowseGroupsScreen() {
+export default function BrowseGroupsScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const [groups, setGroups] = useState<PublicGroup[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -179,11 +179,21 @@ export default function BrowseGroupsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/home')} style={styles.backButton}>
-          <Text style={styles.backIcon}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Browse Groups</Text>
-        <View style={styles.placeholder} />
+        {embedded ? (
+          <View style={styles.placeholder} />
+        ) : (
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/home')} style={styles.backButton}>
+            <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={styles.title}>{embedded ? 'My Groups' : 'Browse Groups'}</Text>
+        {embedded ? (
+          <TouchableOpacity onPress={() => router.push('/group/create')} style={styles.backButton}>
+            <Text style={styles.createIcon}>＋</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
 
       {/* Personal / Public toggle */}
@@ -349,6 +359,11 @@ const styles = StyleSheet.create({
   backIcon: {
     color: '#FFF',
     fontSize: 32,
+  },
+  createIcon: {
+    color: '#FF6B35',
+    fontSize: 30,
+    fontWeight: '600',
   },
   title: {
     color: '#FFF',
