@@ -195,16 +195,16 @@ export default function BrowseGroupsScreen() {
       {/* Personal / Public toggle */}
       <View style={styles.segment}>
         <TouchableOpacity
-          style={[styles.segmentBtn, tab === 'public' && styles.segmentBtnActive]}
-          onPress={() => switchTab('public')}
-        >
-          <Text style={[styles.segmentText, tab === 'public' && styles.segmentTextActive]}>🌐 Public</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.segmentBtn, tab === 'personal' && styles.segmentBtnActive]}
           onPress={() => switchTab('personal')}
         >
           <Text style={[styles.segmentText, tab === 'personal' && styles.segmentTextActive]}>👤 My Groups</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentBtn, tab === 'public' && styles.segmentBtnActive]}
+          onPress={() => switchTab('public')}
+        >
+          <Text style={[styles.segmentText, tab === 'public' && styles.segmentTextActive]}>🌐 Public</Text>
         </TouchableOpacity>
       </View>
 
