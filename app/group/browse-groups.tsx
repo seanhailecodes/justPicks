@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNotificationContext } from '../../components/NotificationContext';
+import { getUserGroups } from '../lib/database';
 import { supabase } from '../lib/supabase';
 
 interface PublicGroup {
@@ -18,6 +19,12 @@ interface PublicGroup {
   ownerUsername: string;
   isMember: boolean;
   role: string | null;
+  rating: number | null;
+  weekAccuracy: number | null;
+  monthAccuracy: number | null;
+  allTimeAccuracy: number | null;
+  trend?: 'up' | 'down' | 'neutral';
+  totalGroupPicks?: number;
 }
 
 type Tab = 'public' | 'private';
@@ -70,6 +77,9 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
     setSportFilter('all'); // a sport from the other tab may not exist here
   };
 
+  const formatAccuracy = (accuracy: number | null | undefined) =>
+    accuracy === null || accuracy === undefined ? '—' : `${accuracy}%`;
+
   const loadGroups = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -79,49 +89,54 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
       }
       setCurrentUserId(user.id);
 
-      // Groups the user belongs to (+ their role in each).
-      const { data: userMemberships } = await supabase
-        .from('group_members')
-        .select('group_id, role')
-        .eq('user_id', user.id);
-      const memberGroupIds = new Set((userMemberships || []).map(m => m.group_id));
-      const roleByGroup = new Map((userMemberships || []).map(m => [m.group_id, m.role]));
-
-      // Only the groups the user belongs to (public + private).
-      const ids = [...memberGroupIds];
-      if (ids.length === 0) {
+      // Member groups (public + private) with performance stats.
+      const userGroups = await getUserGroups(user.id);
+      if (userGroups.length === 0) {
         setGroups([]);
         setLoading(false);
         return;
       }
-      const { data: myGroups, error: groupsError } = await supabase
-        .from('groups')
-        .select('*')
-        .in('id', ids)
-        .order('created_at', { ascending: false });
-      if (groupsError) throw groupsError;
-      const merged = myGroups || [];
 
-      const withDetails = await Promise.all(
-        merged.map(async (group) => {
-          const { count } = await supabase
-            .from('group_members')
-            .select('*', { count: 'exact', head: true })
-            .eq('group_id', group.id);
-          const { data: ownerData } = await supabase
-            .from('profiles')
-            .select('username, display_name')
-            .eq('id', group.created_by)
-            .single();
-          return {
-            ...group,
-            memberCount: count || 0,
-            ownerUsername: ownerData?.username || ownerData?.display_name || 'Unknown',
-            isMember: memberGroupIds.has(group.id),
-            role: roleByGroup.get(group.id) ?? null,
-          };
-        })
+      // Enrich with invite_code + owner username (not returned by getUserGroups).
+      const ids = userGroups.map(g => g.id);
+      const { data: meta } = await supabase
+        .from('groups')
+        .select('id, invite_code, created_by')
+        .in('id', ids);
+      const metaById = new Map((meta || []).map(m => [m.id, m]));
+
+      const ownerIds = [...new Set((meta || []).map(m => m.created_by).filter(Boolean))];
+      const { data: owners } = ownerIds.length
+        ? await supabase.from('profiles').select('id, username, display_name').in('id', ownerIds)
+        : { data: [] as any[] };
+      const ownerById = new Map(
+        (owners || []).map(o => [o.id, o.username || o.display_name || 'Unknown'])
       );
+
+      const withDetails: PublicGroup[] = userGroups.map(g => {
+        const m = metaById.get(g.id);
+        return {
+          id: g.id,
+          name: g.name,
+          created_by: m?.created_by || '',
+          visibility: g.visibility,
+          require_approval: g.joinType === 'request_to_join',
+          join_type: g.joinType,
+          invite_code: m?.invite_code || '',
+          created_at: g.createdAt,
+          sport: g.sport,
+          memberCount: g.memberCount,
+          ownerUsername: (m?.created_by && ownerById.get(m.created_by)) || 'Unknown',
+          isMember: true,
+          role: g.role,
+          rating: g.rating,
+          weekAccuracy: g.weekAccuracy,
+          monthAccuracy: g.monthAccuracy,
+          allTimeAccuracy: g.allTimeAccuracy,
+          trend: g.trend,
+          totalGroupPicks: g.totalGroupPicks,
+        };
+      });
 
       setGroups(withDetails);
     } catch (error) {
@@ -326,6 +341,38 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
               <Text style={styles.groupDate}>
                 Created {new Date(group.created_at).toLocaleDateString()}
               </Text>
+
+              {(group.totalGroupPicks ?? 0) > 0 ? (
+                <View style={styles.performanceGrid}>
+                  <View style={styles.performanceStat}>
+                    <Text style={styles.performanceValue}>
+                      {formatAccuracy(group.rating)}
+                      {group.trend === 'up' && <Text style={styles.trendUp}> ↑</Text>}
+                      {group.trend === 'down' && <Text style={styles.trendDown}> ↓</Text>}
+                    </Text>
+                    <Text style={styles.performanceLabel}>Group Rating</Text>
+                  </View>
+                  <View style={styles.performanceStat}>
+                    <Text style={styles.performanceValue}>{formatAccuracy(group.weekAccuracy)}</Text>
+                    <Text style={styles.performanceLabel}>Last Week</Text>
+                  </View>
+                  <View style={styles.performanceStat}>
+                    <Text style={styles.performanceValue}>{formatAccuracy(group.monthAccuracy)}</Text>
+                    <Text style={styles.performanceLabel}>Last Month</Text>
+                  </View>
+                  <View style={styles.performanceStat}>
+                    <Text style={styles.performanceValue}>{formatAccuracy(group.allTimeAccuracy)}</Text>
+                    <Text style={styles.performanceLabel}>All Time</Text>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.makePicksButton}
+                  onPress={() => router.push({ pathname: '/(tabs)/games', params: { sport: group.sport || 'nfl' } })}
+                >
+                  <Text style={styles.makePicksButtonText}>{getSportEmoji(group.sport)} Make Picks</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={styles.openButton}
@@ -581,6 +628,49 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     fontSize: 16,
     fontWeight: '700',
+  },
+  performanceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  performanceStat: {
+    width: '50%',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  performanceValue: {
+    color: '#FFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  performanceLabel: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  makePicksButton: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  makePicksButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  trendUp: {
+    color: '#34C759',
+    fontSize: 20,
+  },
+  trendDown: {
+    color: '#FF3B30',
+    fontSize: 20,
   },
   inviteButton: {
     marginTop: 12,
