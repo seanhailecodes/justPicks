@@ -472,21 +472,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sportChip: {
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: '#2C2C2E',
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
   },
   sportChipActive: {
     backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
   },
   sportChipText: {
     color: '#8E8E93',
     fontSize: 12.5,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
   sportChipTextActive: {
     color: '#FFF',
