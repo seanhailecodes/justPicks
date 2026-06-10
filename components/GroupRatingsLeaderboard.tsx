@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
-import { 
-  ActivityIndicator, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View 
+import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { 
   getTopPerformersGlobally, 
@@ -39,6 +42,33 @@ export default function GroupRatingsLeaderboard({
 
   // Get sport config for dynamic labels
   const sportConfig = getSportConfig(sport);
+
+  // A group can have members but zero picks (e.g. a brand-new public
+  // group). Listing everyone at 0% reads as filler, so treat "nobody
+  // has picked" as empty and show the animated prompt instead.
+  const hasNoActivity =
+    leaderboardData.length === 0 ||
+    leaderboardData.every(u => (u.totalPicks ?? 0) === 0);
+
+  // Looping animations for the empty state (bounce + pulsing ring).
+  const bounce = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const b = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounce, { toValue: -16, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(bounce, { toValue: 0, duration: 700, easing: Easing.bounce, useNativeDriver: true }),
+      ])
+    );
+    const p = Animated.loop(
+      Animated.timing(pulse, { toValue: 1, duration: 1700, easing: Easing.out(Easing.ease), useNativeDriver: true })
+    );
+    b.start();
+    p.start();
+    return () => { b.stop(); p.stop(); };
+  }, [bounce, pulse]);
+  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.9] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
 
   // Fetch current week for week-based sports
   useEffect(() => {
@@ -222,10 +252,24 @@ export default function GroupRatingsLeaderboard({
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {leaderboardData.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No ratings data available</Text>
-              <Text style={styles.emptySubtext}>Make some picks to see the leaderboard!</Text>
+          {hasNoActivity ? (
+            <View style={styles.funEmpty}>
+              <View style={styles.emojiWrap}>
+                <Animated.View
+                  style={[styles.pulseRing, { transform: [{ scale: ringScale }], opacity: ringOpacity }]}
+                />
+                <Animated.Text style={[styles.bigEmoji, { transform: [{ translateY: bounce }] }]}>
+                  🎯
+                </Animated.Text>
+              </View>
+              <Text style={styles.funTitle}>No picks yet!</Text>
+              <Text style={styles.funSubtitle}>Be the first to put one on the board.</Text>
+              <TouchableOpacity
+                style={styles.funButton}
+                onPress={() => router.push({ pathname: '/(tabs)/games', params: { sport } })}
+              >
+                <Text style={styles.funButtonText}>🎯 Make Your First Pick →</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             leaderboardData.map((user) => {
@@ -297,7 +341,7 @@ export default function GroupRatingsLeaderboard({
           )}
 
           {/* Summary Stats */}
-          {leaderboardData.length > 0 && (
+          {!hasNoActivity && leaderboardData.length > 0 && (
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>
                 {mode === 'global' ? 'Top 5' : 'Group'} Stats ({getTimeframeLabelSync(selectedTimeframe, sport, currentWeek || undefined)})
@@ -434,6 +478,53 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
     marginTop: 8,
+  },
+  funEmpty: {
+    paddingVertical: 56,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  emojiWrap: {
+    width: 120,
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FF6B35',
+  },
+  bigEmoji: {
+    fontSize: 64,
+  },
+  funTitle: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  funSubtitle: {
+    color: '#8E8E93',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  funButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  funButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   memberCard: {
     backgroundColor: '#1C1C1E',
