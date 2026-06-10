@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNotificationContext } from '../../components/NotificationContext';
+import { getSport, type Sport } from '../../services/activeSport';
 import { getUserGroups } from '../lib/database';
 import { supabase } from '../lib/supabase';
 
@@ -258,20 +259,27 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
         <TouchableOpacity
           style={[styles.sportChip, sportFilter === 'all' && styles.sportChipActive]}
           onPress={() => setSportFilter('all')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.sportChipText, sportFilter === 'all' && styles.sportChipTextActive]}>All</Text>
         </TouchableOpacity>
-        {availableSports.map((s) => (
-          <TouchableOpacity
-            key={s}
-            style={[styles.sportChip, sportFilter === s && styles.sportChipActive]}
-            onPress={() => setSportFilter(s)}
-          >
-            <Text style={[styles.sportChipText, sportFilter === s && styles.sportChipTextActive]}>
-              {getSportEmoji(s)} {(s || 'nfl').toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {availableSports.map((s) => {
+          const sp = getSport(s as Sport);
+          const active = sportFilter === s;
+          return (
+            <TouchableOpacity
+              key={s}
+              style={[styles.sportChip, active && styles.sportChipActive]}
+              onPress={() => setSportFilter(s)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.sportChipEmoji, sp.emoji === '🏀' && styles.sportChipEmojiBasketball]}>
+                {sp.emoji}
+              </Text>
+              <Text style={[styles.sportChipText, active && styles.sportChipTextActive]}>{sp.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <View style={styles.searchContainer}>
@@ -463,28 +471,38 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   sportChips: {
-    maxHeight: 44,
+    maxHeight: 32,
     marginTop: 12,
   },
   sportChipsContent: {
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    gap: 6,
     alignItems: 'center',
   },
   sportChip: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 999,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 8,
+    paddingVertical: 1,
+    borderRadius: 6,
+    gap: 3,
   },
   sportChipActive: {
     backgroundColor: '#FF6B35',
   },
+  sportChipEmoji: {
+    fontSize: 12,
+  },
+  sportChipEmojiBasketball: {
+    transform: [{ translateX: -1 }],
+    marginRight: -1,
+  },
   sportChipText: {
     color: '#8E8E93',
-    fontSize: 12.5,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: '600',
   },
   sportChipTextActive: {
     color: '#FFF',
