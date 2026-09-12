@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { supabase } from './lib/supabase';
+import { supabase } from '../lib/supabase';
 
 /**
  * OAuth / email-verification callback handler.

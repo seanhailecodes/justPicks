@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
-import { supabase } from '../app/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 const VAPID_PUBLIC_KEY = process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY || '';
 

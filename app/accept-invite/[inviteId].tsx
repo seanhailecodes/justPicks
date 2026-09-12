@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 const TERMS_VERSION = '2026-03-08';
 
@@ -271,7 +271,7 @@ export default function AcceptInviteScreen() {
     try {
       const { data: existingMember } = await supabase
         .from('group_members')
-        .select('id')
+        .select('user_id')
         .eq('group_id', invite.group_id)
         .eq('user_id', userId)
         .maybeSingle();
@@ -317,7 +317,7 @@ export default function AcceptInviteScreen() {
     try {
       const { data: existingMember } = await supabase
         .from('group_members')
-        .select('id')
+        .select('user_id')
         .eq('group_id', invite.group_id)
         .eq('user_id', currentUserId)
         .maybeSingle();

@@ -11,7 +11,7 @@ import {
   Dimensions,
   Keyboard
 } from 'react-native';
-import { supabase, getDeviceCurrency, getCurrencySymbol } from '../app/lib/supabase';
+import { supabase, getDeviceCurrency, getCurrencySymbol } from '../lib/supabase';
 
 export interface TicketPick {
   gameId: string;

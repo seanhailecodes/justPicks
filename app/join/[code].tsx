@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 // Store pending group code
 export const setPendingGroupCode = (code: string) => {
@@ -86,13 +86,13 @@ export default function JoinByCodeScreen() {
       if (user) {
         setCurrentUserId(user.id);
         
-        // Check if already a member
+        // Check if already a member (group_members has a composite key — no `id` column)
         const { data: membership } = await supabase
           .from('group_members')
-          .select('id')
+          .select('user_id')
           .eq('group_id', groupData.id)
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (membership) {
           setAlreadyMember(true);
@@ -118,20 +118,21 @@ export default function JoinByCodeScreen() {
     }
   };
 
-  const autoJoinGroup = async (groupInfo: GroupInfo, userId: string) => {
+  // Joining goes through the join_group_by_code RPC: it validates the code
+  // server-side and inserts the membership under definer rights, so
+  // invite-only groups are joinable by anyone holding the code without
+  // loosening the group_members self-join RLS rule. Returns already_member
+  // when the user is in the group already.
+  const joinViaCode = async () => {
+    const { data, error } = await supabase.rpc('join_group_by_code', { _code: code || '' });
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] : data;
+  };
+
+  const autoJoinGroup = async (groupInfo: GroupInfo, _userId: string) => {
     setJoining(true);
     try {
-      const { error: joinError } = await supabase
-        .from('group_members')
-        .insert({
-          group_id: groupInfo.id,
-          user_id: userId,
-          role: 'member',
-        });
-
-      if (joinError && joinError.code !== '23505') {
-        throw joinError;
-      }
+      await joinViaCode();
 
       clearPendingGroupCode();
       
@@ -149,21 +150,9 @@ export default function JoinByCodeScreen() {
 
     setJoining(true);
     try {
-      const { error: joinError } = await supabase
-        .from('group_members')
-        .insert({
-          group_id: group.id,
-          user_id: currentUserId,
-          role: 'member',
-        });
-
-      if (joinError) {
-        if (joinError.code === '23505') {
-          // Already a member (unique constraint)
-          setAlreadyMember(true);
-        } else {
-          throw joinError;
-        }
+      const result = await joinViaCode();
+      if (result?.already_member) {
+        setAlreadyMember(true);
       }
 
       clearPendingGroupCode();

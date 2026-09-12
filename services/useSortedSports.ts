@@ -7,7 +7,7 @@
  * Falls back to in-season-first order when the user has no recent picks.
  */
 import { useEffect, useState } from 'react';
-import { supabase } from '../app/lib/supabase';
+import { supabase } from '../lib/supabase';
 import { APP_SPORTS, AppSport, isSportInSeason } from './activeSport';
 
 const inSeasonFirst = (): AppSport[] => [

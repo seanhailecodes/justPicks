@@ -7,7 +7,7 @@
 // driven off games.season because that is set per-sport correctly,
 // whereas getCurrentSeason() is a single NFL/NBA-oriented global value.
 
-import { supabase, getCurrentSeason } from '../app/lib/supabase';
+import { supabase, getCurrentSeason } from '../lib/supabase';
 import { getSport } from './activeSport';
 import type { Sport } from './pickrating';
 

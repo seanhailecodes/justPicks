@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import storage from './lib/storage';
-import { supabase } from './lib/supabase';
+import storage from '../lib/storage';
+import { supabase } from '../lib/supabase';
 import { APP_SPORTS, isSportInSeason } from '../services/activeSport';
 
 export const ONBOARDING_KEY = 'betless_onboarding_v2';

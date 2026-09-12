@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { supabase } from '../app/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 interface UserGroup {
   id: string;

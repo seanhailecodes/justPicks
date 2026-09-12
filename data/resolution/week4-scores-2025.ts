@@ -126,6 +126,6 @@ export const WEEK_2_SCORES_2025: GameScore[] = [
 
 // Helper function to resolve all Week 2 games
 export async function resolveWeek2() {
-  const { resolveWeekFromScores } = await import('../resolution/gameResolution');
+  const { resolveWeekFromScores } = await import('./gameResolution');
   return await resolveWeekFromScores(WEEK_2_SCORES_2025);
 }

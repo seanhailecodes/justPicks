@@ -1,5 +1,10 @@
-import { supabase } from '../app/lib/supabase';
+import { supabase, getCurrentSeason } from '../lib/supabase';
 import { displayNameForPublicGroup } from './anonymity';
+
+/** "2026-27" style label for a season start-year (week-based sports span two calendar years). */
+function formatSeasonLabel(season: number): string {
+  return `${season}-${String((season + 1) % 100).padStart(2, '0')}`;
+}
 
 /**
  * Pick rating system - calculates user ratings based on:
@@ -582,54 +587,34 @@ async function getWeekBasedPicks(
   userId: string,
   weeks: number[],
   sport: Sport,
-  season?: number,
+  season?: number | null,
   groupId?: string
 ): Promise<any[]> {
   try {
-    // Default season based on current date
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
-    // For fall sports (NFL, NCAAF), season spans two years
-    const defaultSeason = currentMonth >= 8 ? currentYear : currentYear - 1;
-    const targetSeason = season || (sport === 'nfl' || sport === 'ncaaf' ? 2025 : defaultSeason);
+    // Season defaults to the app-wide current season (July-1 cross-year rule,
+    // same convention games.season uses for NFL). `season === null` means
+    // "every season" — used by the all-time timeframe.
+    const targetSeason = season === null ? null : (season ?? getCurrentSeason());
 
-    // Get game IDs for the specified weeks
-    const { data: games, error: gamesError } = await supabase
+    // Get game IDs for the specified weeks. Week numbers are only meaningful
+    // within a league (soccer stores week-of-year, NFL stores NFL week), so
+    // the league filter is required — the old code filtered on a `sport`
+    // column that doesn't exist and silently fell back to every league.
+    let gamesQuery = supabase
       .from('games')
       .select('id')
-      .in('week', weeks)
-      .eq('season', targetSeason)
-      .eq('sport', sport);
+      .eq('league', sport.toUpperCase()) // week-based sports: 'nfl' → 'NFL', 'ncaaf' → 'NCAAF'
+      .in('week', weeks);
+    if (targetSeason !== null) gamesQuery = gamesQuery.eq('season', targetSeason);
 
-    if (gamesError || !games || games.length === 0) {
-      // Fallback: try without sport filter for backward compatibility
-      const { data: fallbackGames } = await supabase
-        .from('games')
-        .select('id')
-        .in('week', weeks)
-        .eq('season', targetSeason);
-      
-      if (!fallbackGames || fallbackGames.length === 0) {
-        return [];
-      }
-      
-      const gameIds = fallbackGames.map(g => g.id);
-      
-      // Build query with optional group filter
-      let query = supabase
-        .from('picks')
-        .select('id, user_id, game_id, confidence, correct, created_at, groups')
-        .eq('user_id', userId)
-        .in('game_id', gameIds)
-        .order('created_at', { ascending: false });
-      
-      // Filter by group if provided
-      if (groupId) {
-        query = query.contains('groups', [groupId]);
-      }
-      
-      const { data: picks } = await query;
-      return picks || [];
+    const { data: games, error: gamesError } = await gamesQuery;
+
+    if (gamesError) {
+      console.error('Error fetching games for weeks:', gamesError);
+      return [];
+    }
+    if (!games || games.length === 0) {
+      return [];
     }
 
     const gameIds = games.map(g => g.id);
@@ -734,10 +719,15 @@ async function getPicksForTimeframe(
 
   if (config.scheduleModel === 'week') {
     const currentWeek = await getCurrentWeek(sport);
-    // Use previous completed week for "week" filter (current week has pending games)
+    // "Last completed" week: the week before the current one. In Week 1 there
+    // is no completed week yet, so fall back to the current week (its picks
+    // simply show as pending until games resolve).
     const lastCompletedWeek = Math.max(1, currentWeek - 1);
-    
+    // NFL weeks run 1–18 regular season + 19–22 postseason.
+    const MAX_WEEK = 22;
+
     let weeks: number[];
+    let season: number | null | undefined = undefined; // undefined → current season
     switch (timeframe) {
       case 'week':
         // Previous completed week only
@@ -748,18 +738,19 @@ async function getPicksForTimeframe(
         weeks = Array.from({ length: 4 }, (_, i) => lastCompletedWeek - i).filter(w => w >= 1);
         break;
       case 'season':
-        // All completed weeks this season (1 through last completed)
-        weeks = Array.from({ length: lastCompletedWeek }, (_, i) => i + 1);
+        // Every week so far this season, including the in-progress one
+        weeks = Array.from({ length: Math.min(MAX_WEEK, currentWeek) }, (_, i) => i + 1);
         break;
       case 'allTime':
-        // All possible weeks
-        weeks = Array.from({ length: config.seasonLength }, (_, i) => i + 1);
+        // Every week of every season
+        weeks = Array.from({ length: MAX_WEEK }, (_, i) => i + 1);
+        season = null;
         break;
       default:
         weeks = [lastCompletedWeek];
     }
-    
-    return getWeekBasedPicks(userId, weeks, sport, undefined, groupId);
+
+    return getWeekBasedPicks(userId, weeks, sport, season, groupId);
     
   } else if (config.scheduleModel === 'event') {
     let eventsBack: number;
@@ -1205,7 +1196,7 @@ export async function getTimeframeLabel(
       case 'month':
         return `Last 4 ${config.weekLabel}s`;
       case 'season':
-        return `${new Date().getFullYear()} Season`;
+        return `${formatSeasonLabel(getCurrentSeason())} Season`;
       case 'allTime':
         return 'All Time';
     }
@@ -1254,7 +1245,7 @@ export function getTimeframeLabelSync(
       case 'month':
         return `Last 4 ${config.weekLabel}s`;
       case 'season':
-        return `${new Date().getFullYear()} Season`;
+        return `${formatSeasonLabel(getCurrentSeason())} Season`;
       case 'allTime':
         return 'All Time';
     }

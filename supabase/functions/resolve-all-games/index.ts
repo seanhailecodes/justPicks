@@ -21,6 +21,39 @@ const LEAGUE_ODDS_KEYS: Record<string, string[]> = {
   ],
 }
 
+// Minimum time (ms) after kickoff before a game can plausibly be final.
+// Skipping games younger than this avoids paying for a scores call that
+// can only ever return "not yet final" (the cron runs every 30 minutes).
+const MIN_GAME_DURATION_MS: Record<string, number> = {
+  NFL:    3.0 * 3_600_000,
+  NBA:    2.2 * 3_600_000,
+  WNBA:   2.0 * 3_600_000,
+  NCAAB:  1.9 * 3_600_000,
+  NHL:    2.4 * 3_600_000,
+  MLB:    2.5 * 3_600_000,
+  SOCCER: 1.8 * 3_600_000,
+}
+
+// Retry a Supabase call on transient gateway errors (5xx / "Gateway Timeout").
+// The resolver's first action is a cold DB read; on the free tier that first
+// hop through the API gateway intermittently 504s and would otherwise abort
+// the whole run. Three attempts, 1.5 s → 3 s backoff.
+async function withRetry<T extends { error: any }>(label: string, fn: () => PromiseLike<T>, attempts = 3): Promise<T> {
+  let last: T | undefined
+  for (let i = 0; i < attempts; i++) {
+    const res = await fn()
+    if (!res.error) return res
+    const msg = String(res.error?.message ?? '')
+    const transient = /gateway|timeout|502|503|504|fetch failed/i.test(msg)
+    last = res
+    if (!transient || i === attempts - 1) break
+    const delay = 1500 * (i + 1)
+    console.warn(`${label}: transient error "${msg}", retrying in ${delay}ms (${i + 1}/${attempts - 1})`)
+    await new Promise((r) => setTimeout(r, delay))
+  }
+  return last as T
+}
+
 function calculateCoveredBy(
   homeScore: number,
   awayScore: number,
@@ -59,14 +92,27 @@ Deno.serve(async (req) => {
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
 
     // Step 1: Find all unresolved games across every sport
-    const { data: unresolvedGames, error: gamesError } = await supabase
-      .from('games')
-      .select('*')
-      .is('home_score', null)
-      .lt('game_date', now.toISOString())
-      .gt('game_date', threeDaysAgo.toISOString())
+    const { data: candidateGames, error: gamesError } = await withRetry('games query', () =>
+      supabase
+        .from('games')
+        .select('id, league, external_id, game_date, home_team, away_team, home_spread, over_under_line')
+        .is('home_score', null)
+        .lt('game_date', now.toISOString())
+        .gt('game_date', threeDaysAgo.toISOString())
+    )
 
     if (gamesError) throw gamesError
+
+    // Only games that have been running long enough to be final. Anything
+    // younger would cost a scores credit and come back "not yet final".
+    const unresolvedGames = (candidateGames ?? []).filter((g: any) => {
+      const minMs = MIN_GAME_DURATION_MS[g.league as string]
+      if (!minMs) return true // unknown league → let the league gate below decide
+      return now.getTime() - new Date(g.game_date).getTime() >= minMs
+    })
+    if ((candidateGames?.length ?? 0) > unresolvedGames.length) {
+      console.log(`Skipping ${(candidateGames!.length - unresolvedGames.length)} game(s) still in progress`)
+    }
 
     if (!unresolvedGames || unresolvedGames.length === 0) {
       return new Response(
@@ -160,7 +206,7 @@ Deno.serve(async (req) => {
       // Update game record
       const { error: gameUpdateError } = await supabase
         .from('games')
-        .update({ home_score: homeScore, away_score: awayScore, game_status: 'final', locked: true })
+        .update({ home_score: homeScore, away_score: awayScore, game_status: 'final', locked: true, resolved_at: now.toISOString() })
         .eq('id', game.id)
 
       if (gameUpdateError) {
@@ -211,7 +257,7 @@ Deno.serve(async (req) => {
 
         const { error: pickError } = await supabase
           .from('picks')
-          .update({ correct: pickCorrect, over_under_correct: overUnderCorrect })
+          .update({ correct: pickCorrect, over_under_correct: overUnderCorrect, resolved_at: now.toISOString() })
           .eq('id', pick.id)
 
         if (!pickError) {

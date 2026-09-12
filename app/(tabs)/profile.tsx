@@ -1,15 +1,15 @@
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Image, ImageSourcePropType, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { Alert } from '../lib/crossPlatformAlert';
-import { supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
+import { Alert } from '../../lib/crossPlatformAlert';
+import { supabase, calculatePayout, getCurrencySymbol } from '../../lib/supabase';
 import FeedbackModal from '../../components/FeedbackModal';
 import SportTabs from '../../components/SportTabs';
 import { Sport, getSportConfig } from '../../services/pickrating';
 import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
-import { getLatestActiveSeasonForUser } from '../lib/database';
+import { getLatestActiveSeasonForUser } from '../../lib/database';
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};

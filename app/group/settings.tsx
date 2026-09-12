@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { Alert } from '../lib/crossPlatformAlert';
-import { supabase } from '../lib/supabase';
+import { Alert } from '../../lib/crossPlatformAlert';
+import { supabase } from '../../lib/supabase';
 
 interface GroupDetails {
   id: string;
@@ -171,10 +171,12 @@ export default function GroupSettingsScreen() {
 
       if (admins && admins.length > 0) {
         // Promote first admin to primary_owner
+        // group_members is keyed by (group_id, user_id) — there is no `id` column.
         const { error: promoteError } = await supabase
           .from('group_members')
           .update({ role: 'primary_owner' })
-          .eq('id', admins[0].id);
+          .eq('group_id', groupId)
+          .eq('user_id', admins[0].user_id);
 
         if (promoteError) throw promoteError;
 

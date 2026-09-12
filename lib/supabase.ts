@@ -28,6 +28,27 @@ export const getCurrentSeason = (): number => {
   return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 };
 
+/**
+ * Leagues whose season is a single calendar year. The edge functions tag
+ * these games with the calendar year (`seasonForDate(date, 'calendar')`),
+ * while cross-year leagues (NFL, NBA, NHL, NCAAB, soccer) use the July-1 rule
+ * above. Picks must follow the same rule or `picks.season` disagrees with
+ * `games.season` from January to June.
+ */
+const CALENDAR_YEAR_LEAGUES = new Set(['MLB', 'WNBA', 'UFC', 'BOXING', 'PGA']);
+
+export const seasonForLeague = (league: string | null | undefined, date: Date = new Date()): number => {
+  if (league && CALENDAR_YEAR_LEAGUES.has(league.toUpperCase())) return date.getFullYear();
+  return date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;
+};
+
+/** Game ids are prefixed with their league (`nfl_…`, `mlb_…`, `ufc_…`). */
+export const leagueFromGameId = (gameId: string | null | undefined): string | null => {
+  if (!gameId) return null;
+  const prefix = gameId.split('_')[0];
+  return prefix && /^[a-z]+$/i.test(prefix) ? prefix.toUpperCase() : null;
+};
+
 // ========== WAGER UTILITIES ==========
 
 /**
@@ -424,7 +445,9 @@ export const savePick = async (userId: string, pickData: {
       pick_type: pickData.pick_type,
       groups: pickData.groups || [],
       reasoning: pickData.reasoning || '',
-      season: getCurrentSeason(),
+      // Same season rule the fetch functions use for games.season (calendar
+      // year for MLB/WNBA/UFC/Boxing/Golf, July-1 cross-year for the rest).
+      season: seasonForLeague(leagueFromGameId(pickData.game_id)),
       week: pickData.week,
       wager_amount: pickData.wager_amount ?? null,
       potential_win: pickData.potential_win ?? null,

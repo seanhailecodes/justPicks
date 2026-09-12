@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getSeasonRecap, SeasonRecapData, SeasonRecapMember } from '../app/lib/database';
+import { getSeasonRecap, SeasonRecapData, SeasonRecapMember } from '../lib/database';
 
 interface SeasonRecapProps {
   groupId: string;

@@ -1,9 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Alert } from '../lib/crossPlatformAlert';
-import { supabase } from '../lib/supabase';
-import { sanitizeGroupName, isValidGroupName } from '../lib/validation';
+import { Alert } from '../../lib/crossPlatformAlert';
+import { supabase } from '../../lib/supabase';
+import { sanitizeGroupName, isValidGroupName } from '../../lib/validation';
 import { getDefaultSport, ENABLED_SPORTS } from '../../services/activeSport';
 
 // Available sports for group creation — pulled from the central sport
@@ -135,6 +135,10 @@ export default function CreateGroupScreen() {
           invite_code: finalInviteCode,
           visibility: isPrivate ? 'private' : 'public',
           require_approval: requireApproval,
+          // join_type drives the group_members self-join RLS rule. Without it
+          // every group fell back to the DB default 'invite_only' and even
+          // public groups couldn't be joined.
+          join_type: isPrivate ? 'invite_only' : (requireApproval ? 'request_to_join' : 'open'),
           sport: selectedSport
         })
         .select()

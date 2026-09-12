@@ -1,10 +1,10 @@
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useNotificationContext } from '../../components/NotificationContext';
 import { getSport, type Sport } from '../../services/activeSport';
-import { getUserGroups } from '../lib/database';
-import { supabase } from '../lib/supabase';
+import { getUserGroups } from '../../lib/database';
+import { supabase } from '../../lib/supabase';
 
 interface PublicGroup {
   id: string;
@@ -46,9 +46,14 @@ export default function BrowseGroupsScreen({ embedded = false }: { embedded?: bo
   const [sportFilter, setSportFilter] = useState<string>('all');
   const { showNotification } = useNotificationContext();
 
-  useEffect(() => {
-    loadGroups();
-  }, []);
+  // Reload whenever this screen regains focus — create.tsx and settings.tsx
+  // `router.replace` back here after changing membership, and a mount-only
+  // load left the list stale.
+  useFocusEffect(
+    useCallback(() => {
+      loadGroups();
+    }, [])
+  );
 
   // Only groups the user is a member of, split by visibility.
   const tabGroups = useMemo(

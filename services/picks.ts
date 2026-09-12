@@ -1,5 +1,5 @@
 // app/services/picks.ts
-import { supabase } from '../app/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 export type PickData = {
   game_id: string;

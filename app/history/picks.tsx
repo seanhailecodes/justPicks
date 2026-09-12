@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getUserPickHistory, supabase, calculatePayout, getCurrencySymbol } from '../lib/supabase';
+import { getUserPickHistory, supabase, calculatePayout, getCurrencySymbol } from '../../lib/supabase';
 import { APP_SPORTS } from '../../services/activeSport';
 
 interface PickHistoryItem {

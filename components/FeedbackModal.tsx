@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { supabase } from '../app/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 const CATEGORIES = [
   { key: 'bug',     label: '🐛 Bug',     },

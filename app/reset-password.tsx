@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Alert } from './lib/crossPlatformAlert';
-import { supabase } from './lib/supabase';
+import { Alert } from '../lib/crossPlatformAlert';
+import { supabase } from '../lib/supabase';
 
 export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');

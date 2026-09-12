@@ -1,6 +1,6 @@
-import { getWeekSchedule, hasScheduleForWeek } from '@/app/data/nfl-2025-schedule';
-import { getWeekScores, hasScoresForWeek } from '@/app/data/resolution/allScores';
-import { resolveWeekFromScores } from '@/app/data/resolution/gameResolution';
+import { getWeekSchedule, hasScheduleForWeek } from '@/data/nfl-2025-schedule';
+import { getWeekScores, hasScoresForWeek } from '@/data/resolution/allScores';
+import { resolveWeekFromScores } from '@/data/resolution/gameResolution';
 import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import FeedbackModal from '@/components/FeedbackModal';
 import SportTabs from '@/components/SportTabs';
@@ -8,15 +8,15 @@ import { Session } from '@supabase/supabase-js';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Alert } from '../lib/crossPlatformAlert';
+import { Alert } from '../../lib/crossPlatformAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getUserPicks, savePick, updatePickWager, getCurrencySymbol, getDeviceCurrency, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../lib/supabase';
-import { getUserGroups } from '../lib/database';
+import { getUserPicks, savePick, updatePickWager, getCurrencySymbol, getDeviceCurrency, supabase, getCurrentWeek, updateCurrentWeek, populateWeekGames } from '../../lib/supabase';
+import { getUserGroups } from '../../lib/database';
 import { 
   trackGameView, 
   trackAddedToTicket, 
   trackRemovedFromTicket,
-} from '../lib/ai-data-helpers';
+} from '../../lib/ai-data-helpers';
 import { useNotificationContext } from '../../components/NotificationContext';
 import { APP_SPORTS, AppSport, isSportInSeason } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';

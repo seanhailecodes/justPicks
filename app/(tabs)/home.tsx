@@ -12,8 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { supabase } from '../lib/supabase';
-import storage from '../lib/storage';
+import { supabase } from '../../lib/supabase';
+import storage from '../../lib/storage';
 import { ONBOARDING_KEY } from '../onboarding';
 import PushEnrollmentBanner from '../../components/PushEnrollmentBanner';
 import FeedbackModal from '../../components/FeedbackModal';

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { APP_SPORTS, AppSport, Sport, getDefaultSport, getSport } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
 import SportTabs from '../../components/SportTabs';

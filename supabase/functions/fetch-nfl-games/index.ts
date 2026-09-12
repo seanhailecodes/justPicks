@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread, seasonForDate, pruneDelistedGames } from '../_shared/games.ts'
+import { etDateString, mergeDuplicateGames, filterLockedGames, isSaneSpread, seasonForDate, pruneDelistedGames, nflWeekFor } from '../_shared/games.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,15 +42,9 @@ const NFL_TEAMS: Record<string, { code: string; logo: string }> = {
   'Washington Commanders': { code: 'WAS', logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png' },
 }
 
-// Calculate NFL week from date
-// 2025 NFL Season: Week 1 starts Sept 4, 2025
-function getNFLWeek(gameDate: Date): number {
-  const seasonStart = new Date('2025-09-02T00:00:00Z') // Tuesday before Week 1
-  const diffMs = gameDate.getTime() - seasonStart.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  const week = Math.floor(diffDays / 7) + 1
-  return Math.max(1, Math.min(22, week)) // Clamp to 1-22
-}
+// NFL week is derived from the game's own season (see _shared/games.ts
+// nflWeekFor) — no hardcoded kickoff date.
+const getNFLWeek = (gameDate: Date): number => nflWeekFor(gameDate)
 
 Deno.serve(async (req) => {
   // Handle CORS preflight

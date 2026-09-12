@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import storage from '../app/lib/storage';
+import storage from '../lib/storage';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 const DISMISSED_KEY = 'betless_push_dismissed_v1';

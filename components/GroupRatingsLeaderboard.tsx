@@ -18,7 +18,7 @@ import {
   LeaderboardUser,
   Sport 
 } from '../services/pickrating';
-import { supabase } from '../app/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 interface GroupRatingsProps {
   mode: 'global' | 'group';

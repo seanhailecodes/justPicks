@@ -1,13 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { supabase, getCurrentSeason } from '../lib/supabase';
+import { supabase, getCurrentSeason } from '../../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 import SeasonRecap from '../../components/SeasonRecap';
 import { Sport } from '../../services/pickrating';
 import { getSeasonOptions, SeasonOption, formatSeasonForSport } from '../../services/seasons';
 import { isSportInSeason, getSport } from '../../services/activeSport';
-import { getLatestGradedSeasonForGroup, getPickSeasonsForGroup } from '../lib/database';
+import { getLatestGradedSeasonForGroup, getPickSeasonsForGroup } from '../../lib/database';
 import { getPublicAlias } from '../../services/anonymity';
 
 interface FriendPick {
@@ -59,6 +59,7 @@ export default function GroupPicksScreen() {
   const [gamesData, setGamesData] = useState<any[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [groupMemberCount, setGroupMemberCount] = useState<number>(0);
   const weekScrollViewRef = useRef<ScrollView>(null);
@@ -86,22 +87,35 @@ export default function GroupPicksScreen() {
   // Fetch group info including sport
   useEffect(() => {
     const fetchGroupInfo = async () => {
-      if (!groupId) return;
+      if (!groupId) {
+        setLoadError('No group was selected.');
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('groups')
         .select('id, name, sport, visibility')
         .eq('id', groupId)
-        .single();
+        .maybeSingle();
 
-      if (data) {
-        setGroupInfo({
-          id: data.id,
-          name: data.name,
-          sport: (data.sport as Sport) || 'nfl',
-          visibility: data.visibility || 'private',
-        });
+      if (error || !data) {
+        // RLS hides groups the user isn't a member of (and private groups from
+        // non-members), so "not found" and "not allowed" look the same here.
+        // Without this the games effect never fires and the spinner is permanent.
+        console.error('Error loading group:', error);
+        setLoadError("We couldn't open this group. It may have been deleted, or you may not be a member.");
+        setLoading(false);
+        return;
       }
+
+      setLoadError(null);
+      setGroupInfo({
+        id: data.id,
+        name: data.name,
+        sport: (data.sport as Sport) || 'nfl',
+        visibility: data.visibility || 'private',
+      });
     };
 
     fetchGroupInfo();
@@ -565,6 +579,22 @@ export default function GroupPicksScreen() {
     o.value === recapSeason
   );
   const showSeasonPicker = visibleSeasonOptions.length > 1 || recapMode;
+
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>{loadError}</Text>
+          <TouchableOpacity
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/groups')}
+            style={[styles.backButton, { marginTop: 16 }]}
+          >
+            <Text style={styles.loadingText}>← Back to Groups</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading && !recapMode) {
     return (

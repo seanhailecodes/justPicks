@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import type { AlertButton } from 'react-native';
 import NotificationModal from './NotificationModal';
-import { registerAlertHost } from '../app/lib/crossPlatformAlert';
+import { registerAlertHost } from '../lib/crossPlatformAlert';
 
 interface HostState {
   visible: boolean;

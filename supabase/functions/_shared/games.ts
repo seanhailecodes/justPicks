@@ -28,6 +28,43 @@ export function seasonForDate(date: Date, model: "cross-year" | "calendar"): num
   return date.getMonth() >= 6 ? year : year - 1;
 }
 
+// ---------------------------------------------------------------------------
+// NFL week numbering
+//
+// NFL weeks run Tuesday → Monday. Week 1 kicks off the Thursday after Labor
+// Day (first Monday of September), so the season "clock" starts on the
+// Tuesday after Labor Day, 00:00 ET. Derive that from the game's own season
+// instead of hardcoding a year — the previous implementation pinned
+// 2025-09-02 and clamped to 22, which tagged every 2026 game as week 22.
+//
+// NFL_SEASON_START lets a specific season override the Labor Day rule if
+// the league ever shifts kickoff. Add a row only when needed.
+// ---------------------------------------------------------------------------
+export const NFL_SEASON_START: Record<number, string> = {
+  // season: 'YYYY-MM-DD' of the Tuesday before Week 1 (ET)
+  2025: "2025-09-02",
+  2026: "2026-09-08",
+};
+
+/** Tuesday-before-Week-1 for a season, as a UTC timestamp (00:00 America/New_York). */
+export function nflSeasonStart(season: number): number {
+  const override = NFL_SEASON_START[season];
+  if (override) return Date.parse(`${override}T00:00:00-04:00`);
+  // Labor Day = first Monday of September; the NFL clock starts the next day.
+  const sep1 = new Date(Date.UTC(season, 8, 1));
+  const dow = sep1.getUTCDay(); // 0 = Sun … 6 = Sat
+  const laborDay = 1 + ((8 - dow) % 7); // day-of-month of first Monday
+  const tuesday = new Date(Date.UTC(season, 8, laborDay + 1));
+  return Date.parse(`${tuesday.toISOString().slice(0, 10)}T00:00:00-04:00`);
+}
+
+/** NFL week (1–22) for a game date, using the game's own season. */
+export function nflWeekFor(date: Date): number {
+  const season = seasonForDate(date, "cross-year");
+  const diffDays = Math.floor((date.getTime() - nflSeasonStart(season)) / 86_400_000);
+  return Math.max(1, Math.min(22, Math.floor(diffDays / 7) + 1));
+}
+
 interface GameRow {
   id: string;
   external_id?: string | null;

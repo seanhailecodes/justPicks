@@ -147,6 +147,6 @@ export const WEEK_12_SCORES_2025: GameScore[] = [
 
 // Helper function to resolve all Week 12 games
 export async function resolveWeek12() {
-  const { resolveWeekFromScores } = await import('../resolution/gameResolution');
+  const { resolveWeekFromScores } = await import('./gameResolution');
   return await resolveWeekFromScores(WEEK_12_SCORES_2025);
 }
