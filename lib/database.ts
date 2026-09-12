@@ -1051,13 +1051,12 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
       })
     );
 
-    // Sort: active groups (with picks) first, then by most recently created
-    userGroups.sort((a, b) => {
-      const aActive = (a.totalGroupPicks ?? 0) > 0;
-      const bActive = (b.totalGroupPicks ?? 0) > 0;
-      if (aActive !== bActive) return aActive ? -1 : 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    // Sort: most recently created first. (Previously "groups with picks
+    // first", which buried a just-created group under every older group
+    // that had ever had a pick in it.)
+    userGroups.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
     return userGroups;
   } catch (error) {
