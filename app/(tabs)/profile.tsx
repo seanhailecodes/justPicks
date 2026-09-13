@@ -10,6 +10,7 @@ import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../..
 import { useSortedSports } from '../../services/useSortedSports';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
 import { getLatestActiveSeasonForUser } from '../../lib/database';
+import { describeBuild } from '../../lib/appUpdates';
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
@@ -667,6 +668,8 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
             <Text style={styles.deleteAccountText}>Delete Account</Text>
           </TouchableOpacity>
+
+          <Text style={styles.buildLabel}>{describeBuild()}</Text>
         </View>
       </ScrollView>
 
@@ -1056,6 +1059,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: '#333',
+  },
+  buildLabel: {
+    color: '#555',
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: 12,
+    fontVariant: ['tabular-nums'],
   },
   deleteAccountText: {
     color: '#8E8E93',

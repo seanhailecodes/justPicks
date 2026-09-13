@@ -1,9 +1,16 @@
 // app/_layout.tsx
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { NotificationProvider } from '../components/NotificationContext';
 import AlertHost from '../components/AlertHost';
+import { applyUpdateOnLaunch } from '../lib/appUpdates';
 
 export default function RootLayout() {
+  // Apply any pending EAS Update on this launch instead of the next one.
+  useEffect(() => {
+    applyUpdateOnLaunch();
+  }, []);
+
   return (
     <NotificationProvider>
       <Stack>
