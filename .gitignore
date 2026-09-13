@@ -22,3 +22,7 @@ expo-env.d.ts
 # @end expo-cli
 .vercel
 .env.*
+
+# Scratch notes must never be committed (a password leaked this way once)
+.notes
+*.notes
