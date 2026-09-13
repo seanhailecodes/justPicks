@@ -4,9 +4,36 @@ import 'react-native-url-polyfill/auto';
 import storage from './storage';
 
 
-// Dev 
+// Dev
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+// The API gateway enforces a hard 5 s upstream timeout, and on the free-tier
+// instance the first query after an idle spell regularly exceeds it — the
+// request comes back 504 "Gateway Timeout" while the very next one succeeds
+// in ~100 ms. Retry read requests (GET/HEAD only — never re-send a write,
+// and never a token refresh, which is single-use) on 5xx / network failure.
+const RETRY_STATUSES = new Set([502, 503, 504, 522, 524]);
+const RETRY_DELAYS_MS = [400, 1200];
+
+const fetchWithRetry: typeof fetch = async (input, init) => {
+  const method = (init?.method ?? (typeof input !== 'string' && 'method' in input ? input.method : 'GET')).toUpperCase();
+  const retryable = method === 'GET' || method === 'HEAD';
+  let lastError: unknown;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(input, init);
+      if (!retryable || !RETRY_STATUSES.has(res.status) || attempt >= RETRY_DELAYS_MS.length) return res;
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      // Network-level failure (offline, DNS, reset). Only retry reads.
+      if (!retryable || attempt >= RETRY_DELAYS_MS.length) throw err;
+      lastError = err;
+    }
+    console.warn(`[supabase] ${method} retry ${attempt + 1}/${RETRY_DELAYS_MS.length} after`, (lastError as Error)?.message ?? lastError);
+    await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+  }
+};
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -15,7 +42,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: Platform.OS === 'web',
   },
+  global: { fetch: fetchWithRetry },
 });
+
+// ========== NFL WEEK (client-side fallback) ==========
+/**
+ * NFL week for a date, mirroring the server's nfl_week_for(): the season
+ * clock starts the Tuesday after Labor Day (first Monday of September) at
+ * 00:00 ET, weeks 1–22. Used when app_state can't be read so week-based
+ * screens never wait forever on a failed request.
+ */
+export const computeNflWeek = (date: Date = new Date()): number => {
+  const season = date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;
+  const sep1 = new Date(Date.UTC(season, 8, 1));
+  const laborDay = 1 + ((8 - sep1.getUTCDay()) % 7);
+  const clockStart = Date.parse(`${season}-09-${String(laborDay + 1).padStart(2, '0')}T00:00:00-04:00`);
+  const week = Math.floor((date.getTime() - clockStart) / 604_800_000) + 1;
+  return Math.max(1, Math.min(22, week));
+};
 
 // ========== SEASON UTILITY ==========
 /**

@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { supabase, getCurrentSeason } from '../../lib/supabase';
+import { supabase, getCurrentSeason, computeNflWeek } from '../../lib/supabase';
 import GroupRatingsLeaderboard from '../../components/GroupRatingsLeaderboard';
 import SeasonRecap from '../../components/SeasonRecap';
 import { Sport } from '../../services/pickrating';
@@ -124,26 +124,28 @@ export default function GroupPicksScreen() {
   // Load current week from database on mount (for NFL)
   useEffect(() => {
     const loadCurrentWeek = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('app_state')
         .select('current_week')
-        .single();
-      
-      if (data?.current_week) {
-        setCurrentWeekNumber(data.current_week);
-        setSelectedWeek(data.current_week);
-        
-        setTimeout(() => {
-      if (weekScrollViewRef.current && data.current_week > 4) {
-        // Each week chip is ~90px wide, center the current week
-        const scrollPosition = (data.current_week - 3) * 90;
-        weekScrollViewRef.current.scrollTo({ 
-          x: scrollPosition, 
-          animated: true 
-            });
-          }
-        }, 300);
+        .maybeSingle();
+
+      // NFL groups wait on selectedWeek before loading anything, so a failed
+      // app_state read used to leave the screen on the spinner forever. Fall
+      // back to the date-derived week instead.
+      if (error || !data?.current_week) {
+        console.warn('[group-picks] app_state unavailable, using computed NFL week:', error?.message);
       }
+      const week: number = data?.current_week || computeNflWeek();
+
+      setCurrentWeekNumber(week);
+      setSelectedWeek(week);
+
+      setTimeout(() => {
+        if (weekScrollViewRef.current && week > 4) {
+          // Each week chip is ~90px wide, center the current week
+          weekScrollViewRef.current.scrollTo({ x: (week - 3) * 90, animated: true });
+        }
+      }, 300);
     };
     
     loadCurrentWeek();
