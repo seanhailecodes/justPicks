@@ -307,7 +307,10 @@ export default function HomeScreen() {
         .select('id, name, sport')
         .in('id', groupIds)
         .eq('sport', selectedSport)
-        .eq('is_official', false);
+        .eq('is_official', false)
+        // Newest first — without an explicit order PostgREST returns heap
+        // order, which put a just-created group at the bottom.
+        .order('created_at', { ascending: false });
 
       if (groups && groups.length > 0) {
         // Get actual member counts from group_members table
