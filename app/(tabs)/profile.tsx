@@ -10,7 +10,7 @@ import { APP_SPORTS, SPORT_EMOJI, getDefaultSport, isSportInSeason } from '../..
 import { useSortedSports } from '../../services/useSortedSports';
 import { getSeasonOptions, SeasonOption } from '../../services/seasons';
 import { getLatestActiveSeasonForUser } from '../../lib/database';
-import { describeBuild } from '../../lib/appUpdates';
+import { describeBuild, describeBuildDetail } from '../../lib/appUpdates';
 
 // Sport logos placeholder (add images here as you expand)
 const SPORT_LOGOS: Partial<Record<Sport, any>> = {};
@@ -670,6 +670,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <Text style={styles.buildLabel}>{describeBuild()}</Text>
+          {describeBuildDetail() ? (
+            <Text style={[styles.buildLabel, { paddingTop: 0, fontSize: 10 }]}>{describeBuildDetail()}</Text>
+          ) : null}
         </View>
       </ScrollView>
 

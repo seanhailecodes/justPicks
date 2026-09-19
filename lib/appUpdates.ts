@@ -1,37 +1,40 @@
 // Over-the-air (EAS Update) helpers.
 //
-// expo-updates' default behaviour is: check on launch, download in the
-// background, apply on the NEXT cold start. In practice that means users
-// have to fully quit the app twice before they see a fix, and there is no
-// way to tell which bundle is running. This module:
+// Native expo-updates behaviour on the current store build (v1.3.0 build 7)
+// is: check on launch, download in the background, apply on the NEXT cold
+// start — so every update takes two full launches to appear. This module
+// tries to collapse that to one launch, and makes the running bundle
+// visible in the Profile footer so we can verify what a device is on.
 //
-//   1. applyUpdateOnLaunch(): if a newer update is available for this
-//      runtime/channel, download it and reload immediately so the fix is
-//      live on the first launch after publish (about a second of splash).
-//   2. describeBuild(): a short "v1.3.0 · 01a09823" string for the Profile
-//      footer so we can verify what a device is actually running.
-//
-// IMPORTANT — why the module is loaded lazily:
-// `import * as Updates from 'expo-updates'` calls requireNativeModule() at
-// import time. The current App Store binary (build 7) was compiled from a
-// commit that did NOT include expo-updates, so that native module is absent
-// there and a static import throws before the first screen renders — the
-// app dies on the splash. (This shipped once, 2026-09-19, and took the app
-// down for every iOS user until the update was rolled back.) Loading the
-// module inside a try/catch, only when needed, keeps the JS bundle usable
-// on binaries with or without the native side.
+// IMPORTANT — why the module is loaded lazily and everything is guarded:
+// On 2026-09-19 a bundle that imported expo-updates statically froze the
+// app at startup for every iOS user; the same code with a guarded require()
+// runs fine. Native OTA delivery has worked on this binary throughout (the
+// phone was observed running post-build code), so the native module is
+// present — but evaluating the JS module at bundle-init is not safe here.
+// We therefore:
+//   - require() it only inside try/catch, on first use;
+//   - record the error (if any) so describeBuild() can surface it;
+//   - never reload more than once per target update, and never within
+//     60 s of a previous reload (stored via AsyncStorage) — a reload loop
+//     would look exactly like a frozen splash screen.
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import storage from './storage';
 
 type UpdatesModule = typeof import('expo-updates');
 
 const isNative = Platform.OS !== 'web';
 
+const RELOAD_GUARD_KEY = 'justpicks.updates.lastReload'; // JSON: { id, at }
+const RELOAD_COOLDOWN_MS = 60_000;
+
 let cached: UpdatesModule | null | undefined; // undefined = not tried yet
+let loadError: string | null = null;
 
 /**
- * The expo-updates JS module, or null when the running binary doesn't
- * contain the native module (or we're on web / in development).
+ * The expo-updates JS module, or null when it can't be used in the running
+ * binary (or we're on web / in development). Never throws.
  */
 function loadUpdates(): UpdatesModule | null {
   if (cached !== undefined) return cached;
@@ -40,18 +43,25 @@ function loadUpdates(): UpdatesModule | null {
     return cached;
   }
   try {
-    // require() rather than import so the native lookup happens here, guarded.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('expo-updates') as UpdatesModule;
-    // Touching isEnabled forces the native bridge; if the module is missing
-    // this is where it throws.
+    // Touch the native-backed constants; if the bridge is unhappy this is
+    // where it throws, and we want that inside the try.
     void mod.isEnabled;
+    void mod.updateId;
     cached = mod;
   } catch (err) {
-    console.warn('[updates] expo-updates unavailable in this binary:', (err as Error)?.message ?? err);
+    loadError = (err as Error)?.message ?? String(err);
+    console.warn('[updates] expo-updates unavailable in this binary:', loadError);
     cached = null;
   }
   return cached;
+}
+
+/** The reason expo-updates couldn't be loaded, if it couldn't. */
+export function updatesLoadError(): string | null {
+  loadUpdates();
+  return loadError;
 }
 
 /** True when OTA updates can run at all (native release build with expo-updates on). */
@@ -60,11 +70,33 @@ export function updatesEnabled(): boolean {
   return Updates?.isEnabled === true;
 }
 
+async function readReloadGuard(): Promise<{ id: string; at: number } | null> {
+  try {
+    const raw = await storage.getItem(RELOAD_GUARD_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeReloadGuard(id: string): Promise<void> {
+  try {
+    await storage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ id, at: Date.now() }));
+  } catch {
+    /* best effort */
+  }
+}
+
 let applied = false;
 
 /**
- * Check → fetch → reload, once per process. Safe to call from the root
- * layout; resolves quickly when there is nothing to do and never throws.
+ * Check → fetch → reload, once per process, so a published update is live
+ * on the first launch after publish instead of the second. Safe to call from
+ * the root layout; resolves quickly when there is nothing to do; never throws.
+ *
+ * Loop protection: we remember the update id we last reloaded into. If the
+ * server offers that same id again, or we reloaded less than 60 s ago, we
+ * leave it to native's next-launch behaviour instead of reloading.
  */
 export async function applyUpdateOnLaunch(): Promise<void> {
   if (applied) return;
@@ -74,20 +106,37 @@ export async function applyUpdateOnLaunch(): Promise<void> {
   try {
     const check = await Updates.checkForUpdateAsync();
     if (!check.isAvailable) return;
-    const fetched = await Updates.fetchUpdateAsync();
-    if (fetched.isNew) {
-      await Updates.reloadAsync();
+
+    const targetId: string | undefined = (check as any).manifest?.id;
+    const guard = await readReloadGuard();
+    if (guard) {
+      if (targetId && guard.id === targetId) {
+        console.warn('[updates] already reloaded for', targetId, '— leaving to next launch');
+        return;
+      }
+      if (Date.now() - guard.at < RELOAD_COOLDOWN_MS) {
+        console.warn('[updates] reloaded', Math.round((Date.now() - guard.at) / 1000), 's ago — leaving to next launch');
+        return;
+      }
     }
+
+    // fetchUpdateAsync returns isNew=false when native already downloaded the
+    // update in the background — it is still pending, so we reload either way.
+    await Updates.fetchUpdateAsync();
+    await writeReloadGuard(targetId ?? 'unknown');
+    await Updates.reloadAsync();
   } catch (err) {
-    // Offline, throttled, or the manifest failed — the default
+    // Offline, throttled, or the manifest failed — native's own
     // check-on-launch path still runs, so just log and move on.
     console.warn('[updates] apply-on-launch skipped:', (err as Error)?.message ?? err);
   }
 }
 
 /**
- * e.g. "v1.3.0 · 01a09823" (OTA), "v1.3.0 · embedded" (store bundle), or
- * "v1.3.0 · no-updates" when the binary has no expo-updates module.
+ * Footer label for Profile:
+ *   "v1.3.0 · 01a0bbfe"      — OTA update id (first 8)
+ *   "v1.3.0 · embedded"      — running the bundle shipped in the store build
+ *   "v1.3.0 · no-updates"    — expo-updates JS couldn't load (see describeBuildDetail)
  */
 export function describeBuild(): string {
   const version =
@@ -104,4 +153,10 @@ export function describeBuild(): string {
   } catch {
     return `v${version} · unknown`;
   }
+}
+
+/** Second footer line: the load error when there is one, else null. */
+export function describeBuildDetail(): string | null {
+  const err = updatesLoadError();
+  return err ? err.slice(0, 120) : null;
 }
