@@ -63,10 +63,14 @@ export default function PicksTicket({
   const [pickType, setPickType] = useState<'solo' | 'group'>('solo');
   const [slideAnim] = useState(new Animated.Value(0));
 
-  // Autocomplete state
+  // Autocomplete state. Suggestions are DERIVED from the focused pick's
+  // current text at render time (see suggestionsFor) rather than kept in
+  // state — toggling them in state flipped a zIndex style on the pick row,
+  // and on iOS a zIndex change re-inserts the native subviews, which blurs
+  // the TextInput mid-word.
   const [pastReasonings, setPastReasonings] = useState<string[]>([]);
   const [focusedPickKey, setFocusedPickKey] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Wager state — tracks which picks have "bet it" toggled on + raw input text
   const deviceCurrency = getDeviceCurrency();
@@ -221,38 +225,41 @@ export default function PicksTicket({
 
   const handleNotesChange = (gameId: string, betType: string, notes: string) => {
     onUpdatePick(gameId, betType, { notes });
-    
-    // Update suggestions based on input
-    if (notes.length >= 2) {
-      const filtered = pastReasonings.filter(r => 
-        r.toLowerCase().includes(notes.toLowerCase())
-      ).slice(0, 5);
-      setSuggestions(filtered);
-    } else {
-      setSuggestions([]);
-    }
+  };
+
+  /**
+   * Past notes to offer for the focused input: the 5 most recent when the
+   * field is empty or has a single character, otherwise the 5 most recent
+   * that contain what's been typed. Never hides-then-shows between
+   * keystrokes, so the row's layout stays put while typing.
+   */
+  const suggestionsFor = (notes: string): string[] => {
+    const q = notes.trim().toLowerCase();
+    const pool = q.length >= 2
+      ? pastReasonings.filter(r => r.toLowerCase().includes(q))
+      : pastReasonings;
+    // Don't suggest the exact text already in the box.
+    return pool.filter(r => r.toLowerCase() !== q).slice(0, 5);
   };
 
   const handleNotesFocus = (gameId: string, betType: string) => {
-    setFocusedPickKey(`${gameId}-${betType}`);
-    // Show recent suggestions when focusing (even if empty input)
-    const currentPick = picks.find(p => p.gameId === gameId && p.betType === betType);
-    if (!currentPick?.notes || currentPick.notes.length < 2) {
-      setSuggestions(pastReasonings.slice(0, 5));
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
     }
+    setFocusedPickKey(`${gameId}-${betType}`);
   };
 
   const handleNotesBlur = () => {
-    // Delay hiding suggestions to allow tap to register
-    setTimeout(() => {
+    // Delay hiding suggestions so a tap on one still registers.
+    blurTimer.current = setTimeout(() => {
       setFocusedPickKey(null);
-      setSuggestions([]);
+      blurTimer.current = null;
     }, 200);
   };
 
   const handleSuggestionTap = (gameId: string, betType: string, suggestion: string) => {
     onUpdatePick(gameId, betType, { notes: suggestion });
-    setSuggestions([]);
     setFocusedPickKey(null);
     Keyboard.dismiss();
   };
@@ -333,10 +340,11 @@ export default function PicksTicket({
                   // @ when picking away team (playing at opponent), vs when picking home team
                   const vsText = pick.side === 'away' ? '@' : 'vs';
                   const pickKey = `${pick.gameId}-${pick.betType}`;
-                  const showSuggestions = focusedPickKey === pickKey && suggestions.length > 0;
-                  
+                  const suggestions = focusedPickKey === pickKey ? suggestionsFor(pick.notes || '') : [];
+                  const showSuggestions = suggestions.length > 0;
+
                   return (
-                  <View key={pickKey} style={[styles.pickItem, showSuggestions && styles.pickItemWithSuggestions]}>
+                  <View key={pickKey} style={styles.pickItem}>
                     <View style={styles.pickRow}>
                       {/* Pick Info */}
                       <View style={styles.pickInfoCompact}>
@@ -418,13 +426,15 @@ export default function PicksTicket({
                         maxLength={200}
                       />
 
-                      {/* Suggestions Dropdown */}
+                      {/* Suggestions — rendered inline below the input (not as an
+                          absolute overlay) so showing them never changes an
+                          ancestor's zIndex and never blurs the field. */}
                       {showSuggestions && (
                         <View style={styles.suggestionsContainer}>
                           <Text style={styles.suggestionsHeader}>Recent notes:</Text>
-                          {suggestions.map((suggestion, idx) => (
+                          {suggestions.map((suggestion) => (
                             <TouchableOpacity
-                              key={idx}
+                              key={suggestion}
                               style={styles.suggestionItem}
                               onPress={() => handleSuggestionTap(pick.gameId, pick.betType, suggestion)}
                             >
@@ -709,9 +719,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
     zIndex: 1,
   },
-  pickItemWithSuggestions: {
-    zIndex: 100,
-  },
   pickRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -797,7 +804,6 @@ const styles = StyleSheet.create({
   },
   notesContainer: {
     position: 'relative',
-    zIndex: 10,
   },
   notesInput: {
     marginTop: 10,
@@ -811,22 +817,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
   },
   suggestionsContainer: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
     backgroundColor: '#2C2C2E',
     borderRadius: 8,
-    marginTop: 4,
+    marginTop: 6,
     borderWidth: 1,
     borderColor: 'rgba(255,107,53,0.4)',
     overflow: 'hidden',
-    zIndex: 100,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
   suggestionsHeader: {
     color: 'rgba(255,255,255,0.5)',
