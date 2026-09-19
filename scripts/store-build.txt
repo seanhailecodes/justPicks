@@ -1,0 +1,4 @@
+a37e831922633ff445e77432e4a122b0cd3acf96
+# ^ commit the current App Store binary was built from
+#   (iOS build e9bee15b, v1.3.0 build 7, 2026-05-24 — `npx eas-cli build:list`).
+#   Update this line whenever a new App Store build ships.

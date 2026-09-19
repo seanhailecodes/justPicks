@@ -141,9 +141,11 @@ export default function GroupPicksScreen() {
       setSelectedWeek(week);
 
       setTimeout(() => {
-        if (weekScrollViewRef.current && week > 4) {
-          // Each week chip is ~90px wide, center the current week
-          weekScrollViewRef.current.scrollTo({ x: (week - 3) * 90, animated: true });
+        // Chips are ~60px wide with a 6px gap; scroll so the current week
+        // sits mid-screen once the row is wider than the viewport.
+        if (weekScrollViewRef.current && week > 3) {
+          const CHIP = 66;
+          weekScrollViewRef.current.scrollTo({ x: Math.max(0, (week - 3) * CHIP), animated: true });
         }
       }, 300);
     };
@@ -956,7 +958,7 @@ export default function GroupPicksScreen() {
                     styles.weekChipText,
                     selectedWeek === weekNum && styles.weekChipTextActive
                   ]}>
-                    Week {weekNum}
+                    Wk {weekNum}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1135,40 +1137,47 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
+  // Week / season strips share the Games screen's SportTabs look:
+  // compact rounded rectangles (not pills), 12px semibold labels, and a
+  // row that centers itself when everything fits, scrolling only when it
+  // doesn't.
   weekSelector: {
-    maxHeight: 40,
-    marginVertical: 8,
+    maxHeight: 34,
+    marginVertical: 6,
   },
   weekSelectorContent: {
-    paddingHorizontal: 16,
-    paddingRight: 32,
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    gap: 6,
   },
   weekChip: {
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   weekChipActive: {
     backgroundColor: '#FF6B35',
   },
   weekChipText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
   weekChipTextActive: {
     color: '#FFF',
   },
-  // Season chips — pill shape matching the week chips, with the
-  // label centered inside the box.
   seasonChip: {
     backgroundColor: '#1C1C1E',
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 16,
-    marginRight: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1177,7 +1186,7 @@ const styles = StyleSheet.create({
   },
   seasonChipText: {
     color: '#8E8E93',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
   },
