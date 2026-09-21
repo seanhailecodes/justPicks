@@ -10,20 +10,49 @@ import { isSportInSeason, getSport } from '../../services/activeSport';
 import { getLatestGradedSeasonForGroup, getPickSeasonsForGroup } from '../../lib/database';
 import { getPublicAlias } from '../../services/anonymity';
 
+// How a graded leg of a pick came out. 'pending' = game not final yet, or
+// final but the resolver hasn't graded it.
+type PickResult = 'win' | 'loss' | 'push' | 'pending';
+
+// One `picks` row. Since the ticket rewrite a row is ONE bet (bet_type
+// spread | total | moneyline); older rows are a spread pick that can also
+// carry an over/under on the same row, so `overUnderPick` is kept as a
+// second, optional leg.
 interface FriendPick {
   id: string;
   username: string;
-  pick: 'home' | 'away';
+  betType: 'spread' | 'total' | 'moneyline';
+  side: 'home' | 'away' | null;        // spread / moneyline side; null on total rows
+  homeLineAtPick: number | null;       // home spread when the pick was made
+  mlOdds: number | null;
   confidence: string;
-  confidenceValue: number;
-  confidenceColor: string;
   reasoning?: string;
   timestamp: string;
-  winRate: number;
-  totalPicks: number;
-  weightedScore?: number;
+  result: PickResult;                  // the row's main bet
   overUnderPick?: 'over' | 'under';
   overUnderConfidence?: string;
+  totalLineAtPick: number | null;
+  ouResult: PickResult | null;         // the O/U leg on legacy combined rows
+}
+
+interface GroupGame {
+  id: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeCode: string;                    // "HOU" — falls back to the full name
+  awayCode: string;
+  spread: { home: number | null; away: number | null };
+  overUnder: number | null;
+  gameDate: Date;
+  time: string;
+  date: string;
+  dateGroup: string;
+  timeToLock: string;
+  locked: boolean;
+  gameStatus: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  played: boolean;                     // final (or live) → shown under Results
 }
 
 interface GroupInfo {
@@ -56,7 +85,7 @@ export default function GroupPicksScreen() {
   const [groupPickSeasons, setGroupPickSeasons] = useState<number[] | null>(null);
 
   // Shared state
-  const [gamesData, setGamesData] = useState<any[]>([]);
+  const [gamesData, setGamesData] = useState<GroupGame[]>([]);
   const [friendPicksByGame, setFriendPicksByGame] = useState<Record<string, FriendPick[]>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -227,7 +256,6 @@ export default function GroupPicksScreen() {
       }
 
       // Pick-driven: fetch picks shared to this group first, then load only those games
-      const now = new Date();
       const { data: groupPicks } = await supabase
         .from('picks')
         .select('game_id')
@@ -243,19 +271,24 @@ export default function GroupPicksScreen() {
         return;
       }
 
-      // Load only games that have picks AND are upcoming (not yet final)
+      // Load every picked game of the selected week — played ones included,
+      // so Sunday's results stay on the screen for the rest of the week.
+      // (This used to drop a game the moment it kicked off, which left the
+      // Week view showing only whatever hadn't been played yet.)
       let gamesQuery = supabase
         .from('games')
         .select('*')
         .in('id', pickedGameIds)
-        .neq('game_status', 'final')
-        .gte('game_date', now.toISOString())
         .order('game_date', { ascending: true });
 
       if (groupInfo.sport === 'nfl') {
         gamesQuery = gamesQuery
           .eq('week', selectedWeek)
           .eq('season', getCurrentSeason());
+      } else {
+        // Date-based sports have no "week": upcoming games plus the last 3 days.
+        const lookback = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        gamesQuery = gamesQuery.gte('game_date', lookback.toISOString());
       }
 
       const { data: games, error: gamesError } = await gamesQuery;
@@ -267,21 +300,29 @@ export default function GroupPicksScreen() {
         return;
       }
 
-      const transformedGames = games.map(game => ({
-        id: game.id,
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        homeTeamShort: game.home_team,
-        awayTeamShort: game.away_team,
-        spread: { home: game.home_spread, away: game.away_spread },
-        overUnder: game.over_under_line,
-        time: formatGameTime(game.game_date),
-        date: formatGameDate(game.game_date),
-        dateGroup: getDateGroup(game.game_date),
-        timeToLock: getTimeToLock(game.game_date),
-        locked: game.locked,
-        gameStatus: game.game_status
-      }));
+      const transformedGames: GroupGame[] = games.map(game => {
+        const isFinal = game.game_status === 'final';
+        const isLive = game.game_status === 'in_progress';
+        return {
+          id: game.id,
+          homeTeam: game.home_team,
+          awayTeam: game.away_team,
+          homeCode: game.home_team_code ? String(game.home_team_code).toUpperCase() : game.home_team,
+          awayCode: game.away_team_code ? String(game.away_team_code).toUpperCase() : game.away_team,
+          spread: { home: toNumber(game.home_spread), away: toNumber(game.away_spread) },
+          overUnder: toNumber(game.over_under_line),
+          gameDate: parseGameDate(game.game_date),
+          time: formatGameTime(game.game_date),
+          date: formatGameDate(game.game_date),
+          dateGroup: getDateGroup(game.game_date),
+          timeToLock: getTimeToLock(game.game_date),
+          locked: game.locked,
+          gameStatus: game.game_status,
+          homeScore: toNumber(game.home_score),
+          awayScore: toNumber(game.away_score),
+          played: isFinal || isLive,
+        };
+      });
 
       setGamesData(transformedGames);
 
@@ -318,25 +359,54 @@ export default function GroupPicksScreen() {
       }
 
       const allPicksByGame: Record<string, FriendPick[]> = {};
-      
+      const betTypeRank: Record<string, number> = { spread: 0, moneyline: 1, total: 2 };
+
       gameIds.forEach(gameId => {
         const gamePicks = pickWithUsernames.filter(p => p.game_id === gameId);
-        
-        const transformedPicks: FriendPick[] = gamePicks.map(pick => ({
-          id: pick.id,
-          username: pick.username,
-          pick: pick.pick as 'home' | 'away',
-          confidence: pick.confidence,
-          confidenceValue: getConfidenceValue(pick.confidence),
-          confidenceColor: getConfidenceColor(pick.confidence),
-          reasoning: pick.reasoning,
-          timestamp: formatTimeAgo(pick.created_at),
-          winRate: 0,
-          totalPicks: 0,
-          weightedScore: 0,
-          overUnderPick: pick.over_under_pick,
-          overUnderConfidence: pick.over_under_confidence
-        }));
+
+        const transformedPicks: FriendPick[] = gamePicks.map(pick => {
+          const betType: FriendPick['betType'] =
+            pick.bet_type === 'total' || pick.bet_type === 'moneyline' ? pick.bet_type : 'spread';
+          const side: FriendPick['side'] =
+            betType !== 'total' && (pick.pick === 'home' || pick.pick === 'away') ? pick.pick : null;
+          const overUnderPick: FriendPick['overUnderPick'] =
+            pick.over_under_pick === 'over' || pick.over_under_pick === 'under'
+              ? pick.over_under_pick
+              : betType === 'total' && (pick.pick === 'over' || pick.pick === 'under')
+                ? pick.pick
+                : undefined;
+          // A totals row is graded into `correct` (older ones only into
+          // over_under_correct); spread / ML rows into `correct`.
+          const mainCorrect = betType === 'total' ? (pick.correct ?? pick.over_under_correct) : pick.correct;
+          return {
+            id: pick.id,
+            username: pick.username,
+            betType,
+            side,
+            homeLineAtPick: toNumber(pick.spread_line_at_pick),
+            mlOdds: toNumber(pick.ml_odds),
+            confidence: pick.confidence,
+            reasoning: pick.reasoning,
+            timestamp: formatTimeAgo(pick.created_at),
+            result: gradeToResult(mainCorrect, pick.resolved_at),
+            overUnderPick,
+            overUnderConfidence: pick.over_under_confidence,
+            totalLineAtPick: toNumber(pick.total_line_at_pick),
+            ouResult: betType !== 'total' && overUnderPick
+              ? gradeToResult(pick.over_under_correct, pick.resolved_at)
+              : null,
+          };
+        });
+
+        // Your own picks first, then each member's rows together
+        // (spread, then ML, then total) so a person's ticket reads as one.
+        transformedPicks.sort((a, b) => {
+          const youA = a.username === 'You' ? 0 : 1;
+          const youB = b.username === 'You' ? 0 : 1;
+          if (youA !== youB) return youA - youB;
+          if (a.username !== b.username) return a.username.localeCompare(b.username);
+          return (betTypeRank[a.betType] ?? 9) - (betTypeRank[b.betType] ?? 9);
+        });
 
         allPicksByGame[gameId] = transformedPicks;
       });
@@ -350,9 +420,71 @@ export default function GroupPicksScreen() {
   };
 
   // Helper functions
+
+  // games.game_date is `timestamp without time zone` holding UTC wall clock,
+  // and PostgREST returns it with no 'Z'. JS parses that as LOCAL time, which
+  // put every kickoff hours off on this screen (and could file a late game
+  // under the wrong day). Tag it UTC unless it already carries an offset —
+  // same normalisation as the Games / Pick History screens.
+  const parseGameDate = (raw: string): Date => {
+    const withT = raw.includes('T') ? raw : raw.replace(' ', 'T');
+    const hasOffset = withT.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(withT);
+    return new Date(hasOffset ? withT : withT + 'Z');
+  };
+
+  const toNumber = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const n = typeof value === 'number' ? value : parseFloat(String(value));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // The resolver writes true / false, or leaves null but stamps resolved_at
+  // for a push.
+  const gradeToResult = (correct: boolean | null | undefined, resolvedAt: string | null | undefined): PickResult => {
+    if (correct === true) return 'win';
+    if (correct === false) return 'loss';
+    return resolvedAt ? 'push' : 'pending';
+  };
+
+  const formatSpread = (line: number | null): string => {
+    if (line === null) return '';
+    if (line === 0) return 'PK';
+    return line > 0 ? `+${line}` : `${line}`;
+  };
+
+  const formatOdds = (odds: number | null): string => {
+    if (odds === null) return '';
+    return odds > 0 ? `+${odds}` : `${odds}`;
+  };
+
+  // "HOU -3" / "CIN ML +124" / "OVER 45.5" — the line as it was when the
+  // pick was made, falling back to the game's current line.
+  const formatMainLeg = (pick: FriendPick, game: GroupGame): string => {
+    if (pick.betType === 'total') {
+      const line = pick.totalLineAtPick ?? game.overUnder;
+      const dir = (pick.overUnderPick ?? '').toUpperCase();
+      return line !== null ? `${dir} ${line}` : dir;
+    }
+    const team = pick.side === 'home' ? game.homeCode : game.awayCode;
+    if (pick.betType === 'moneyline') {
+      const odds = pick.mlOdds;
+      return odds !== null ? `${team} ML ${formatOdds(odds)}` : `${team} ML`;
+    }
+    const homeLine = pick.homeLineAtPick ?? game.spread.home;
+    const sideLine = homeLine === null ? null : pick.side === 'home' ? homeLine : -homeLine;
+    const line = formatSpread(sideLine);
+    return line ? `${team} ${line}` : team;
+  };
+
+  const formatOULeg = (pick: FriendPick, game: GroupGame): string => {
+    const line = pick.totalLineAtPick ?? game.overUnder;
+    const dir = (pick.overUnderPick ?? '').toUpperCase();
+    return line !== null ? `${dir} ${line}` : dir;
+  };
+
   const formatGameTime = (dateStr: string): string => {
     try {
-      const gameDate = new Date(dateStr);
+      const gameDate = parseGameDate(dateStr);
       return gameDate.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
@@ -365,7 +497,7 @@ export default function GroupPicksScreen() {
 
   const formatGameDate = (dateStr: string): string => {
     try {
-      const gameDate = new Date(dateStr);
+      const gameDate = parseGameDate(dateStr);
       return gameDate.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric'
@@ -377,7 +509,7 @@ export default function GroupPicksScreen() {
 
   const getDateGroup = (dateStr: string): string => {
     try {
-      const gameDate = new Date(dateStr);
+      const gameDate = parseGameDate(dateStr);
       const today = new Date();
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -398,7 +530,7 @@ export default function GroupPicksScreen() {
 
   const getTimeToLock = (dateStr: string): string => {
     try {
-      const gameDate = new Date(dateStr);
+      const gameDate = parseGameDate(dateStr);
       const now = new Date();
       const diffMs = gameDate.getTime() - now.getTime();
       
@@ -415,16 +547,6 @@ export default function GroupPicksScreen() {
       return 'LOCKED';
     } catch {
       return 'Soon';
-    }
-  };
-
-  const getConfidenceValue = (confidence: string): number => {
-    switch (confidence?.toLowerCase()) {
-      case 'very high': return 95;
-      case 'high': return 85;
-      case 'medium': return 60;
-      case 'low': return 40;
-      default: return 50;
     }
   };
 
@@ -465,14 +587,19 @@ export default function GroupPicksScreen() {
     return '#4B5563';
   };
 
+  // Spread consensus counts spread rows only. Totals rows used to be counted
+  // here as an away pick (their `pick` is over/under, not home), which
+  // inflated one side of the bar; moneyline rows are a different bet and
+  // are listed in the pick rows instead.
   const calculateGameConsensus = (picks: FriendPick[], totalMembers: number) => {
-    if (!picks || picks.length === 0) return null;
+    const spreadPicks = picks.filter(p => p.betType === 'spread' && p.side);
+    if (spreadPicks.length === 0) return null;
 
     let homeScore = 0;
     let awayScore = 0;
 
-    picks.forEach(pick => {
-      if (pick.pick === 'home') {
+    spreadPicks.forEach(pick => {
+      if (pick.side === 'home') {
         homeScore++;
       } else {
         awayScore++;
@@ -542,13 +669,49 @@ export default function GroupPicksScreen() {
     };
   };
 
-  // Group games by date for NBA
-  const gamesByDate = gamesData.reduce((acc, game) => {
-    const group = game.dateGroup;
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(game);
-    return acc;
-  }, {} as Record<string, typeof gamesData>);
+  // Upcoming games soonest-first; played games most-recent-first, so
+  // yesterday's results sit right under whatever is still to come.
+  const upcomingGames = gamesData.filter(g => !g.played);
+  const playedGames = gamesData
+    .filter(g => g.played)
+    .sort((a, b) => b.gameDate.getTime() - a.gameDate.getTime());
+
+  // [label, games] pairs in first-seen order ("Today", "Yesterday", "Sun, Sep 20" …).
+  const groupByDate = (games: GroupGame[]): [string, GroupGame[]][] => {
+    const groups: [string, GroupGame[]][] = [];
+    games.forEach(game => {
+      const existing = groups.find(([label]) => label === game.dateGroup);
+      if (existing) existing[1].push(game);
+      else groups.push([game.dateGroup, [game]]);
+    });
+    return groups;
+  };
+  const playedByDate = groupByDate(playedGames);
+
+  // Week record across every graded leg in the played games.
+  const weekRecord = (() => {
+    const tally = { group: { w: 0, l: 0, p: 0 }, you: { w: 0, l: 0, p: 0 } };
+    const add = (bucket: { w: number; l: number; p: number }, r: PickResult | null) => {
+      if (r === 'win') bucket.w++;
+      else if (r === 'loss') bucket.l++;
+      else if (r === 'push') bucket.p++;
+    };
+    playedGames.forEach(game => {
+      (friendPicksByGame[game.id] || []).forEach(pick => {
+        add(tally.group, pick.result);
+        add(tally.group, pick.ouResult);
+        if (pick.username === 'You') {
+          add(tally.you, pick.result);
+          add(tally.you, pick.ouResult);
+        }
+      });
+    });
+    return tally;
+  })();
+  const formatRecord = (r: { w: number; l: number; p: number }) =>
+    r.p > 0 ? `${r.w}-${r.l}-${r.p}` : `${r.w}-${r.l}`;
+  const hasGroupRecord = weekRecord.group.w + weekRecord.group.l + weekRecord.group.p > 0;
+  const hasYourRecord = weekRecord.you.w + weekRecord.you.l + weekRecord.you.p > 0;
 
   const getSportLabel = () => {
     return groupInfo?.sport?.toUpperCase() || 'NFL';
@@ -635,27 +798,45 @@ export default function GroupPicksScreen() {
     );
   };
 
-  const renderGameCard = (game: any) => {
+  const renderResultMark = (result: PickResult | null) => {
+    if (result === 'win') return <Text style={[styles.resultMark, styles.resultWin]}>✓</Text>;
+    if (result === 'loss') return <Text style={[styles.resultMark, styles.resultLoss]}>✗</Text>;
+    if (result === 'push') return <Text style={[styles.resultMark, styles.resultPush]}>PUSH</Text>;
+    return null;
+  };
+
+  const renderGameCard = (game: GroupGame) => {
     const gamePicks = friendPicksByGame[game.id] || [];
     const spreadConsensus = calculateGameConsensus(gamePicks, groupMemberCount);
     const ouConsensus = calculateOUConsensus(gamePicks, groupMemberCount);
-    
+    const awayLabel = `${game.awayCode} ${formatSpread(game.spread.away)}`.trim();
+    const homeLabel = `${game.homeCode} ${formatSpread(game.spread.home)}`.trim();
+    const isFinal = game.gameStatus === 'final';
+    const hasScore = game.homeScore !== null && game.awayScore !== null;
+
     return (
       <View key={game.id} style={styles.gameSection}>
         {/* Game Header */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.gameHeader}
           onPress={() => router.push(`/game/${game.id}`)}
         >
-          <View>
-            <Text style={styles.gameTitle}>
-              {game.awayTeamShort} @ {game.homeTeamShort}
+          <View style={styles.gameHeaderLeft}>
+            <Text style={styles.gameTitle} numberOfLines={2}>
+              {game.awayTeam} @ {game.homeTeam}
             </Text>
             <Text style={styles.gameTime}>{game.date} • {game.time}</Text>
           </View>
           <View style={styles.gameHeaderRight}>
-            {game.gameStatus === 'final' ? (
+            {game.played && hasScore && (
+              <Text style={styles.scoreText}>
+                {game.awayCode} {game.awayScore} – {game.homeCode} {game.homeScore}
+              </Text>
+            )}
+            {isFinal ? (
               <Text style={styles.finalText}>FINAL</Text>
+            ) : game.played ? (
+              <Text style={styles.lockTime}>LIVE</Text>
             ) : (
               <Text style={styles.lockTime}>⏰ {game.timeToLock}</Text>
             )}
@@ -678,9 +859,7 @@ export default function GroupPicksScreen() {
                 >
                   <View style={[styles.barFill, { backgroundColor: spreadConsensus.consensusColor }]}>
                     <Text style={styles.barText}>
-                      ⭐ {spreadConsensus.recommendation === 'away' 
-                        ? `${game.awayTeamShort} ${game.spread.away}` 
-                        : `${game.homeTeamShort} ${game.spread.home}`} - UNANIMOUS
+                      ⭐ {spreadConsensus.recommendation === 'away' ? awayLabel : homeLabel} - UNANIMOUS
                     </Text>
                   </View>
                 </Animated.View>
@@ -698,8 +877,8 @@ export default function GroupPicksScreen() {
                     ]}
                   >
                     {spreadConsensus.awayPercentage > 0 && (
-                      <Text style={styles.barText}>
-                        {game.awayTeamShort} {game.spread.away}
+                      <Text style={styles.barText} numberOfLines={1}>
+                        {awayLabel}
                       </Text>
                     )}
                   </View>
@@ -715,8 +894,8 @@ export default function GroupPicksScreen() {
                     ]}
                   >
                     {spreadConsensus.homePercentage > 0 && (
-                      <Text style={styles.barText}>
-                        {game.homeTeamShort} {game.spread.home}
+                      <Text style={styles.barText} numberOfLines={1}>
+                        {homeLabel}
                       </Text>
                     )}
                   </View>
@@ -819,17 +998,15 @@ export default function GroupPicksScreen() {
                 </View>
                 <View style={styles.miniPickDetails}>
                   <View style={styles.pickDetail}>
-                    <Text style={styles.miniPickChoice}>
-                      {pick.pick === 'home' ? game.homeTeamShort : game.awayTeamShort} {pick.pick === 'home' ? game.spread.home : game.spread.away}
-                    </Text>
+                    <Text style={styles.miniPickChoice}>{formatMainLeg(pick, game)}</Text>
                     <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.confidence) }]} />
+                    {game.played && renderResultMark(pick.result)}
                   </View>
-                  {pick.overUnderPick && (
+                  {pick.betType !== 'total' && pick.overUnderPick && (
                     <View style={styles.pickDetail}>
-                      <Text style={styles.miniPickChoice}>
-                        {pick.overUnderPick.toUpperCase()} {game.overUnder}
-                      </Text>
-                      <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.overUnderConfidence || '') }]} />
+                      <Text style={styles.miniPickChoice}>{formatOULeg(pick, game)}</Text>
+                      <View style={[styles.miniConfidenceDot, { backgroundColor: getConfidenceColor(pick.overUnderConfidence || pick.confidence) }]} />
+                      {game.played && renderResultMark(pick.ouResult)}
                     </View>
                   )}
                 </View>
@@ -984,18 +1161,40 @@ export default function GroupPicksScreen() {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollContent}
             >
+              {/* Upcoming — NFL flat (the week IS the grouping), other
+                  sports grouped by day. The section label only appears
+                  once there are results to separate it from. */}
+              {upcomingGames.length > 0 && playedGames.length > 0 && (
+                <Text style={styles.sectionHeader}>UPCOMING</Text>
+              )}
               {groupInfo?.sport !== 'nfl' ? (
-                // NBA/NCAAB/Soccer: Group by date
-                Object.entries(gamesByDate).map(([dateGroup, games]) => (
+                groupByDate(upcomingGames).map(([dateGroup, games]) => (
                   <View key={dateGroup}>
                     <Text style={styles.dateGroupHeader}>{dateGroup}</Text>
-                    {(games as any[]).map(game => renderGameCard(game))}
+                    {games.map(game => renderGameCard(game))}
                   </View>
                 ))
               ) : (
-                // NFL: Flat list
-                gamesData.map(game => renderGameCard(game))
+                upcomingGames.map(game => renderGameCard(game))
               )}
+
+              {/* Results — most recent day first. A single day folds into
+                  the section label ("RESULTS · YESTERDAY"). */}
+              {playedGames.length > 0 && (
+                <Text style={styles.sectionHeader}>
+                  {playedByDate.length === 1
+                    ? `RESULTS · ${playedByDate[0][0].toUpperCase()}`
+                    : 'RESULTS'}
+                </Text>
+              )}
+              {playedByDate.map(([dateGroup, games]) => (
+                <View key={dateGroup}>
+                  {playedByDate.length > 1 && (
+                    <Text style={styles.dateGroupHeader}>{dateGroup}</Text>
+                  )}
+                  {games.map(game => renderGameCard(game))}
+                </View>
+              ))}
 
               {gamesData.length === 0 && (
                 <View style={styles.emptyContainer}>
@@ -1022,6 +1221,12 @@ export default function GroupPicksScreen() {
                   <Text style={styles.summaryText}>
                     {gamesData.length} games • {Object.values(friendPicksByGame).flat().length} total picks
                   </Text>
+                  {hasGroupRecord && (
+                    <Text style={styles.summaryRecord}>
+                      Group {formatRecord(weekRecord.group)}
+                      {hasYourRecord ? `  •  You ${formatRecord(weekRecord.you)}` : ''}
+                    </Text>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -1193,6 +1398,14 @@ const styles = StyleSheet.create({
   seasonChipTextActive: {
     color: '#FFF',
   },
+  sectionHeader: {
+    color: '#8E8E93',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginTop: 4,
+    marginBottom: 10,
+  },
   dateGroupHeader: {
     color: '#FF6B35',
     fontSize: 16,
@@ -1229,6 +1442,10 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 14,
   },
+  gameHeaderLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
   gameHeaderRight: {
     alignItems: 'flex-end',
   },
@@ -1241,6 +1458,26 @@ const styles = StyleSheet.create({
     color: '#34C759',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  scoreText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  resultMark: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginLeft: 2,
+  },
+  resultWin: {
+    color: '#34C759',
+  },
+  resultLoss: {
+    color: '#FF3B30',
+  },
+  resultPush: {
+    color: '#8E8E93',
   },
   pickSection: {
     padding: 12,
@@ -1367,6 +1604,12 @@ const styles = StyleSheet.create({
   summaryText: {
     color: '#FFF',
     fontSize: 14,
+  },
+  summaryRecord: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 6,
   },
   emptyContainer: {
     flex: 1,
