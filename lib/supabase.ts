@@ -560,33 +560,42 @@ export const savePick = async (userId: string, pickData: {
     if (result.data) {
       const pickId = result.data.id;
       
-      // Get all groups the user is a member of
-      const { data: userGroups, error: groupsError } = await supabase
-        .from('group_members')
-        .select('group_id')
-        .eq('user_id', userId);
-      
-      if (!groupsError && userGroups && userGroups.length > 0) {
-        // Build batch of group_picks to insert for ALL user's groups
-        const groupPicksToInsert = userGroups.map(membership => ({
-          group_id: membership.group_id,
-          pick_id: pickId,
-          user_id: userId,
-          shared_at: new Date().toISOString()
-        }));
-        
-        // Use upsert to handle duplicates gracefully
+      // group_picks mirrors the ticket's SHARE TO selection exactly. It used
+      // to insert a row for EVERY group the person belonged to, whatever the
+      // sport and whatever they'd tapped — so NFL picks sat in the PGA and
+      // MLB groups and inflated every group's accuracy (1,927 such rows were
+      // cleaned up on 2026-09-22). A re-saved pick may also have dropped a
+      // group, so rows for un-selected groups are removed.
+      const selectedGroupIds = (pickData.groups || []).filter(Boolean);
+
+      if (selectedGroupIds.length > 0) {
         const { error: shareError } = await supabase
           .from('group_picks')
-          .upsert(groupPicksToInsert, { 
-            onConflict: 'group_id,pick_id',
-            ignoreDuplicates: true 
-          });
-        
+          .upsert(
+            selectedGroupIds.map(groupId => ({
+              group_id: groupId,
+              pick_id: pickId,
+              user_id: userId,
+              shared_at: new Date().toISOString(),
+            })),
+            { onConflict: 'group_id,pick_id', ignoreDuplicates: true }
+          );
         if (shareError) {
-          console.warn('Error auto-sharing pick to groups:', shareError);
+          console.warn('Error sharing pick to groups:', shareError);
           // Don't fail the whole operation if sharing fails
         }
+      }
+
+      const unshare = supabase
+        .from('group_picks')
+        .delete()
+        .eq('pick_id', pickId)
+        .eq('user_id', userId);
+      const { error: unshareError } = selectedGroupIds.length > 0
+        ? await unshare.not('group_id', 'in', `(${selectedGroupIds.join(',')})`)
+        : await unshare;
+      if (unshareError) {
+        console.warn('Error un-sharing pick from groups:', unshareError);
       }
     }
 
