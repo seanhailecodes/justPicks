@@ -33,6 +33,7 @@ interface UserGroup {
   id: string;
   name: string;
   sport: string;
+  shareByDefault?: boolean;   // false = leave un-selected on the ticket until tapped
 }
 
 interface PicksTicketProps {
@@ -182,16 +183,46 @@ export default function PicksTicket({
     fetchPastReasonings();
   }, [userId]);
 
-  // Select all matching groups by default when filteredGroups changes
+  // The SHARE TO row opens with the groups this person last shared to for
+  // the sport (group_members.share_by_default), not every group they're in
+  // — otherwise last season's group had to be un-tapped on every ticket.
+  // A group joined since is on by default. Selections saved during this
+  // session are remembered here so a reopened ticket matches them even
+  // before the parent reloads the groups list.
+  const savedDefaults = useRef<Record<string, string[]>>({});
+  const userGroupsKnown = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (filteredGroups.length > 0) {
-      setSelectedGroups(filteredGroups.map(g => g.id));
-      setPickType('group');
+      const remembered = savedDefaults.current[currentSport.toLowerCase()];
+      const preselected = remembered
+        ? filteredGroups.filter(g => remembered.includes(g.id) || !userGroupsKnown.current.has(g.id))
+        : filteredGroups.filter(g => g.shareByDefault !== false);
+      userGroupsKnown.current = new Set(userGroups.map(g => g.id));
+      setSelectedGroups(preselected.map(g => g.id));
+      setPickType(preselected.length > 0 ? 'group' : 'solo');
     } else {
       setSelectedGroups([]);
       setPickType('solo');
     }
   }, [currentSport, userGroups]);
+
+  // Persist the SHARE TO choice as the new default for this sport. Only when
+  // at least one group was chosen: a Solo pick shouldn't switch every group
+  // off for next time.
+  const rememberShareDefaults = (groupIds: string[]) => {
+    if (groupIds.length === 0) return;
+    const sport = currentSport.toLowerCase();
+    const before = filteredGroups.filter(g => g.shareByDefault !== false).map(g => g.id).sort().join(',');
+    const after = [...groupIds].sort().join(',');
+    const remembered = savedDefaults.current[sport];
+    if (after === (remembered ? [...remembered].sort().join(',') : before)) return;
+    savedDefaults.current[sport] = groupIds;
+    supabase
+      .rpc('set_share_defaults', { _sport: sport, _selected: groupIds })
+      .then(({ error }) => {
+        if (error) console.warn('Could not save share defaults:', error);
+      });
+  };
 
   useEffect(() => {
     Animated.spring(slideAnim, {
@@ -265,6 +296,7 @@ export default function PicksTicket({
   };
 
   const handleSave = () => {
+    if (pickType === 'group') rememberShareDefaults(selectedGroups);
     onSave(picks, selectedGroups, pickType);
     setExpanded(false);
   };

@@ -22,6 +22,8 @@ export interface UserGroup {
   name: string;
   sport: string; // 'nfl' | 'nba' | 'ncaab' | 'ncaaf' | etc.
   role: 'primary_owner' | 'owner' | 'member';
+  // Pre-selected on the Picks Ticket's SHARE TO row (group_members.share_by_default).
+  shareByDefault: boolean;
   visibility: 'private' | 'public';
   joinType: 'invite_only' | 'request_to_join' | 'open';
   memberCount: number;
@@ -962,7 +964,7 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
     // Get all groups user is a member of
     const { data: memberships, error: memberError } = await supabase
       .from('group_members')
-      .select('group_id, role')
+      .select('group_id, role, share_by_default')
       .eq('user_id', userId);
 
     if (memberError) throw memberError;
@@ -1034,6 +1036,7 @@ export async function getUserGroups(userId: string): Promise<UserGroup[]> {
           name: group.name,
           sport: group.sport || 'nfl', // Default to 'nfl' if not set
           role: membership?.role || 'member',
+          shareByDefault: membership?.share_by_default !== false,
           visibility: group.visibility || 'private',
           joinType: group.join_type || 'invite_only',
           memberCount: memberCount || 0,

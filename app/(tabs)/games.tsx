@@ -216,7 +216,7 @@ export default function GamesScreen() {
   const [currentWeekNumber, setCurrentWeekNumber] = useState<number | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [pendingPicks, setPendingPicks] = useState<TicketPick[]>([]);
-  const [userGroups, setUserGroups] = useState<{id: string; name: string; sport: string}[]>([]);
+  const [userGroups, setUserGroups] = useState<{id: string; name: string; sport: string; shareByDefault: boolean}[]>([]);
   const [hasLoadedInitialSport, setHasLoadedInitialSport] = useState(false);
   // Combat-sport-only UX: search by fighter name + collapsible time buckets.
   const [fighterQuery, setFighterQuery] = useState('');
@@ -944,7 +944,7 @@ export default function GamesScreen() {
       if (session?.user?.id) {
         const groups = await getUserGroups(session.user.id);
         console.log('Loaded user groups:', groups);
-        setUserGroups(groups.map(g => ({ id: g.id, name: g.name, sport: g.sport })));
+        setUserGroups(groups.map(g => ({ id: g.id, name: g.name, sport: g.sport, shareByDefault: g.shareByDefault })));
       }
     };
     loadGroups();
