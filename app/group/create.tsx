@@ -117,34 +117,72 @@ export default function CreateGroupScreen() {
         return;
       }
 
-      // Generate code if not set
+      // A typed code that already belongs to a group almost always means
+      // the person meant to JOIN that group, not start another one
+      // (2026-09-19: a friend typed an invite code in here and created a
+      // second "Syndicate2026" with the same code). Offer the join instead.
       let finalInviteCode = inviteCode.trim().toUpperCase();
-      if (!finalInviteCode) {
-        finalInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const codeWasTyped = finalInviteCode.length > 0;
+      if (codeWasTyped) {
+        const { data: existing } = await supabase
+          .rpc('get_group_by_invite_code', { _code: finalInviteCode });
+        const taken = existing && existing.length > 0 ? existing[0] : null;
+        if (taken) {
+          setCreating(false);
+          Alert.alert(
+            'That code is taken',
+            `${finalInviteCode} already belongs to "${taken.name}". Join that group instead?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Join it', onPress: () => router.replace(`/join/${finalInviteCode}`) },
+            ]
+          );
+          return;
+        }
       }
 
       // Final sanitization before save
       const finalGroupName = sanitizeGroupName(groupName);
 
-      // Create the group with all settings
-      const { data: newGroup, error: groupError } = await supabase
-        .from('groups')
-        .insert({
-          name: finalGroupName,
-          created_by: currentUserId,
-          invite_code: finalInviteCode,
-          visibility: isPrivate ? 'private' : 'public',
-          require_approval: requireApproval,
-          // join_type drives the group_members self-join RLS rule. Without it
-          // every group fell back to the DB default 'invite_only' and even
-          // public groups couldn't be joined.
-          join_type: isPrivate ? 'invite_only' : (requireApproval ? 'request_to_join' : 'open'),
-          sport: selectedSport
-        })
-        .select()
-        .single();
+      // Create the group with all settings. Invite codes are unique in the
+      // DB (groups_invite_code_unique), so a generated code that collides
+      // is simply re-rolled; a typed one that collides is reported.
+      let newGroup: { id: string } | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (!codeWasTyped) {
+          finalInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+        const { data, error: groupError } = await supabase
+          .from('groups')
+          .insert({
+            name: finalGroupName,
+            created_by: currentUserId,
+            invite_code: finalInviteCode,
+            visibility: isPrivate ? 'private' : 'public',
+            require_approval: requireApproval,
+            // join_type drives the group_members self-join RLS rule. Without it
+            // every group fell back to the DB default 'invite_only' and even
+            // public groups couldn't be joined.
+            join_type: isPrivate ? 'invite_only' : (requireApproval ? 'request_to_join' : 'open'),
+            sport: selectedSport
+          })
+          .select()
+          .single();
 
-      if (groupError) throw groupError;
+        if (!groupError) {
+          newGroup = data;
+          break;
+        }
+        const isDuplicateCode = groupError.code === '23505';
+        if (isDuplicateCode && !codeWasTyped && attempt < 2) continue;
+        if (isDuplicateCode) {
+          setCreating(false);
+          Alert.alert('That code is taken', 'Another group already uses this code. Pick a different one or tap Generate.');
+          return;
+        }
+        throw groupError;
+      }
+      if (!newGroup) throw new Error('Could not create the group');
 
       // Add the creator as primary_owner
       const { error: memberError } = await supabase
