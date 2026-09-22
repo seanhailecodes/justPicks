@@ -31,7 +31,7 @@ export const APP_SPORTS: AppSport[] = [
   { key: 'wnba',  label: 'WNBA',   emoji: '🏀', league: 'WNBA',   enabled: true,  displayMode: 'code', season: [5, 1, 10, 31]   },
   { key: 'ncaab', label: 'NCAAB',  emoji: '🏀', league: 'NCAAB', enabled: true,  displayMode: 'name', season: [11, 1, 4, 10]  },
   { key: 'soccer',label: 'Soccer', emoji: '⚽', league: 'SOCCER', enabled: true,  displayMode: 'name', season: [8, 1, 5, 31]   },
-  { key: 'ncaaf', label: 'NCAAF',  emoji: '🏈', league: 'NCAAF', enabled: false, displayMode: 'name', season: [8, 24, 1, 20]  },
+  { key: 'ncaaf', label: 'NCAAF',  emoji: '🏈', league: 'NCAAF', enabled: true,  displayMode: 'name', season: [8, 24, 1, 20]  },
   { key: 'nhl',   label: 'NHL',    emoji: '🏒', league: 'NHL',   enabled: true,  displayMode: 'code', season: [10, 1, 6, 30]  },
   { key: 'mlb',   label: 'MLB',    emoji: '⚾', league: 'MLB',   enabled: true,  displayMode: 'code', season: [2, 20, 10, 31] },
   { key: 'ufc',   label: 'UFC',    emoji: '🥋', league: 'UFC',    enabled: true,  displayMode: 'fighter'                       },

@@ -725,7 +725,7 @@ export default function GroupPicksScreen() {
 
   const getHeaderSubtitle = () => {
     if (recapMode) return `${recapSeasonLabel} Season`;
-    if (groupInfo?.sport === 'nba' || groupInfo?.sport === 'ncaab' || groupInfo?.sport === 'soccer') {
+    if (groupInfo?.sport === 'nba' || groupInfo?.sport === 'ncaab' || groupInfo?.sport === 'ncaaf' || groupInfo?.sport === 'soccer') {
       return 'Recent & Upcoming';
     }
     return `Week ${selectedWeek}`;

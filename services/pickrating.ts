@@ -79,13 +79,15 @@ const SPORT_CONFIG: Record<Sport, SportConfig> = {
     weekLabel: 'Week',
     appStateKey: 'current_week'
   },
+  // Date-based like NCAAB: fetch-ncaaf-games stores week = null (Week 0
+  // and bye-heavy Saturdays don't fit the NFL week strip), and there is
+  // no app_state week counter for it.
   ncaaf: {
     name: 'College Football',
     shortName: 'NCAAF',
-    scheduleModel: 'week',
-    seasonLength: 15,
-    weekLabel: 'Week',
-    appStateKey: 'current_ncaaf_week'
+    scheduleModel: 'date',
+    seasonLength: 150,  // late Aug → mid Jan
+    weekLabel: 'Days'
   },
 
   // Basketball - Date-based

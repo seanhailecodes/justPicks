@@ -10,6 +10,7 @@ const LEAGUE_ODDS_KEYS: Record<string, string[]> = {
   NBA:   ['basketball_nba'],
   WNBA:  ['basketball_wnba'],
   NFL:   ['americanfootball_nfl'],
+  NCAAF: ['americanfootball_ncaaf'],
   NCAAB: ['basketball_ncaab'],
   NHL:   ['icehockey_nhl'],
   MLB:   ['baseball_mlb'],
@@ -26,6 +27,7 @@ const LEAGUE_ODDS_KEYS: Record<string, string[]> = {
 // can only ever return "not yet final" (the cron runs every 30 minutes).
 const MIN_GAME_DURATION_MS: Record<string, number> = {
   NFL:    3.0 * 3_600_000,
+  NCAAF:  3.3 * 3_600_000,
   NBA:    2.2 * 3_600_000,
   WNBA:   2.0 * 3_600_000,
   NCAAB:  1.9 * 3_600_000,

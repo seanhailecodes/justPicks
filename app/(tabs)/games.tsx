@@ -1436,7 +1436,7 @@ export default function GamesScreen() {
                 </TouchableOpacity>
               </>
             )}
-            {['nba', 'nhl', 'mlb', 'ncaab', 'soccer', 'pga', 'ufc', 'boxing'].includes(selectedSport.key) && (
+            {['nba', 'nhl', 'mlb', 'ncaab', 'ncaaf', 'soccer', 'pga', 'ufc', 'boxing'].includes(selectedSport.key) && (
               <TouchableOpacity
                 onPress={async () => {
                   const fnMap: Record<string, string> = {
@@ -1444,6 +1444,7 @@ export default function GamesScreen() {
                     nhl:    'fetch-nhl-games',
                     mlb:    'fetch-mlb-games',
                     ncaab:  'fetch-ncaab-games',
+                    ncaaf:  'fetch-ncaaf-games',
                     soccer: 'fetch-soccer-games',
                     pga:    'fetch-golf-games',
                     ufc:    'fetch-ufc-games',

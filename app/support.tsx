@@ -29,7 +29,7 @@ const FAQ_DATA: FAQSection[] = [
       },
       {
         question: 'What sports are supported?',
-        answer: 'NBA, NHL, MLB, NFL, NCAAB, Soccer, UFC, and PGA. In-season sports show active games; off-season sports are still visible in your history.',
+        answer: 'NFL, College Football, NBA, WNBA, College Basketball, NHL, MLB, Soccer, UFC, Boxing, and PGA. In-season sports show active games; off-season sports are still visible in your history.',
       },
     ],
   },
