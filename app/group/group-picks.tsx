@@ -712,6 +712,12 @@ export default function GroupPicksScreen() {
     r.p > 0 ? `${r.w}-${r.l}-${r.p}` : `${r.w}-${r.l}`;
   const hasGroupRecord = weekRecord.group.w + weekRecord.group.l + weekRecord.group.p > 0;
   const hasYourRecord = weekRecord.you.w + weekRecord.you.l + weekRecord.you.p > 0;
+  // NFL only: a week strictly before the current one is history.
+  const isPastWeek =
+    groupInfo?.sport === 'nfl' &&
+    selectedWeek !== null &&
+    currentWeekNumber !== null &&
+    selectedWeek < currentWeekNumber;
 
   const getSportLabel = () => {
     return groupInfo?.sport?.toUpperCase() || 'NFL';
@@ -1199,16 +1205,28 @@ export default function GroupPicksScreen() {
               {gamesData.length === 0 && (
                 <View style={styles.emptyContainer}>
                   <Text style={{ fontSize: 36, marginBottom: 12 }}>🏟️</Text>
-                  <Text style={styles.emptyText}>No picks yet this week</Text>
-                  <Text style={[styles.emptyText, { fontSize: 13, color: '#636366', marginBottom: 16 }]}>
-                    Be the first to make picks for this group
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.makePicksButton}
-                    onPress={() => router.push('/(tabs)/games')}
-                  >
-                    <Text style={styles.makePicksText}>Make Picks →</Text>
-                  </TouchableOpacity>
+                  {/* A past week can't be picked any more, so don't invite it. */}
+                  {isPastWeek ? (
+                    <>
+                      <Text style={styles.emptyText}>No picks in Week {selectedWeek}</Text>
+                      <Text style={[styles.emptyText, { fontSize: 13, color: '#636366', marginBottom: 16 }]}>
+                        Nobody shared a pick to this group that week
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.emptyText}>No picks yet this week</Text>
+                      <Text style={[styles.emptyText, { fontSize: 13, color: '#636366', marginBottom: 16 }]}>
+                        Be the first to make picks for this group
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.makePicksButton}
+                        onPress={() => router.push('/(tabs)/games')}
+                      >
+                        <Text style={styles.makePicksText}>Make Picks →</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               )}
 
