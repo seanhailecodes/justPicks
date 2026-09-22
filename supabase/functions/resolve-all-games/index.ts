@@ -74,6 +74,62 @@ function resolveOverUnder(
   return pick === 'over' ? total > line : total < line
 }
 
+function straightUpWinner(homeScore: number, awayScore: number): 'home' | 'away' | null {
+  if (homeScore > awayScore) return 'home'
+  if (awayScore > homeScore) return 'away'
+  return null
+}
+
+const toNum = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null
+  const n = typeof v === 'number' ? v : parseFloat(String(v))
+  return Number.isNaN(n) ? null : n
+}
+
+// Grade one picks row against a final score. `correct` is the row's own
+// bet: a spread row on the spread, a moneyline row on the straight-up
+// winner (a tie is a push), a totals row on the over/under. Legacy spread
+// rows that also carry an over/under keep it as a second leg in
+// over_under_correct. `gradable` is false when the line needed to grade
+// the bet is missing from both the pick snapshot and the game row — such
+// a pick is left unresolved rather than silently marked a push.
+function gradePick(
+  pick: any,
+  homeScore: number,
+  awayScore: number,
+  fallbackHomeSpread: number | null,
+  fallbackOverUnder: number | null,
+): { correct: boolean | null; overUnderCorrect: boolean | null; gradable: boolean } {
+  const totalPoints = homeScore + awayScore
+  const pickHomeSpread = toNum(pick.spread_line_at_pick) ?? fallbackHomeSpread
+  const pickOverUnder = toNum(pick.total_line_at_pick) ?? fallbackOverUnder
+
+  let spreadCorrect: boolean | null = null
+  let spreadGradable = false
+  if (pick.team_picked && pickHomeSpread !== null) {
+    const coveredBy = calculateCoveredBy(homeScore, awayScore, pickHomeSpread)
+    spreadCorrect = coveredBy === 'push' ? null : pick.team_picked === coveredBy
+    spreadGradable = true
+  }
+
+  let overUnderCorrect: boolean | null = null
+  let ouGradable = false
+  if (pick.over_under_pick && pickOverUnder !== null) {
+    overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, pickOverUnder)
+    ouGradable = true
+  }
+
+  if (pick.bet_type === 'total') {
+    return { correct: overUnderCorrect, overUnderCorrect, gradable: ouGradable }
+  }
+  if (pick.bet_type === 'moneyline') {
+    const winner = straightUpWinner(homeScore, awayScore)
+    const correct = pick.team_picked ? (winner === null ? null : pick.team_picked === winner) : null
+    return { correct, overUnderCorrect, gradable: !!pick.team_picked }
+  }
+  return { correct: spreadCorrect, overUnderCorrect, gradable: spreadGradable }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -115,15 +171,12 @@ Deno.serve(async (req) => {
     }
 
     if (!unresolvedGames || unresolvedGames.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, message: 'No games to resolve', gamesResolved: 0, picksResolved: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.log('No games to resolve')
     }
 
     // Step 2: Group by league so we only hit the API for leagues that need it
     const byLeague: Record<string, typeof unresolvedGames> = {}
-    for (const game of unresolvedGames) {
+    for (const game of unresolvedGames ?? []) {
       const league = game.league as string
       if (!byLeague[league]) byLeague[league] = []
       byLeague[league].push(game)
@@ -196,7 +249,6 @@ Deno.serve(async (req) => {
 
       const homeScore = parseInt(homeScoreData.score)
       const awayScore = parseInt(awayScoreData.score)
-      const totalPoints = homeScore + awayScore
       // Fallback line/total — used only for legacy picks without snapshot.
       const fallbackHomeSpread = game.home_spread !== null && game.home_spread !== undefined ? parseFloat(game.home_spread) : null
       const fallbackOverUnder = game.over_under_line
@@ -216,12 +268,14 @@ Deno.serve(async (req) => {
 
       gamesResolved++
 
-      // Fetch and resolve picks for this game
+      // Fetch and resolve picks for this game. A push is `correct` null
+      // WITH resolved_at set, so filter on resolved_at — filtering on
+      // `correct` re-graded every push on every run.
       const { data: picks, error: picksError } = await supabase
         .from('picks')
         .select('*')
         .eq('game_id', game.id)
-        .is('correct', null)  // Only resolve picks not yet resolved
+        .is('resolved_at', null)
 
       if (picksError) {
         console.error(`Error fetching picks for game ${game.id}:`, picksError)
@@ -229,40 +283,78 @@ Deno.serve(async (req) => {
       }
 
       for (const pick of picks || []) {
-        const pickHomeSpread = pick.spread_line_at_pick !== null && pick.spread_line_at_pick !== undefined
-          ? parseFloat(pick.spread_line_at_pick)
-          : fallbackHomeSpread
-        const pickOverUnder = pick.total_line_at_pick !== null && pick.total_line_at_pick !== undefined
-          ? parseFloat(pick.total_line_at_pick)
-          : fallbackOverUnder
-        const coveredBy = pickHomeSpread !== null
-          ? calculateCoveredBy(homeScore, awayScore, pickHomeSpread)
-          : null
-
-        // Leave null if spread data was missing — never guess
-        let spreadCorrect: boolean | null = null
-        if (pick.team_picked && coveredBy !== null) {
-          spreadCorrect = coveredBy === 'push' ? null : pick.team_picked === coveredBy
+        const { correct, overUnderCorrect, gradable } = gradePick(pick, homeScore, awayScore, fallbackHomeSpread, toNum(fallbackOverUnder))
+        if (!gradable) {
+          console.log(`  Pick ${pick.id}: no line to grade ${pick.bet_type} — left unresolved`)
+          continue
         }
-
-        let overUnderCorrect: boolean | null = null
-        if (pick.over_under_pick && pickOverUnder !== null && pickOverUnder !== undefined) {
-          overUnderCorrect = resolveOverUnder(pick.over_under_pick, totalPoints, pickOverUnder)
-        }
-
-        // A totals bet is graded on the over/under; everything else
-        // on the spread. Previously a 'total' row stored spreadCorrect
-        // (always null) in `correct` and never got graded.
-        const pickCorrect = pick.bet_type === 'total' ? overUnderCorrect : spreadCorrect
 
         const { error: pickError } = await supabase
           .from('picks')
-          .update({ correct: pickCorrect, over_under_correct: overUnderCorrect, resolved_at: now.toISOString() })
+          .update({ correct, over_under_correct: overUnderCorrect, resolved_at: now.toISOString() })
           .eq('id', pick.id)
 
         if (!pickError) {
           picksResolved++
-          console.log(`  Pick ${pick.id}: correct=${pickCorrect}, spread=${spreadCorrect}, o/u=${overUnderCorrect}`)
+          console.log(`  Pick ${pick.id}: correct=${correct}, o/u=${overUnderCorrect}`)
+        }
+      }
+    }
+
+    // Step 5: Sweep — grade any pick still unresolved on a game that is
+    // already final. Step 1 only looks at games without a score, so a pick
+    // that slipped through when its game resolved (older resolver versions
+    // never graded 'total' rows; a hand-graded batch never stamped
+    // resolved_at) was never revisited. Unresolved picks are the small set
+    // (this week's open tickets plus any stragglers), so start from them
+    // and look up only their games — never the other way round, which
+    // would put hundreds of game ids in one URL in NCAAB season.
+    let picksSwept = 0
+    const threeWeeksAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000)
+    const { data: openPicks, error: openPicksError } = await withRetry('open picks query', () =>
+      supabase
+        .from('picks')
+        .select('*')
+        .is('resolved_at', null)
+        .gt('created_at', threeWeeksAgo.toISOString())
+    )
+    if (openPicksError) console.error('Sweep: open picks query failed:', openPicksError)
+
+    const openGameIds = [...new Set((openPicks ?? []).map((p: any) => p.game_id).filter(Boolean))]
+    if (openGameIds.length > 0) {
+      const { data: finalGames, error: finalGamesError } = await supabase
+        .from('games')
+        .select('id, league, home_score, away_score, home_spread, over_under_line')
+        .in('id', openGameIds)
+        .eq('game_status', 'final')
+        .not('home_score', 'is', null)
+        .not('away_score', 'is', null)
+      if (finalGamesError) console.error('Sweep: final games query failed:', finalGamesError)
+
+      const gameById = new Map<string, any>(
+        (finalGames ?? [])
+          .filter((g: any) => g.league !== 'PGA' && g.league !== 'UFC' && g.league !== 'BOXING')
+          .map((g: any) => [g.id, g])
+      )
+
+      for (const pick of openPicks ?? []) {
+        const g = gameById.get(pick.game_id)
+        if (!g) continue // game not final yet (or graded elsewhere)
+        const homeScore = parseInt(g.home_score)
+        const awayScore = parseInt(g.away_score)
+        if (Number.isNaN(homeScore) || Number.isNaN(awayScore)) continue
+        const { correct, overUnderCorrect, gradable } = gradePick(pick, homeScore, awayScore, toNum(g.home_spread), toNum(g.over_under_line))
+        if (!gradable) {
+          console.log(`  Sweep: pick ${pick.id} has no line to grade — left unresolved`)
+          continue
+        }
+        const { error: pickError } = await supabase
+          .from('picks')
+          .update({ correct, over_under_correct: overUnderCorrect, resolved_at: now.toISOString() })
+          .eq('id', pick.id)
+        if (!pickError) {
+          picksSwept++
+          console.log(`  Sweep: pick ${pick.id} (${pick.bet_type}) correct=${correct}, o/u=${overUnderCorrect}`)
         }
       }
     }
@@ -271,8 +363,9 @@ Deno.serve(async (req) => {
       success: true,
       gamesResolved,
       picksResolved,
+      picksSwept,
       requestsRemaining: lastRequestsRemaining,
-      message: `Resolved ${gamesResolved} games and ${picksResolved} picks across all sports`,
+      message: `Resolved ${gamesResolved} games and ${picksResolved} picks across all sports; swept ${picksSwept} stale pick(s)`,
     }
 
     console.log(JSON.stringify(summary))
