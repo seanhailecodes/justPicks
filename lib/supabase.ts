@@ -4,9 +4,23 @@ import 'react-native-url-polyfill/auto';
 import storage from './storage';
 
 
-// Dev
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+// EXPO_PUBLIC_* values are inlined by Babel when the bundle is exported. If
+// they are missing from the shell that runs `eas update` they inline as
+// undefined, createClient() throws at module init, and the whole bundle
+// fails to load — which is exactly what killed every iPhone from 2026-09-22
+// to 09-28 (the OTAs that evening were published from a Terminal without
+// the `export EXPO_PUBLIC_…` lines; web on Vercel had its own env and was
+// fine). The project URL and anon key are public by design (they already
+// sit in eas.json), so fall back to them rather than crash.
+const FALLBACK_SUPABASE_URL = 'https://oyedfzsqqqdfrmhbcbwb.supabase.co';
+const FALLBACK_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95ZWRmenNxcXFkZnJtaGJjYndiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODMwMDksImV4cCI6MjA3MjE1OTAwOX0.zlQAXksbwfK6y-pIQVgju9e1DG-Kj8Gmbpvvs9TPU5g';
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || FALLBACK_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_SUPABASE_ANON_KEY;
+if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+  console.warn('[supabase] EXPO_PUBLIC_SUPABASE_* missing from this bundle — using built-in fallback');
+}
 
 // The API gateway enforces a hard 5 s upstream timeout, and on the free-tier
 // instance the first query after an idle spell regularly exceeds it — the

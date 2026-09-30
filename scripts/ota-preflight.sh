@@ -14,6 +14,9 @@
 #   2. The iOS bundle compiles.
 #   3. Static `import ... from 'expo-updates'` anywhere in app code → FAIL
 #      (it must stay behind the lazy loader in lib/appUpdates.ts).
+#   4. EXPO_PUBLIC_SUPABASE_* are exported in this shell AND end up inlined
+#      in the exported bundle (the 2026-09-22 → 09-28 crash was a bundle
+#      published without them).
 #
 # Usage:  scripts/ota-preflight.sh [store-build-commit]
 #   Default store commit is read from scripts/store-build.txt.
@@ -32,7 +35,7 @@ fi
 
 fail=0
 
-echo "▸ 1/3 native dependency drift vs store build $STORE_COMMIT"
+echo "▸ 1/4 native dependency drift vs store build $STORE_COMMIT"
 added=$(git diff "$STORE_COMMIT" HEAD -- package.json \
   | grep -E '^\+\s+"' | sed -E 's/^\+\s+"([^"]+)".*/\1/' || true)
 for pkg in $added; do
@@ -49,7 +52,7 @@ for pkg in $added; do
 done
 [ -z "$added" ] && echo "  ✓ no dependencies added since store build"
 
-echo "▸ 2/3 static expo-updates imports"
+echo "▸ 2/4 static expo-updates imports"
 if grep -rnE "from ['\"]expo-updates['\"]|require\(['\"]expo-updates['\"]\)" app components services hooks --include='*.ts' --include='*.tsx' 2>/dev/null; then
   echo "  ✗ expo-updates must only be loaded through lib/appUpdates.ts (guarded require)"
   fail=1
@@ -57,13 +60,29 @@ else
   echo "  ✓ only lib/appUpdates.ts touches expo-updates"
 fi
 
-echo "▸ 3/3 iOS bundle compiles"
+echo "▸ 3/4 iOS bundle compiles"
 out=$(mktemp -d)
 if CI=1 npx expo export -p ios --output-dir "$out" >/dev/null 2>&1; then
   echo "  ✓ export ok ($(du -sh "$out"/_expo/static/js/ios/*.hbc | cut -f1) hbc)"
 else
   echo "  ✗ expo export -p ios failed"
   fail=1
+fi
+
+# 2026-09-22 → 09-28 incident: the OTAs were published from a shell without
+# the EXPO_PUBLIC_ exports, so the bundle inlined `undefined` for the Supabase
+# URL/key, createClient() threw at startup and every iPhone crashed on launch
+# for a week. lib/supabase.ts now falls back to the public values, but a
+# bundle that lacks them still means the publishing shell is wrong.
+echo "▸ 4/4 EXPO_PUBLIC_ env inlined into the bundle"
+if [ -z "${EXPO_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]; then
+  echo "  ✗ EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY are not exported in this shell (see eas.json production.env)"
+  fail=1
+elif ! strings -n 8 "$out"/_expo/static/js/ios/*.hbc 2>/dev/null | grep -q 'oyedfzsqqqdfrmhbcbwb.supabase.co'; then
+  echo "  ✗ exported bundle does not contain the Supabase URL — env was not inlined"
+  fail=1
+else
+  echo "  ✓ Supabase URL present in the exported bundle"
 fi
 rm -rf "$out"
 
