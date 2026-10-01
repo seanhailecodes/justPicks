@@ -3,12 +3,15 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { NotificationProvider } from '../components/NotificationContext';
 import AlertHost from '../components/AlertHost';
-import { applyUpdateOnLaunch } from '../lib/appUpdates';
+import { applyUpdateOnLaunch, watchForegroundUpdates } from '../lib/appUpdates';
 
 export default function RootLayout() {
-  // Apply any pending EAS Update on this launch instead of the next one.
+  // Apply any pending EAS Update on this launch instead of the next one,
+  // and again whenever the app returns to the foreground (iOS resumes
+  // rather than relaunches, so "opening the app" alone isn't a launch).
   useEffect(() => {
     applyUpdateOnLaunch();
+    return watchForegroundUpdates();
   }, []);
 
   return (

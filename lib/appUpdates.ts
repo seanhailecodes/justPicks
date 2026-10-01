@@ -19,7 +19,7 @@
 //     60 s of a previous reload (stored via AsyncStorage) — a reload loop
 //     would look exactly like a frozen splash screen.
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import storage from './storage';
 
 type UpdatesModule = typeof import('expo-updates');
@@ -88,6 +88,9 @@ async function writeReloadGuard(id: string): Promise<void> {
 }
 
 let applied = false;
+let checking = false;
+let lastCheckAt = 0;
+const FOREGROUND_CHECK_MIN_GAP_MS = 2 * 60_000;
 
 /**
  * Check → fetch → reload, once per process, so a published update is live
@@ -101,8 +104,38 @@ let applied = false;
 export async function applyUpdateOnLaunch(): Promise<void> {
   if (applied) return;
   applied = true;
+  await checkAndApplyUpdate('launch');
+}
+
+/**
+ * iOS usually RESUMES an app from the background rather than starting it,
+ * so the launch check above can go days without running and a user "opens
+ * the app" yet stays on the old bundle (2026-10-01). Re-run the same guarded
+ * check whenever the app comes back to the foreground, at most once every
+ * two minutes. Returns an unsubscribe function.
+ */
+export function watchForegroundUpdates(): () => void {
+  if (!isNative || __DEV__) return () => {};
+  let previous: AppStateStatus = AppState.currentState;
+  const sub = AppState.addEventListener('change', (next) => {
+    const cameToForeground = next === 'active' && previous !== 'active';
+    previous = next;
+    if (!cameToForeground) return;
+    if (Date.now() - lastCheckAt < FOREGROUND_CHECK_MIN_GAP_MS) return;
+    void checkAndApplyUpdate('foreground');
+  });
+  return () => sub.remove();
+}
+
+async function checkAndApplyUpdate(reason: 'launch' | 'foreground'): Promise<void> {
+  if (checking) return;
+  checking = true;
+  lastCheckAt = Date.now();
   const Updates = loadUpdates();
-  if (!Updates || Updates.isEnabled !== true) return;
+  if (!Updates || Updates.isEnabled !== true) {
+    checking = false;
+    return;
+  }
   try {
     const check = await Updates.checkForUpdateAsync();
     if (!check.isAvailable) return;
@@ -124,11 +157,14 @@ export async function applyUpdateOnLaunch(): Promise<void> {
     // update in the background — it is still pending, so we reload either way.
     await Updates.fetchUpdateAsync();
     await writeReloadGuard(targetId ?? 'unknown');
+    console.log('[updates] applying update', targetId, 'on', reason);
     await Updates.reloadAsync();
   } catch (err) {
     // Offline, throttled, or the manifest failed — native's own
     // check-on-launch path still runs, so just log and move on.
-    console.warn('[updates] apply-on-launch skipped:', (err as Error)?.message ?? err);
+    console.warn(`[updates] apply-on-${reason} skipped:`, (err as Error)?.message ?? err);
+  } finally {
+    checking = false;
   }
 }
 

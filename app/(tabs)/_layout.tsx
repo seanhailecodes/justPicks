@@ -1,10 +1,18 @@
 import { Tabs } from 'expo-router';
 import { Text, View } from 'react-native';
+import { getSport, useCurrentSport } from '../../services/activeSport';
 
 // Simple emoji-based icons (can replace with proper icon library later)
 const TabIcon = ({ emoji, focused }: { emoji: string; focused: boolean }) => (
   <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.6 }}>{emoji}</Text>
 );
+
+// The Games tab shows the sport the app is currently on (⚾ when Home is
+// scrolled to MLB), not a fixed football.
+const GamesTabIcon = ({ focused }: { focused: boolean }) => {
+  const [sport] = useCurrentSport();
+  return <TabIcon emoji={getSport(sport).emoji} focused={focused} />;
+};
 
 export default function TabLayout() {
   return (
@@ -50,7 +58,7 @@ export default function TabLayout() {
         name="games"
         options={{
           title: 'Games',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏈" focused={focused} />,
+          tabBarIcon: ({ focused }) => <GamesTabIcon focused={focused} />,
         }}
       />
 
