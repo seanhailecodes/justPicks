@@ -19,7 +19,7 @@ import PushEnrollmentBanner from '../../components/PushEnrollmentBanner';
 import FeedbackModal from '../../components/FeedbackModal';
 import SportTabs from '../../components/SportTabs';
 import { Sport, getSportConfig } from '../../services/pickrating';
-import { APP_SPORTS, AppSport, SPORT_EMOJI, getDefaultSport, getSport, isSportInSeason } from '../../services/activeSport';
+import { APP_SPORTS, AppSport, SPORT_EMOJI, getCurrentSport, getSport, isSportInSeason, useCurrentSport } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
 
 // Sport logos - uncomment as you add logo files to assets/images/
@@ -57,7 +57,8 @@ interface UserStats {
 }
 
 export default function HomeScreen() {
-  const [selectedSport, setSelectedSport] = useState<Sport>(getDefaultSport);
+  // Shared with the Games tab: scrolling Home to MLB and tapping Games opens MLB.
+  const [selectedSport, setSelectedSport] = useCurrentSport();
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   // The single official public group for the selected sport. Null if none exists yet.
   const [publicGroup, setPublicGroup] = useState<(UserGroup & { isMember: boolean }) | null>(null);
@@ -133,7 +134,7 @@ export default function HomeScreen() {
       }
 
       // Load stats for the initial sport
-      const initialLeague = getSport(getDefaultSport()).league;
+      const initialLeague = getSport(getCurrentSport()).league;
       await loadUserStats(user.id, initialLeague);
 
       // Load sport-specific data

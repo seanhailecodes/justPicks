@@ -5,8 +5,8 @@ import PicksTicket, { TicketPick } from '@/components/PicksTicket';
 import FeedbackModal from '@/components/FeedbackModal';
 import SportTabs from '@/components/SportTabs';
 import { Session } from '@supabase/supabase-js';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Alert } from '../../lib/crossPlatformAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import {
   trackRemovedFromTicket,
 } from '../../lib/ai-data-helpers';
 import { useNotificationContext } from '../../components/NotificationContext';
-import { APP_SPORTS, AppSport, isSportInSeason } from '../../services/activeSport';
+import { APP_SPORTS, AppSport, getCurrentSport, isSportInSeason, setCurrentSport } from '../../services/activeSport';
 import { useSortedSports } from '../../services/useSortedSports';
 
 // Type definitions
@@ -183,6 +183,9 @@ export default function GamesScreen() {
         return sportConfig;
       }
     }
+    // Otherwise whatever the app is currently showing (Home's tabs set it).
+    const current = SPORTS.find(s => s.key === getCurrentSport());
+    if (current && current.enabled) return current;
     // Pick first enabled sport that is currently in season
     const activeSport = SPORTS.find(s => s.enabled && isSportInSeason(s.season));
     // Fall back to first enabled sport if nothing is in season
@@ -289,11 +292,28 @@ export default function GamesScreen() {
     const sportConfig = SPORTS.find(s => s.key === sportKey);
     if (sportConfig && sportConfig.enabled) {
       appliedSportParamRef.current = sportKey;
+      setCurrentSport(sportConfig.key);
       if (sportConfig.key !== selectedSport.key) {
         setSelectedSport(sportConfig);
       }
     }
   }, [params.sport]);
+
+  // Follow the app-wide current sport when this tab is focused (e.g. Home
+  // was scrolled to MLB, then the Games tab was tapped). Our own tab taps
+  // and incoming params write the same value, so the two never fight.
+  useFocusEffect(
+    useCallback(() => {
+      const key = getCurrentSport();
+      if (key !== selectedSport.key) {
+        const next = SPORTS.find(s => s.key === key);
+        if (next && next.enabled) {
+          appliedSportParamRef.current = key;
+          setSelectedSport(next);
+        }
+      }
+    }, [selectedSport.key])
+  );
 
   // Handle incoming gameId param — highlight and scroll to the target game
   useEffect(() => {
@@ -1000,6 +1020,7 @@ export default function GamesScreen() {
           const next = SPORTS.find((s) => s.key === key);
           if (next) {
             setSelectedSport(next);
+            setCurrentSport(next.key);
             // Keep the URL param + applied-param ref in sync with the manual
             // choice so a later param re-emission can't revert it, and so a
             // remount re-initializes to what the user actually picked.

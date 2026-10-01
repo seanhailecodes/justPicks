@@ -6,6 +6,7 @@
  * All screens import from here — no local sport lists needed.
  */
 
+import { useSyncExternalStore } from 'react';
 import { Sport } from './pickrating';
 
 export type { Sport };
@@ -85,4 +86,36 @@ export function getDefaultSport(): Sport {
  */
 export function getSport(key: Sport): AppSport {
   return APP_SPORTS.find(s => s.key === key) ?? APP_SPORTS[0];
+}
+
+// ============================================================
+// CURRENT SPORT — one value shared by every tab
+// ============================================================
+// Home and Games used to each keep their own selected sport, so scrolling
+// Home to MLB and tapping the Games tab opened NFL (2026-10-01). The tabs
+// now read and write this one value; a tab that is focused while it has
+// changed follows it.
+let currentSport: Sport | null = null;
+const currentSportListeners = new Set<() => void>();
+
+export function getCurrentSport(): Sport {
+  if (!currentSport) currentSport = getDefaultSport();
+  return currentSport;
+}
+
+export function setCurrentSport(key: Sport): void {
+  if (key === currentSport) return;
+  currentSport = key;
+  currentSportListeners.forEach(fn => fn());
+}
+
+function subscribeCurrentSport(fn: () => void): () => void {
+  currentSportListeners.add(fn);
+  return () => { currentSportListeners.delete(fn); };
+}
+
+/** React hook: [currentSport, setCurrentSport], re-renders on change from any tab. */
+export function useCurrentSport(): [Sport, (key: Sport) => void] {
+  const sport = useSyncExternalStore(subscribeCurrentSport, getCurrentSport, getCurrentSport);
+  return [sport, setCurrentSport];
 }
