@@ -207,6 +207,11 @@ export default function GamesScreen() {
   const appliedSportParamRef = useRef<string | null>(
     params.sport ? (params.sport as string).toLowerCase() : null
   );
+  // Every picks/games load takes a ticket; a load that is no longer the
+  // newest one throws its result away. Without this, tapping a sport tab
+  // while the previous tab was still loading let the OLD load finish last
+  // and overwrite the list (tap NCAAF → NFL games appear, 2026-09-30).
+  const loadSeqRef = useRef(0);
   // NOTE: must stay AFTER session declaration to avoid hook ordering crash
   const sortedSports = useSortedSports(session?.user?.id ?? null);
   const [isLoading, setIsLoading] = useState(false);
@@ -392,8 +397,10 @@ export default function GamesScreen() {
   };
 
   const loadUserPicks = async (userId: string, sportOverride?: SportConfig) => {
+    const seq = ++loadSeqRef.current;
     try {
       const result = await getUserPicks(userId, undefined);
+      if (seq !== loadSeqRef.current) return; // a newer load has started
 
       // Multi-bet model: each game can have a spread row, a moneyline
       // row, and a total row. The Map value carries one slot per bet
@@ -474,11 +481,12 @@ export default function GamesScreen() {
       }
 
       setUserPicks(picksMap);
-      await loadGamesFromDatabase(picksMap, sportOverride);
+      await loadGamesFromDatabase(picksMap, sportOverride, seq);
 
     } catch (error) {
       console.error('Error loading picks:', error);
-      await loadGamesFromDatabase(new Map(), sportOverride);
+      if (seq !== loadSeqRef.current) return;
+      await loadGamesFromDatabase(new Map(), sportOverride, seq);
     }
   };
 
@@ -488,7 +496,9 @@ export default function GamesScreen() {
     }
   };
 
-  const loadGamesFromDatabase = async (picksToUse?: Map<string, any>, sportOverride?: SportConfig) => {
+  const loadGamesFromDatabase = async (picksToUse?: Map<string, any>, sportOverride?: SportConfig, seq?: number) => {
+    const mySeq = seq ?? ++loadSeqRef.current;
+    const stale = () => mySeq !== loadSeqRef.current;
     setIsLoadingGames(true);
     try {
       // Filter from 3 hours ago so games in progress still show,
@@ -508,6 +518,7 @@ export default function GamesScreen() {
         .limit(50); // Get next 50 upcoming games
 
       const { data: dbGames, error } = await query;
+      if (stale()) return; // sport changed while this was in flight
 
       if (error) {
         console.error('Error loading games:', error);
@@ -604,11 +615,12 @@ export default function GamesScreen() {
         };
       });
 
+      if (stale()) return;
       setGames(transformedGames);
     } catch (error) {
       console.error('Error in loadGamesFromDatabase:', error);
     } finally {
-      setIsLoadingGames(false);
+      if (!stale()) setIsLoadingGames(false);
     }
   };
 
