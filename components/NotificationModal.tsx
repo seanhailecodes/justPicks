@@ -42,15 +42,37 @@ export default function NotificationModal({
 }: NotificationModalProps) {
   const [copied, setCopied] = useState(false);
 
-  const openUrl = (url: string, forceWebView = false) => {
-    onClose();
+  const [opening, setOpening] = useState(false);
+  const openUrl = async (url: string, forceWebView = false) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      onClose();
       window.open(url, '_blank', 'width=600,height=500');
-    } else if (forceWebView) {
-      // Open in Safari / in-app browser so the Facebook app can't intercept
-      WebBrowser.openBrowserAsync(url, { dismissButtonStyle: 'close' });
-    } else {
-      Linking.openURL(url);
+      return;
+    }
+    if (!forceWebView) {
+      // Hands off to Safari / the X or WhatsApp app — nothing is presented
+      // inside our app, so closing first is safe.
+      onClose();
+      Linking.openURL(url).catch(err => console.warn('[share] openURL failed:', err));
+      return;
+    }
+    // In-app browser (Facebook, so the FB app can't intercept). This used to
+    // call onClose() and then open the browser in the same tick: iOS tried
+    // to present the Safari sheet while this popup was still animating out,
+    // the presentation got tangled and the whole app stopped responding to
+    // touch until it was force-quit (2026-10-01, Sean, after "Share to
+    // Facebook"). Present the sheet on top of the popup instead and close
+    // the popup once the sheet has been dismissed.
+    if (opening) return;
+    setOpening(true);
+    try {
+      await WebBrowser.openBrowserAsync(url, { dismissButtonStyle: 'close' });
+    } catch (err) {
+      console.warn('[share] in-app browser failed, falling back to Safari:', err);
+      Linking.openURL(url).catch(() => {});
+    } finally {
+      setOpening(false);
+      onClose();
     }
   };
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
