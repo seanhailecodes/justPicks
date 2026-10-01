@@ -14,10 +14,8 @@
 #   2. The iOS bundle compiles.
 #   3. Static `import ... from 'expo-updates'` anywhere in app code → FAIL
 #      (it must stay behind the lazy loader in lib/appUpdates.ts).
-#   4. EXPO_PUBLIC_* are exported in this shell AND end up inlined in the
-#      exported bundle (the 2026-09-22 → 09-28 crash was a bundle published
-#      without them). Export runs with --clear so a stale Metro cache can't
-#      hide a missing value; publish with `eas update --clear-cache` too.
+#   4. The exported iOS bundle contains the Supabase URL and anon key (the
+#      2026-09-22 → 09-28 crash was a bundle published without them).
 #
 # Usage:  scripts/ota-preflight.sh [store-build-commit]
 #   Default store commit is read from scripts/store-build.txt.
@@ -72,30 +70,29 @@ fi
 
 # 2026-09-22 → 09-28 incident: every iPhone crashed on launch for a week
 # because the OTA bundle had `undefined` inlined for the Supabase URL/key
-# (Babel inlines EXPO_PUBLIC_* from the shell at transform time, and the
-# Metro transform cache re-uses that result for unchanged files, so one
-# export from a shell without the exports poisons later publishes too —
-# hence --clear above and --clear-cache on `eas update`). lib/supabase.ts
-# now falls back to the public values, so this check uses the VAPID key,
-# which has no fallback in code: it is only in the bundle if the env was
-# really inlined. Uses grep -a, not `strings` (macOS strings gave a false
-# FAIL on 2026-09-30).
-echo "▸ 4/4 EXPO_PUBLIC_ env inlined into the bundle"
+# (Babel inlines EXPO_PUBLIC_* from the shell at export time). The only
+# thing that matters for safety is that the exported bundle contains the
+# URL and the anon key — lib/supabase.ts now carries them as a fallback, so
+# this is a guard against that fallback being removed. Checked with grep -a
+# on the .hbc (macOS `strings` returns nothing for it). Do NOT test for the
+# VAPID key here: its only user is web-only code that the iOS bundle drops,
+# so it is never in the iOS bundle (false FAIL on 2026-10-01).
+echo "▸ 4/4 Supabase URL + anon key present in the iOS bundle"
 hbc=$(ls "$out"/_expo/static/js/ios/*.hbc 2>/dev/null | head -1)
-if [ -z "${EXPO_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ] || [ -z "${EXPO_PUBLIC_VAPID_PUBLIC_KEY:-}" ]; then
-  echo "  ✗ EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY / _VAPID_PUBLIC_KEY are not all exported in this shell (values: eas.json production.env)"
-  fail=1
-elif [ -z "$hbc" ]; then
+if [ -z "${EXPO_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]; then
+  echo "  ~ EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY not exported in this shell — relying on the built-in fallback"
+fi
+if [ -z "$hbc" ]; then
   echo "  ✗ no iOS .hbc found in the export"
   fail=1
-elif ! LC_ALL=C grep -a -q -F -e "$EXPO_PUBLIC_VAPID_PUBLIC_KEY" "$hbc"; then
-  echo "  ✗ exported bundle does not contain EXPO_PUBLIC_VAPID_PUBLIC_KEY — env was not inlined (stale Metro cache?)"
+elif ! LC_ALL=C grep -a -q -F -e 'https://oyedfzsqqqdfrmhbcbwb.supabase.co' "$hbc"; then
+  echo "  ✗ exported bundle does not contain the Supabase URL — this bundle would crash on launch"
   fail=1
-elif ! LC_ALL=C grep -a -q -F -e 'oyedfzsqqqdfrmhbcbwb.supabase.co' "$hbc"; then
-  echo "  ✗ exported bundle does not contain the Supabase URL"
+elif ! LC_ALL=C grep -a -q -F -e 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95ZWRmenNxcXFkZnJtaGJjYndiIiwicm9sZSI6ImFub24i' "$hbc"; then
+  echo "  ✗ exported bundle does not contain the Supabase anon key — this bundle would crash on launch"
   fail=1
 else
-  echo "  ✓ env inlined (VAPID key + Supabase URL present in the exported bundle)"
+  echo "  ✓ Supabase URL and anon key present"
 fi
 rm -rf "$out"
 
