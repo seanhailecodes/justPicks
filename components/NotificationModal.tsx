@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import type { AlertButton } from 'react-native';
 import { useEffect, useRef } from 'react';
-import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 
 interface NotificationModalProps {
@@ -42,37 +41,17 @@ export default function NotificationModal({
 }: NotificationModalProps) {
   const [copied, setCopied] = useState(false);
 
-  const [opening, setOpening] = useState(false);
-  const openUrl = async (url: string, forceWebView = false) => {
+  // Hands the link to Safari / the X or WhatsApp app and closes the popup.
+  // Nothing is presented inside our own app: on 2026-10-01 the Facebook
+  // button opened an in-app Safari sheet while this popup was still
+  // animating out and iOS froze every touch until the phone was restarted
+  // — twice. Never open an in-app browser from inside this popup.
+  const openUrl = (url: string) => {
+    onClose();
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      onClose();
       window.open(url, '_blank', 'width=600,height=500');
-      return;
-    }
-    if (!forceWebView) {
-      // Hands off to Safari / the X or WhatsApp app — nothing is presented
-      // inside our app, so closing first is safe.
-      onClose();
+    } else {
       Linking.openURL(url).catch(err => console.warn('[share] openURL failed:', err));
-      return;
-    }
-    // In-app browser (Facebook, so the FB app can't intercept). This used to
-    // call onClose() and then open the browser in the same tick: iOS tried
-    // to present the Safari sheet while this popup was still animating out,
-    // the presentation got tangled and the whole app stopped responding to
-    // touch until it was force-quit (2026-10-01, Sean, after "Share to
-    // Facebook"). Present the sheet on top of the popup instead and close
-    // the popup once the sheet has been dismissed.
-    if (opening) return;
-    setOpening(true);
-    try {
-      await WebBrowser.openBrowserAsync(url, { dismissButtonStyle: 'close' });
-    } catch (err) {
-      console.warn('[share] in-app browser failed, falling back to Safari:', err);
-      Linking.openURL(url).catch(() => {});
-    } finally {
-      setOpening(false);
-      onClose();
     }
   };
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -275,15 +254,6 @@ export default function NotificationModal({
               <>
                 <Text style={styles.fallbackLabel}>Share your pick:</Text>
                 <View style={styles.platformRow}>
-                  <TouchableOpacity
-                    style={[styles.platformBtn, { backgroundColor: '#1877F2' }]}
-                    onPress={() => openUrl(
-                      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(facebookShareUrl)}`,
-                      true /* open in browser, not FB app */
-                    )}
-                  >
-                    <Text style={styles.platformBtnText}>Facebook</Text>
-                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.platformBtn, { backgroundColor: '#000' }]}
                     onPress={() => openUrl(
