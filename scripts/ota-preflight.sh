@@ -59,6 +59,17 @@ else
   echo "  ✓ only lib/appUpdates.ts touches expo-updates"
 fi
 
+# 2026-10-01: opening an in-app browser sheet from inside a popup froze
+# every touch on iOS until the phone was restarted (Share to Facebook).
+# Links must hand off to Safari / another app via Linking.openURL instead.
+echo "▸ 2b  no in-app browser sheets"
+if grep -rnE "openBrowserAsync|openAuthSessionAsync|from ['\"]expo-web-browser['\"]" app components hooks services lib --include='*.ts' --include='*.tsx' 2>/dev/null; then
+  echo "  ✗ expo-web-browser must not be used in app code — use Linking.openURL"
+  fail=1
+else
+  echo "  ✓ no expo-web-browser usage"
+fi
+
 echo "▸ 3/4 iOS bundle compiles"
 out=$(mktemp -d)
 if CI=1 npx expo export -p ios --clear --output-dir "$out" >/dev/null 2>&1; then
