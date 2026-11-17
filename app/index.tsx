@@ -13,6 +13,7 @@ export default function Index() {
             Track your real pick record across NBA, NFL, NCAAB and more.
             Compete with friends. Find out if you actually have an edge.
           </Text>
+          <Text style={styles.recordLine}>NFL BestBets this season: 10-6 (63% ATS)</Text>
 
           <View style={styles.bullets}>
             <Text style={styles.bullet}>🏈  Spread, moneyline & over/under picks</Text>
@@ -84,6 +85,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  recordLine: {
+    color: '#34C759',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 12,
     marginBottom: 28,
   },
   bullets: {
